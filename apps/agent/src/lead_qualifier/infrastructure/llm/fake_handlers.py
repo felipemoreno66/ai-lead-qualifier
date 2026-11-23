@@ -109,9 +109,11 @@ def _tag(content: str, name: str) -> dict[str, Any]:
     return data
 
 
-def _text(lead: dict[str, Any]) -> str:
+def _text(lead: dict[str, Any], *, include_free_text: bool = True) -> str:
     answers = lead.get("answers", {})
-    parts = [answers.get("career_goal"), lead.get("free_text"), answers.get("looking_for")]
+    parts = [answers.get("career_goal")]
+    if include_free_text:
+        parts += [lead.get("free_text"), answers.get("looking_for")]
     return " ".join(str(p) for p in parts if p).strip()
 
 
@@ -166,7 +168,8 @@ def _judge(
     criterion: str, lead: dict[str, Any], product: dict[str, Any], profile: dict[str, Any]
 ) -> tuple[str, str]:
     answers = lead.get("answers", {})
-    goal = _text(lead)
+    # Free text flagged as an injection attempt is ignored, so it can neither help nor hurt.
+    goal = _text(lead, include_free_text=not profile.get("injection_suspected"))
     if criterion == "goal_fit":
         specific = answers.get("program") not in (None, "not-sure")
         if _has(goal, _TECH_WORDS):
@@ -222,7 +225,8 @@ def qualify(req: StructuredRequest[Any]) -> dict[str, Any]:
     lead = _tag(content, "lead_submission")
     profile = _tag(content, "lead_profile")
     context = _tag(content, "workspace_context")
-    product = _recommend(lead.get("answers", {}), _text(lead), context["products"])
+    trusted_text = _text(lead, include_free_text=not profile.get("injection_suspected"))
+    product = _recommend(lead.get("answers", {}), trusted_text, context["products"])
     criteria = []
     for criterion in context["criteria"]:
         judgment, evidence = _judge(criterion["id"], lead, product, profile)

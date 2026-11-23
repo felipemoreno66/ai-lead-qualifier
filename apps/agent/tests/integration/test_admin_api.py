@@ -250,7 +250,13 @@ async def test_end_to_end_inline_delivery_after_intake(make_client):
         await client.app.state.dispatcher.run_once()
         lead_id = await lead_id_for(client, "inline@")
         detail = (await client.get(f"/admin/leads/{lead_id}", headers=AUTH)).json()
-    assert [e["type"] for e in detail["events"]] == ["submitted", "outbox_delivered"]
+    assert [e["type"] for e in detail["events"]] == [
+        "submitted",
+        "status_changed",
+        "outbox_delivered",
+    ]
+    assert detail["status"] == "qualifying"  # graph ran inline; review comes in the next milestone
+    assert detail["score"] is not None and detail["tier"] in {"hot", "warm", "cold"}
     assert detail["outbox"][0]["status"] == "delivered"
     assert datetime.fromisoformat(detail["created_at"]).tzinfo is not None
     assert UTC
