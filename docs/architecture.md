@@ -149,7 +149,23 @@ flowchart TD
   (an edit keeps `original_body`), inserts the `message.approved` outbox event under the unique key
   `message:<id>:send` and moves the lead to `approved`. A replay is a no-op. Regenerate marks the old
   draft `rejected` with the feedback and creates version n+1.
-- Deleting a lead also deletes its checkpoints, which contain lead data.
+- The draft checks (`check_draft_detailed`) run again on the **final** text when the operator approves
+  or edits: problems answer 422 with their codes unless the request carries `override: true`, which is
+  recorded in the timeline (`reviewed` event with the problem codes). Control and bidirectional
+  characters are rejected in subjects and bodies. Only fixed problem codes (never lead-derived text)
+  are fed back to the model when it redrafts.
+- Each review action is claimed first: one transaction holds a row lock on the lead and writes the
+  new state (an approval also queues `message.approved` once); only then is the paused graph resumed.
+  A concurrent second request sees the new status (409), except that approving an already approved
+  lead answers 200 with the same result. If resuming fails after the claim, the database stays the
+  source of truth and the paused thread is discarded.
+- Checkpoints contain lead data: deleting a lead deletes its threads (retried), and the dispatcher's
+  hourly maintenance also removes orphaned threads and threads of runs that finished more than
+  `LLM_CALLS_RETENTION_DAYS` ago. Runs waiting for a human are never purged.
+- `agent_runs.duration_ms` includes the time spent waiting for review, and regenerating reuses the
+  same run (so the call cap and cost cover every draft).
+- Approved messages are queued as `message.approved` and sent as described below.
+
 
 ### Sending (M2.4)
 

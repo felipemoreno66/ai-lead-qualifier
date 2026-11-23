@@ -40,7 +40,8 @@ heavy and their "AI" is a black box.
   in `error` with a reason and can be retried.
 - **Drafting and human review (API)**: the agent drafts a reply in the lead's language, a deterministic
   guard checks length, links, placeholders and prices, and the graph pauses (Postgres checkpointer,
-  survives restarts) until `POST /admin/leads/{id}/review` approves, edits, rejects or regenerates it.
+  survives restarts; the checks run again on the approved or edited text) until
+  `POST /admin/leads/{id}/review` approves, edits, rejects or regenerates it.
   Approved messages are sent by SMTP (Mailpit locally) either in-process or through n8n, and the lead
   becomes `sent` (or `error`, retryable); the dashboard UI comes next.
 - **LLM provider layer**: one port with Anthropic, a deterministic fake

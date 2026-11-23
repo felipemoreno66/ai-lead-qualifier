@@ -7,11 +7,14 @@ connections pinned to ``search_path=langgraph`` so they never touch the applicat
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta
 
+import sqlalchemy as sa
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 SCHEMA = "langgraph"
 
@@ -48,6 +51,50 @@ class PostgresCheckpointer:
                 await saver.setup()
                 self._pool, self._saver = pool, saver
             return self._saver
+
+    async def purge_stale_threads(
+        self, engine: AsyncEngine, now: datetime, retention: timedelta
+    ) -> int:
+        """Delete checkpoint threads that hold lead data nobody needs any more: orphans (the lead
+        or run is gone) and runs that finished more than ``retention`` ago. Paused runs
+        (waiting for a human) are never touched."""
+        async with engine.connect() as conn:
+            if (
+                await conn.execute(sa.text("SELECT to_regclass('langgraph.checkpoints')"))
+            ).scalar() is None:
+                return 0
+            threads = (
+                (
+                    await conn.execute(
+                        sa.text("SELECT DISTINCT thread_id FROM langgraph.checkpoints")
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            runs = {
+                row.thread_id: row
+                for row in (
+                    await conn.execute(
+                        sa.text("SELECT thread_id, status, finished_at FROM agent_runs")
+                    )
+                ).all()
+            }
+        stale = [
+            t
+            for t in threads
+            if t not in runs
+            or (
+                runs[t].status in ("completed", "failed")
+                and runs[t].finished_at is not None
+                and runs[t].finished_at < now - retention
+            )
+        ]
+        if stale:
+            saver = await self.get()
+            for thread_id in stale:
+                await saver.adelete_thread(thread_id)
+        return len(stale)
 
     async def aclose(self) -> None:
         async with self._lock:

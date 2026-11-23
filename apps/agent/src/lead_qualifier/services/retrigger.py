@@ -72,5 +72,12 @@ async def delete_lead(
     if checkpointer is not None:
         saver = await checkpointer.get()
         for thread_id in thread_ids:
-            await saver.adelete_thread(thread_id)
+            for attempt in (1, 2):
+                try:
+                    await saver.adelete_thread(thread_id)
+                    break
+                except Exception as exc:  # the periodic sweep removes what is left
+                    log.error(
+                        "checkpoint_delete_failed", attempt=attempt, error_type=type(exc).__name__
+                    )
     log.info("lead_deleted", lead_id=str(lead_id))

@@ -248,6 +248,7 @@ _COPY: dict[str, dict[str, str]] = {
     "en": {
         "subject": "Your application to {business}",
         "hello": "Hi {name},",
+        "anon": "there",
         "intro": "Thank you for applying to {business}. Based on your application, the best fit"
         " for you looks like the {product}: {summary}",
         "price": "It costs USD {amount} ({note}).",
@@ -260,14 +261,16 @@ _COPY: dict[str, dict[str, str]] = {
     "es": {
         "subject": "Tu solicitud a {business}",
         "hello": "Hola {name},",
+        "anon": "estimado/a aspirante",
         "intro": "Gracias por postularte a {business}. Según tu solicitud, la mejor opción para ti"
-        " parece ser {product}: {summary}",
-        "price": "Cuesta USD {amount} ({note}).",
+        " parece ser {product}.",
+        "price": "Cuesta USD {amount}.",
         "price_plain": "Cuesta USD {amount}.",
         "next_hot": "Los cupos se llenan rápido, así que lo mejor es hablar esta semana.",
         "next_warm": "Con gusto resolvemos tus dudas y te ayudamos a decidir.",
         "next_cold": "No hay prisa: podemos ayudarte a encontrar el punto de partida adecuado.",
         "close": "{cta}.",
+        "signature": "— Equipo de Admisiones, {business}",
     },
 }
 
@@ -281,7 +284,7 @@ def draft(req: StructuredRequest[Any]) -> dict[str, Any]:
     first = re.sub(r"[^A-Za-zÀ-ÿ'-]", "", str(lead.get("name", "")).split(" ")[0])[:30]
     product = ctx["product"]
     price = product.get("price") or {}
-    parts = [copy["hello"].format(name=first.capitalize() or "there")]
+    parts = [copy["hello"].format(name=first.capitalize() or copy["anon"])]
     parts.append(
         copy["intro"].format(
             business=ctx["business"], product=product["name"], summary=product["summary"]
@@ -292,7 +295,8 @@ def draft(req: StructuredRequest[Any]) -> dict[str, Any]:
         parts.append(copy[key].format(amount=price["amount"], note=price.get("note")))
     parts.append(copy[f"next_{ctx['tier']}"])
     parts.append(copy["close"].format(cta=ctx["call_to_action"].rstrip(".")))
-    parts.append(ctx["signature"])
+    signature = copy.get("signature")
+    parts.append(signature.format(business=ctx["business"]) if signature else ctx["signature"])
     body = "\n\n".join(parts)
     return {
         "subject": copy["subject"].format(business=ctx["business"]),

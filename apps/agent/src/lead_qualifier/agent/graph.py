@@ -34,7 +34,7 @@ from lead_qualifier.agent.prompts import (
     render_operator_feedback,
     render_workspace_context,
 )
-from lead_qualifier.domain.draft_guard import check_draft
+from lead_qualifier.domain.draft_guard import check_draft_detailed
 from lead_qualifier.domain.scoring import compute_score, tier_for
 from lead_qualifier.domain.workspace import Tier, WorkspaceConfig
 from lead_qualifier.infrastructure.llm.structured import generate_validated
@@ -53,6 +53,7 @@ class QualifyState(TypedDict, total=False):
     draft: DraftOutput
     draft_language: str
     guard_problems: list[str]
+    guard_codes: list[str]
     guard_redrafts: int
     guard_retry: bool
     operator_feedback: str
@@ -108,7 +109,10 @@ async def extract_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict
         result = await generate_validated(deps.provider, request)
     except LLMError as exc:
         return _error(exc)
-    return {"profile": result.value}
+    profile = result.value
+    # The same question can appear in the form text and the free text.
+    questions = list({q.strip().lower(): q.strip() for q in profile.questions}.values())
+    return {"profile": profile.model_copy(update={"questions": questions})}
 
 
 def _domain_check(workspace: WorkspaceConfig) -> Callable[[QualificationOutput], None]:
@@ -189,7 +193,12 @@ async def draft_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[s
         render_lead_submission(state["lead"]),
         render_lead_profile(state["profile"]),
     ]
-    feedback = [*state.get("guard_problems", [])]
+    # Only the fixed problem codes go back to the model, never text that may echo lead input.
+    feedback = (
+        [f"fix these problems: {', '.join(state['guard_codes'])}"]
+        if state.get("guard_codes")
+        else []
+    )
     if state.get("operator_feedback"):
         feedback.append(state["operator_feedback"])
     if feedback:
@@ -214,7 +223,7 @@ async def draft_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[s
 
 def validate_draft_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[str, Any]:
     draft = state["draft"]
-    problems = check_draft(
+    problems = check_draft_detailed(
         runtime.context.workspace,
         language=state["draft_language"],
         subject=draft.subject,
@@ -224,7 +233,8 @@ def validate_draft_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dic
     redrafts = state.get("guard_redrafts", 0)
     retry = bool(problems) and redrafts < MAX_GUARD_REDRAFTS
     return {
-        "guard_problems": problems,
+        "guard_problems": [p.message for p in problems],
+        "guard_codes": list(dict.fromkeys(p.code for p in problems)),
         "guard_redrafts": redrafts + 1 if retry else redrafts,
         "guard_retry": retry,
     }
@@ -243,6 +253,7 @@ def human_review_node(state: QualifyState) -> dict[str, Any]:
             "operator_feedback": str(decision.get("feedback") or ""),
             "guard_redrafts": 0,
             "guard_problems": [],
+            "guard_codes": [],
         }
     return update
 

@@ -1,3 +1,4 @@
+# ruff: noqa: RUF001
 from __future__ import annotations
 
 from typing import Any
@@ -97,7 +98,8 @@ async def test_fake_drafts_for_every_northwind_seed_pass_the_guard(
     assert state["guard_problems"] == [], state["guard_problems"]
     assert language == state["profile"].detected_language or language == "en"
     assert state["result"].recommended_product and draft.subject and draft.short_body
-    assert "Northwind Academy" in draft.body and "Admissions Team" in draft.body
+    assert "Northwind Academy" in draft.body
+    assert "Admissions Team" in draft.body or "Equipo de Admisiones" in draft.body
     assert "__interrupt__" in state
 
 
@@ -141,7 +143,8 @@ async def test_a_bad_draft_is_redrafted_once_with_the_problems_as_feedback(
     provider.generate_structured = spy  # type: ignore[method-assign]
     state = await run(make_lead(), cfg(registry), provider)
     assert provider.calls == 4 and state["guard_problems"] == []
-    assert "<operator_feedback>" in seen[-1] and "evil.example" in seen[-1]
+    assert "<operator_feedback>" in seen[-1] and "disallowed_link" in seen[-1]
+    assert "evil.example" not in seen[-1]
 
 
 async def test_a_draft_that_stays_bad_goes_to_review_with_warnings(registry: WorkspaceRegistry):
@@ -216,8 +219,8 @@ async def test_regenerate_redrafts_with_the_feedback_and_pauses_again(registry: 
         "evil.com/path",
         "evil.com",
         "www.evil.com/x",
-        "https://northwindı-academy.example/apply",  # dotless i look-alike  # noqa: RUF001
-        "https://nоrthwind-academy.example/apply",  # Cyrillic o look-alike  # noqa: RUF001
+        "https://northwindı-academy.example/apply",  # dotless i look-alike
+        "https://nоrthwind-academy.example/apply",  # Cyrillic o look-alike
         "https://northwind-academy.example.evil.com",
         "https://xn--northwnd-academy-wmb.example",
     ],
@@ -262,3 +265,86 @@ def test_every_content_rule_also_covers_short_body(registry: WorkspaceRegistry):
 
 def test_the_subject_is_checked_for_links_too(registry: WorkspaceRegistry):
     assert problems(registry, "Hello Ana", subject="Visit evil.com")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "It costs COP 5,000,000 only",
+        "It costs 4000 pesos only",
+        "Only MXN 999 today",
+        "just 5k for you and your team with us",
+        "solo 5 mil para ti",
+        "Visit evil。com for details",  # ideographic full stop
+        "Visit evil．com/x for details",  # fullwidth full stop
+        "Visit evil[.]com for details",
+        "Visit evil(.)com for details",
+        "Visit evil dot com for details",
+        "Visit EVIL.COM/x for details",
+        "Visit ｅｖｉｌ.com for details",  # fullwidth letters (NFKC)
+    ],
+)
+def test_guard_gaps_for_other_currencies_shorthand_and_obfuscated_links(
+    registry: WorkspaceRegistry, text: str
+):
+    assert problems(registry, text), text
+
+
+def test_unsafe_characters_are_a_problem(registry: WorkspaceRegistry):
+    assert any(
+        "control" in p for p in problems(registry, "Hello", subject="Hi\r\nBcc: x@evil.test")
+    )
+    assert any("control" in p for p in problems(registry, "Hello", subject="Hi‮evil"))
+    assert any("control" in p for p in problems(registry, "Hello\u0000there"))
+    assert problems(registry, "Hello\nthere,\n\tfine") == []
+
+
+async def test_the_redraft_prompt_carries_problem_codes_not_text(registry: WorkspaceRegistry):
+    seen: list[str] = []
+    bad = {**GOOD, "body": "Pay at https://evil.example/SECRET-LEAD-TEXT now"}
+    provider = FakeProvider(handlers=FAKE_HANDLERS, script=[None, None, bad, None])
+    original = provider.generate_structured
+
+    async def spy(req):  # type: ignore[no-untyped-def]
+        seen.append(req.messages[-1].content)
+        return await original(req)
+
+    provider.generate_structured = spy  # type: ignore[method-assign]
+    await run(make_lead(), cfg(registry), provider)
+    assert "fix these problems: disallowed_link" in seen[-1]
+    assert "SECRET-LEAD-TEXT" not in seen[-1] and "evil.example" not in seen[-1]
+
+
+async def test_spanish_fake_drafts_are_entirely_spanish(registry: WorkspaceRegistry):
+    state = await run(lead_from_seed(SEEDS[0]), cfg(registry))
+    words = set(state["draft"].body.lower().replace(",", " ").replace(".", " ").split())
+    english = {"the", "and", "you", "your", "for", "with", "this", "that", "our", "are", "will"}
+    assert state["draft_language"] == "es" and not words & english
+    assert "Equipo de Admisiones" in state["draft"].body
+
+
+async def test_duplicate_questions_are_removed(registry: WorkspaceRegistry):
+    lead = make_lead(
+        career_goal="Is there a payment plan? I want to learn data.",
+        looking_for="Is there a payment plan?",
+    )
+    state = await run(lead, cfg(registry))
+    assert len(state["profile"].questions) == len(
+        set(q.lower() for q in state["profile"].questions)
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "See https://northwind-academy.example＠evil.com/login now",  # fullwidth @
+        "See https://northwind-academy.example：8443/x now",  # fullwidth colon (port)
+        "See https://evil.com／x now",  # fullwidth slash
+        "See evil.com／x now",
+        "See evil.com？a=1 now",  # fullwidth question mark
+        "See https://evil.com＃top now",  # fullwidth number sign
+        "See northwind-academy.example＠evil.com now",
+    ],
+)
+def test_fullwidth_delimiters_cannot_hide_a_foreign_host(registry: WorkspaceRegistry, text: str):
+    assert problems(registry, text), text

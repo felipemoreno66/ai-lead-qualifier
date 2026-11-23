@@ -165,5 +165,6 @@ async def review_lead(lead_id: uuid.UUID, payload: ReviewRequest, request: Reque
         body=payload.body,
         feedback=payload.feedback,
         note=payload.note,
+        override=payload.override,
     )
     return ReviewResult(**vars(outcome))
