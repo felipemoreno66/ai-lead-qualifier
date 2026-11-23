@@ -269,3 +269,22 @@ flowchart LR
 
 Deviation from the plan: the call cap counts per agent run, not per lead across runs, because
 `llm_calls` references runs; a re-run gets a fresh allowance and the global budget still applies.
+
+## Knowledge base ingestion (M3.2)
+
+`python -m lead_qualifier.scripts.ingest_kb <workspace> [--force]` (or `POST /admin/kb/{slug}/reindex`,
+admin token) reads `workspaces/<slug>/<knowledge_base.path>/*.md` (files starting with `_` are
+authoring notes and skipped) and stores chunks in pgvector.
+
+- **Chunking** (`domain/kb_chunker.py`): LangChain `MarkdownHeaderTextSplitter` on `#` to `####`, then a
+  recursive splitter caps each section at 500 tokens with 50 overlap. Each chunk keeps its heading path
+  (`Pricing > Bootcamp > Payment plan`), which is also prepended to the text that is embedded.
+- **Idempotent**: a document whose SHA-256 and embedding model are unchanged is skipped; documents
+  deleted from disk lose their chunks; concurrent runs for one workspace are serialized with an advisory lock.
+- **Embeddings port** (`ports/embeddings.py`): `fastembed` with
+  `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensions, downloaded into `EMBEDDINGS_CACHE_DIR` on first
+  use, not at image build), an optional OpenAI adapter (`text-embedding-3-small` at 384 dimensions, untested
+  against the real API) and a deterministic `FakeEmbeddings` used by tests and CI.
+- **Tables** (migration `0010`): `kb_documents`, `kb_chunks` with `vector(384)`, an HNSW index with
+  `vector_cosine_ops` and a CHECK on `embedding_model`. Retrieval (`KnowledgeBaseService.retrieve`) only
+  compares vectors of the active model and returns the top-k above a minimum cosine similarity.
