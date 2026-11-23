@@ -1,4 +1,4 @@
-.PHONY: up down logs test lint fmt schemas seed seed-reset e2e eval
+.PHONY: up down logs test lint fmt schemas seed seed-reset e2e eval eval-rag
 
 up:
 	docker compose up -d --build --wait
@@ -36,3 +36,8 @@ e2e: seed-reset
 # Qualification eval with the fake provider (offline, free). See evals/qualification/README.md.
 eval:
 	cd apps/agent && uv run python ../../evals/qualification/run.py
+
+# RAG eval with the fake provider and fake embeddings (offline, free; checks plumbing, not quality).
+# Real run: see evals/rag/README.md.
+eval-rag:
+	cd apps/agent && uv run python ../../evals/rag/run.py
