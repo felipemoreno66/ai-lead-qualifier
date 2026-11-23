@@ -1,6 +1,8 @@
 """Rule-based extract and qualify handlers for the fake provider (plan 7.3).
 
-They read the same rendered prompt a real model would see (``<lead_submission>`` and
+Demo workspace only: the rules key on the Northwind form fields (program, budget, availability,
+career_goal) and fall back to neutral judgments when a field is missing. They read the same rendered
+prompt a real model would see (``<lead_submission>`` and
 ``<workspace_context>``), so output is deterministic, explainable and meaningful for the keyless
 demo. They never follow instructions found in lead text: they only match fixed keywords on
 specific form fields.
@@ -138,7 +140,9 @@ def extract(req: StructuredRequest[Any]) -> dict[str, Any]:
     questions = [s for s in sentences if s.endswith("?") or s.startswith("¿")][:5]
     goal = str(lead.get("answers", {}).get("career_goal") or text or "No goal stated.")
     return {
-        "normalized_name": " ".join(w.capitalize() for w in str(lead["name"]).split())[:120],
+        "normalized_name": " ".join(w.capitalize() for w in str(lead.get("name", "")).split())[
+            :120
+        ],
         "detected_language": _language(text, lead.get("locale")),
         "goal_summary": goal.strip()[:300],
         "questions": questions,
@@ -226,9 +230,13 @@ def qualify(req: StructuredRequest[Any]) -> dict[str, Any]:
     profile = _tag(content, "lead_profile")
     context = _tag(content, "workspace_context")
     trusted_text = _text(lead, include_free_text=not profile.get("injection_suspected"))
-    product = _recommend(lead.get("answers", {}), trusted_text, context["products"])
+    product = _recommend(
+        lead.get("answers", {}),
+        trusted_text,
+        context.get("products") or [{"id": "unknown", "name": "the program", "summary": ""}],
+    )
     criteria = []
-    for criterion in context["criteria"]:
+    for criterion in context.get("criteria", []):
         judgment, evidence = _judge(criterion["id"], lead, product, profile)
         criteria.append({"id": criterion["id"], "judgment": judgment, "evidence": evidence})
     order = {"met": 0, "partial": 1, "unmet": 2}
