@@ -91,7 +91,8 @@ async def db(engine: AsyncEngine, registry: WorkspaceRegistry) -> AsyncEngine:
     async with engine.begin() as conn:
         await conn.execute(
             sa.text(
-                "TRUNCATE leads, lead_events, outbox_events, rate_limit_hits, workspaces, llm_calls CASCADE"
+                "TRUNCATE leads, lead_events, outbox_events, rate_limit_hits, workspaces,"
+                " llm_calls CASCADE"
             )
         )
     await sync_workspaces(engine, registry, SystemClock())
