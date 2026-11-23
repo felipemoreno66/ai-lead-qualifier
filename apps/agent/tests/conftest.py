@@ -130,11 +130,19 @@ def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_settings):
 
     clients: list[httpx.AsyncClient] = []
 
-    def _make(clock: object | None = None, **overrides: object) -> httpx.AsyncClient:
+    def _make(
+        clock: object | None = None, llm_provider: object | None = None, **overrides: object
+    ) -> httpx.AsyncClient:
         settings = make_settings(**overrides)
         enabled = frozenset(settings.enabled_workspace_slugs)
         reg = load_workspaces(WORKSPACES_DIR, app_env="test", enabled=enabled)
-        app = create_app(settings, engine=db, registry=reg, clock=clock)  # type: ignore[arg-type]
+        app = create_app(
+            settings,
+            engine=db,
+            registry=reg,
+            clock=clock,  # type: ignore[arg-type]
+            llm_provider=llm_provider,  # type: ignore[arg-type]
+        )
         client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
             base_url="http://test",

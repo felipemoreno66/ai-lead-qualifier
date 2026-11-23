@@ -154,6 +154,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/internal/leads/{lead_id}/qualify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Qualify Lead
+     * @description Run the qualification graph. A failed run answers 200 with ``status: error``.
+     */
+    post: operations["qualify_lead_internal_leads__lead_id__qualify_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/readyz": {
     parameters: {
       query?: never;
@@ -473,6 +493,29 @@ export interface components {
       slug: string;
       /** Tagline */
       tagline: string;
+    };
+    /** QualifyResult */
+    QualifyResult: {
+      /**
+       * Agent Run Id
+       * Format: uuid
+       */
+      agent_run_id: string;
+      /** Error Reason */
+      error_reason?: string | null;
+      /**
+       * Lead Id
+       * Format: uuid
+       */
+      lead_id: string;
+      /** Recommended Product */
+      recommended_product?: string | null;
+      /** Score */
+      score?: number | null;
+      /** Status */
+      status: string;
+      /** Tier */
+      tier?: string | null;
     };
     /** RetriggerResult */
     RetriggerResult: {
@@ -830,6 +873,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AckResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  qualify_lead_internal_leads__lead_id__qualify_post: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path: {
+        lead_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["QualifyResult"];
         };
       };
       /** @description Validation Error */
