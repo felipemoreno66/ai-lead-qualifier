@@ -139,3 +139,33 @@ describe("state-changing BFF routes", () => {
     expect(response.status).toBe(404);
   });
 });
+
+
+describe("BFF routes in production", () => {
+  it("each route enforces the dashboard credentials itself", async () => {
+    vi.stubEnv("APP_ENV", "production");
+    vi.stubEnv("DASHBOARD_USER", "ops");
+    vi.stubEnv("DASHBOARD_PASSWORD", "pw");
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const id = "3f1c2f5e-8a47-4f3b-9c1d-2f6f7d6c1a11";
+    const ctx = { params: Promise.resolve({ id }) };
+    const list = await import("@/app/bff/leads/route");
+    const one = await import("@/app/bff/leads/[id]/route");
+    const re = await import("@/app/bff/leads/[id]/retrigger/route");
+    const ws = await import("@/app/bff/workspaces/route");
+    const bare = new Request("http://web/bff/leads");
+    const withNext = Object.assign(bare, { nextUrl: new URL(bare.url) }) as never;
+    const mutate = { "x-requested-with": "lead-qualifier" };
+    const responses = [
+      await list.GET(withNext),
+      await one.GET(new Request(`http://web/bff/leads/${id}`), ctx),
+      await one.DELETE(new Request(`http://web/bff/leads/${id}`, { method: "DELETE", headers: mutate }), ctx),
+      await re.POST(new Request(`http://web/bff/leads/${id}/retrigger`, { method: "POST", headers: mutate }), ctx),
+      await ws.GET(new Request("http://web/bff/workspaces")),
+    ];
+    expect(responses.map((r) => r.status)).toEqual([401, 401, 401, 401, 401]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+});

@@ -12,8 +12,8 @@ async function leadId(ctx: Ctx): Promise<string | null> {
   return parsed.success ? parsed.data : null;
 }
 
-export function GET(_request: Request, ctx: Ctx) {
-  return handle(async () => {
+export function GET(request: Request, ctx: Ctx) {
+  return handle(request, async () => {
     const id = await leadId(ctx);
     if (!id) return errorResponse("Not found", "Unknown lead.", 404);
     return NextResponse.json(await adminFetch(`/admin/leads/${id}`, leadDetailSchema));
@@ -21,7 +21,7 @@ export function GET(_request: Request, ctx: Ctx) {
 }
 
 export function DELETE(request: Request, ctx: Ctx) {
-  return handle(async () => {
+  return handle(request, async () => {
     const forbidden = assertSameOrigin(request);
     if (forbidden) return forbidden;
     const id = await leadId(ctx);

@@ -27,7 +27,7 @@ const querySchema = z.object({
 });
 
 export function GET(request: NextRequest) {
-  return handle(async () => {
+  return handle(request, async () => {
     const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
     if (!parsed.success) return errorResponse("Invalid query", parsed.error.issues[0]?.message ?? "", 400);
     const { status, tier, ...rest } = parsed.data;

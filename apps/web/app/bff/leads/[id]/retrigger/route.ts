@@ -7,7 +7,7 @@ import { adminFetch } from "@/lib/api/server";
 export const dynamic = "force-dynamic";
 
 export function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  return handle(async () => {
+  return handle(request, async () => {
     const forbidden = assertSameOrigin(request);
     if (forbidden) return forbidden;
     const id = z.uuid().safeParse((await ctx.params).id);

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { guardDashboard, isProtectedPath } from "@/lib/auth/dashboard-guard";
+import {
+  authState,
+  guardDashboard,
+  guardRequest,
+  isPublicPath,
+  normalizePath,
+} from "@/lib/auth/dashboard-guard";
 
 const basic = (user: string, password: string) =>
   `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`;
@@ -41,10 +47,50 @@ describe("dashboard guard", () => {
     expect(guardDashboard(req("/dashboard"), prod)?.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("leaves the public form, privacy notice and static assets open", () => {
-    for (const path of ["/w/northwind-academy/apply", "/privacy/northwind-academy", "/", "/dashboardx"]) {
-      expect(isProtectedPath(path)).toBe(false);
-      expect(guardDashboard(req(path), prod)).toBeNull();
+  it("leaves only the public form, thank-you, privacy notice and static assets open", () => {
+    const open = [
+      "/",
+      "/w/northwind-academy/apply",
+      "/w/northwind-academy/apply/thanks",
+      "/privacy/northwind-academy",
+      "/_next/static/chunks/app.js",
+      "/_next/image",
+      "/favicon.ico",
+      "/robots.txt",
+    ];
+    for (const path of open) {
+      expect(isPublicPath(path), path).toBe(true);
+      expect(guardDashboard(req(path), prod), path).toBeNull();
     }
+  });
+
+  it("blocks every variant of the protected routes (encoding, slashes, case, trailing, dots)", () => {
+    const variants = [
+      "/dashboard", "/dashboard/", "/Dashboard", "/DASHBOARD/leads/1", "//dashboard", "///dashboard//leads",
+      "/%64ashboard", "/%64%61shboard/leads", "/%2564ashboard", "/dashboard/%2e%2e/dashboard", "/w/../dashboard",
+      "/./dashboard", "/bff/leads", "/BFF/leads", "//bff//leads", "/%62ff/leads", "/bff/", "/bff",
+      "/dashboard;x=1", "/dashboard%00", "/dashboard%2fleads", "/dashboard\\leads", "/unknown", "/api/x",
+      "/w/northwind-academy/other", "/privacy", "/privacy/a/b", "/_next/data/x.json", "/%zz",
+    ];
+    for (const path of variants) {
+      expect(guardDashboard(req(path), prod)?.status, path).toBe(401);
+      expect(guardDashboard(req(path), { APP_ENV: "production" })?.status, path).toBe(503);
+    }
+  });
+
+  it("normalises paths before matching", () => {
+    expect(normalizePath("//a/./b/../C/")).toBe("/a/c");
+    expect(normalizePath("/%2564ashboard")).toBe("/dashboard");
+    expect(normalizePath("/%zz")).toBeNull();
+  });
+
+  it("route-level and layout-level checks use the same credentials", () => {
+    expect(guardRequest(req("/anything"), prod)?.status).toBe(401);
+    expect(guardRequest(req("/anything", basic("ops", prod.DASHBOARD_PASSWORD)), prod)).toBeNull();
+    expect(guardRequest(req("/anything"), { APP_ENV: "local" })).toBeNull();
+    expect(authState(null, { APP_ENV: "production" })).toBe("unconfigured");
+    expect(authState(basic("ops", prod.DASHBOARD_PASSWORD), prod)).toBe("ok");
+    expect(authState(basic("ops", "x"), prod)).toBe("denied");
+    expect(authState(null, {})).toBe("open");
   });
 });

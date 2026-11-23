@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { AgentError } from "./server";
 
+import { guardRequest } from "@/lib/auth/dashboard-guard";
 import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from "./constants";
 
 export function errorResponse(title: string, detail: string, status: number) {
@@ -10,7 +11,14 @@ export function errorResponse(title: string, detail: string, status: number) {
 }
 
 /** Map failures of an agent call to a JSON error the browser client understands. */
-export async function handle(run: () => Promise<Response>): Promise<Response> {
+export async function handle(request: Request, run: () => Promise<Response>): Promise<Response> {
+  // Every BFF route re-checks the operator credentials itself (the proxy is not the only gate).
+  const denied = guardRequest(request, {
+    APP_ENV: process.env.APP_ENV,
+    DASHBOARD_USER: process.env.DASHBOARD_USER,
+    DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD,
+  });
+  if (denied) return denied;
   try {
     return await run();
   } catch (error) {
