@@ -39,8 +39,17 @@ export function assertSameOrigin(request: Request): Response | null {
   const origin = request.headers.get("origin");
   const host =
     request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? new URL(request.url).host;
-  if (origin && new URL(origin).host !== host) {
+  if (origin && originHost(origin) !== host) {
     return errorResponse("Forbidden", "Cross-origin requests are not allowed.", 403);
   }
   return null;
+}
+
+/** Host of an Origin header, or null when it is malformed or the opaque "null" origin. */
+function originHost(origin: string): string | null {
+  try {
+    return new URL(origin).host || null;
+  } catch {
+    return null;
+  }
 }

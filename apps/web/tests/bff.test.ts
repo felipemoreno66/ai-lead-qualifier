@@ -85,6 +85,23 @@ describe("state-changing BFF routes", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("answer 403, not 500, for a malformed or opaque Origin header", async () => {
+    const { DELETE } = await import("@/app/bff/leads/[id]/route");
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    for (const origin of ["null", "not a url", "://"]) {
+      const response = await DELETE(
+        new Request(`http://web/bff/leads/${id}`, {
+          method: "DELETE",
+          headers: { "x-requested-with": "lead-qualifier", host: "web", origin },
+        }),
+        ctx,
+      );
+      expect(response.status).toBe(403);
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("accept the browser's origin when it matches the Host header", async () => {
     const { DELETE } = await import("@/app/bff/leads/[id]/route");
     mockAgent(() => new Response(null, { status: 204 }));
