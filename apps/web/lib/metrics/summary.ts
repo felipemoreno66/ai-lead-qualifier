@@ -48,10 +48,34 @@ export function scoreHeadline(m: Metrics): string {
   return `${Math.round((top.count / total) * 100)}% of scored leads are ${top.tier}`;
 }
 
+/** Median first, so a few slow or fast leads do not skew the sentence; p90 shows the tail. */
 export function timeHeadline(m: Metrics): string {
   const t = m.time_to_qualify;
-  if (t.count === 0 || t.avg_seconds === null) return "No lead has been qualified yet";
-  return `Qualification takes ${formatDuration(t.avg_seconds)} on average`;
+  if (t.count === 0 || t.p50_seconds === null) return "No lead has been qualified yet";
+  const median = formatDuration(t.p50_seconds);
+  if (t.p90_seconds !== null && formatDuration(t.p90_seconds) === median)
+    return `Most leads were qualified within ${median}`;
+  return `Half of the leads were qualified within ${median}`;
+}
+
+export function timeCaption(m: Metrics): string {
+  const t = m.time_to_qualify;
+  if (t.count === 0 || t.p90_seconds === null) return "Time from application to a score";
+  return `Nine in ten took ${formatDuration(t.p90_seconds)} or less, measured on ${pluralize(t.count, "lead")}.`;
+}
+
+export function volumeHeadline(m: Metrics): string {
+  const days = m.leads_per_day.length;
+  const today = m.leads_per_day.at(-1)?.count ?? 0;
+  return `${pluralize(m.total_leads, "lead")} in ${days === 1 ? "one day" : `${days} days`}, ${today} on the last day`;
+}
+
+/** Every k-th day label (and always the last) so axis ticks are evenly spaced. */
+export function dayTicks(labels: string[], target = 6): string[] {
+  if (labels.length <= target) return labels;
+  const step = Math.ceil((labels.length - 1) / (target - 1));
+  const ticks = labels.filter((_, i) => i % step === 0 && labels.length - 1 - i >= step / 2);
+  return [...ticks, labels[labels.length - 1]];
 }
 
 export function costHeadline(m: Metrics): string {
@@ -64,15 +88,6 @@ export function costHeadline(m: Metrics): string {
   return c.avg_per_lead_usd !== null && c.avg_per_lead_usd < 0.01
     ? "Each lead costs under one cent"
     : `Each lead costs ${formatUsd(c.avg_per_lead_usd ?? 0)} on average`;
-}
-
-/** Tier of a score bucket from the workspace thresholds (`none` when they are unknown). */
-export function bucketTier(
-  minScore: number,
-  thresholds: Metrics["tier_thresholds"],
-): "hot" | "warm" | "cold" | "none" {
-  if (!thresholds) return "none";
-  return minScore >= thresholds.hot_min ? "hot" : minScore >= thresholds.warm_min ? "warm" : "cold";
 }
 
 export const statusLabel = (status: string) => STATUS_LABELS[status] ?? status;

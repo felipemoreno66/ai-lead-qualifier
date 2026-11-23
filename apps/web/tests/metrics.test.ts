@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Metrics } from "@/lib/api/schemas";
 import {
-  bucketTier,
+  dayTicks,
+  timeCaption,
+  volumeHeadline,
   costHeadline,
   formatDuration,
   formatUsd,
@@ -26,9 +28,9 @@ const base: Metrics = {
     { status: "sent", count: 20 },
   ],
   score_histogram: [
-    { min_score: 0, max_score: 9, count: 1 },
-    { min_score: 70, max_score: 79, count: 6 },
-    { min_score: 90, max_score: 100, count: 3 },
+    { min_score: 0, max_score: 9, count: 1, hot: 0, warm: 0, cold: 1 },
+    { min_score: 70, max_score: 79, count: 6, hot: 3, warm: 3, cold: 0 },
+    { min_score: 90, max_score: 100, count: 3, hot: 3, warm: 0, cold: 0 },
   ],
   tier_split: [
     { tier: "hot", count: 6 },
@@ -38,7 +40,10 @@ const base: Metrics = {
   ],
   tier_thresholds: { hot_min: 75, warm_min: 45 },
   time_to_qualify: { count: 10, avg_seconds: 38, p50_seconds: 30, p90_seconds: 70 },
-  leads_per_day: [{ day: "2026-11-01", count: 2 }],
+  leads_per_day: [
+    { day: "2026-11-01", count: 2 },
+    { day: "2026-11-02", count: 5 },
+  ],
   cost: {
     total_usd: 0.4,
     avg_per_lead_usd: 0.0094,
@@ -55,7 +60,12 @@ describe("metrics wording", () => {
     expect(statusHeadline(base)).toBe("43 leads came in, and 24 already got a reply");
     expect(repliedCount(base)).toBe(24);
     expect(scoreHeadline(base)).toBe("60% of scored leads are hot");
-    expect(timeHeadline(base)).toBe("Qualification takes 38 seconds on average");
+    expect(timeHeadline(base)).toBe("Half of the leads were qualified within 30 seconds");
+    expect(timeCaption(base)).toContain("Nine in ten took 70 seconds or less");
+    expect(timeHeadline({ ...base, time_to_qualify: { ...base.time_to_qualify, p90_seconds: 30 } })).toBe(
+      "Most leads were qualified within 30 seconds",
+    );
+    expect(volumeHeadline(base)).toBe("43 leads in 2 days, 5 on the last day");
     expect(costHeadline(base)).toBe("Each lead costs under one cent");
   });
 
@@ -90,10 +100,14 @@ describe("metrics helpers", () => {
     expect(shortDay("2026-11-05")).toBe("Nov 5");
   });
 
-  it("colors score buckets by the workspace thresholds", () => {
-    const t = { hot_min: 75, warm_min: 45 };
-    expect([0, 40, 50, 70, 80, 90].map((n) => bucketTier(n, t))).toEqual(["cold", "cold", "warm", "warm", "hot", "hot"]);
-    expect(bucketTier(80, null)).toBe("none");
+  it("spaces axis ticks evenly and keeps the last day", () => {
+    const days = Array.from({ length: 30 }, (_, i) => `d${i}`);
+    const ticks = dayTicks(days);
+    expect(ticks.at(-1)).toBe("d29");
+    expect(ticks.length).toBeLessThanOrEqual(7);
+    const gaps = ticks.slice(1, -1).map((t, i) => days.indexOf(t) - days.indexOf(ticks[i]));
+    expect(new Set(gaps).size).toBe(1);
+    expect(dayTicks(["a", "b"])).toEqual(["a", "b"]);
   });
 });
 

@@ -11,8 +11,9 @@ test.describe("Metrics page", () => {
     await expect(status).toContainText(/\d+ leads came in/);
     await expect(page.getByRole("img", { name: /came in/ })).toBeVisible();
     await expect(page.locator("#m-score")).toContainText(/scored leads are (hot|warm|cold)/);
-    await expect(page.locator("#m-score").locator("..")).toContainText("Hot starts at 75, warm at 45");
-    await expect(page.locator("#m-day")).toContainText(/Qualification takes|No lead has been qualified/);
+    await expect(page.locator("section.mc:has(#m-score) .legend")).toContainText("Hot, 75 and above");
+    await expect(page.locator("#m-day")).toContainText(/\d+ leads? in \d+ days/);
+    await expect(page.locator("#m-time")).toContainText(/qualified within|No lead has been qualified/);
     await expect(page.locator("#m-cost")).toContainText(/No model calls|fake provider|Each lead costs/);
 
     // The chart really renders bars (recharts draws SVG rectangles).
@@ -34,6 +35,8 @@ test.describe("Metrics page", () => {
     await expect(page.getByText("Last 7 days")).toBeVisible();
     const days = page.locator("section.mc").filter({ has: page.locator("#m-day") });
     await days.getByText("View as a table").click();
+    await expect(days.getByRole("row").nth(1)).toBeVisible(); // only days with leads
+    await days.getByRole("button", { name: "Show all days" }).click();
     await expect(days.getByRole("row")).toHaveCount(8); // header + 7 days
   });
 

@@ -50,9 +50,11 @@ heavy and their "AI" is a black box.
   original; a draft that fails the safety checks needs an explicit **Send anyway** (recorded in the
   timeline) and asks for confirmation first. Errors show a plain sentence, the reason code and a **Retry** button. All actions go through the Next.js BFF
   (server-side token, anti-CSRF header, Zod validation from the generated contracts).
-- **Metrics page** (`/dashboard/metrics`, `GET /admin/metrics`): leads by status, score distribution in
-  ten-point buckets coloured by tier, leads per day with average, median and p90 time to qualify, and
-  spend per lead against the budget. Each chart has a data-table alternative; with the fake provider
+- **Metrics page** (`/dashboard/metrics`, `GET /admin/metrics?workspace=&from=&to=`): leads by status,
+  score distribution in ten-point buckets stacked by tier, leads per day, median and p90 time to
+  qualify, and spend per lead against the budget. Days are UTC, the range is at most 366 days (default
+  30). The spend shown for a range leaves out leads that were deleted; the lifetime figure (from the
+  budget ledger) still counts them. Each chart has a data-table alternative; with the fake provider
   the page says the cost is zero because the provider is free, not because nothing ran.
 - **Qualification eval**: ten labelled fictional leads in [evals/qualification](evals/qualification/README.md),
   run in CI with the fake provider (`make eval`); a capped real-provider run is documented and opt-in. Fake-provider results verify the plumbing and the
