@@ -16,7 +16,15 @@ n8n is then on http://127.0.0.1:5678 (create the owner account on first visit). 
 
 | File | Trigger | What it does |
 |---|---|---|
-| `lead-created.json` | `POST /webhook/lead-created` (signed by the agent) | Verifies the HMAC signature, emails the owner a notification (reference and dashboard link, no personal data), then calls `POST /internal/events/{event_id}/ack` |
+| `lead-created.json` | `POST /webhook/lead-created` (signed by the agent) | Verifies the HMAC signature, calls `POST /internal/leads/{id}/qualify` (synchronous: extract, qualify, draft, then paused for review), emails the owner **only for hot leads** (reference and dashboard link, no personal data), then calls `POST /internal/events/{event_id}/ack` |
+| `message-approved.json` | `POST /webhook/message-approved` (signed by the agent) | Verifies the signature, fetches the approved message (`GET /internal/messages/{id}`), sends it by SMTP when `channel` is `email` (any other channel reports a failure), then reports `POST /internal/messages/{id}/sent` or `/send-failed` and acknowledges the event |
+
+The callbacks to `/sent` and `/send-failed` carry the bearer token **and** `X-Timestamp` /
+`X-Signature` (`sha256=HMAC(timestamp + "." + body)` with `N8N_WEBHOOK_SECRET`); the agent rejects
+bad signatures and anything older than 5 minutes, so a captured callback cannot be replayed.
+Reporting is idempotent: a second `sent` for the same message changes nothing, and a late
+`send-failed` never overrides a message that was already sent. A failed send puts the lead in `error`
+(`send_failed`), which the operator retries from the dashboard.
 
 The webhook answers only after the whole workflow ran, so the agent marks the event delivered
 only when n8n really processed it; any failure (bad signature, SMTP down) is retried with backoff.
