@@ -1,78 +1,141 @@
 {
-  "properties": {
-    "action": {
-      "enum": [
-        "approve",
-        "edit",
-        "reject",
-        "regenerate"
+  "$defs": {
+    "ApproveReview": {
+      "properties": {
+        "action": {
+          "const": "approve",
+          "title": "Action",
+          "type": "string"
+        },
+        "override": {
+          "default": false,
+          "title": "Override",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action"
       ],
-      "title": "Action",
-      "type": "string"
+      "title": "ApproveReview",
+      "type": "object"
     },
-    "body": {
-      "anyOf": [
-        {
+    "EditReview": {
+      "description": "Edit and approve: the operator's text replaces the draft (the original is kept).",
+      "properties": {
+        "action": {
+          "const": "edit",
+          "title": "Action",
+          "type": "string"
+        },
+        "body": {
           "maxLength": 4000,
           "minLength": 1,
+          "title": "Body",
           "type": "string"
         },
-        {
-          "type": "null"
+        "override": {
+          "default": false,
+          "title": "Override",
+          "type": "boolean"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "maxLength": 150,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject"
         }
+      },
+      "required": [
+        "action",
+        "body"
       ],
-      "default": null,
-      "title": "Body"
+      "title": "EditReview",
+      "type": "object"
     },
-    "feedback": {
-      "anyOf": [
-        {
-          "maxLength": 500,
+    "RegenerateReview": {
+      "properties": {
+        "action": {
+          "const": "regenerate",
+          "title": "Action",
           "type": "string"
         },
-        {
-          "type": "null"
+        "feedback": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feedback"
         }
+      },
+      "required": [
+        "action"
       ],
-      "default": null,
-      "title": "Feedback"
+      "title": "RegenerateReview",
+      "type": "object"
     },
-    "note": {
-      "anyOf": [
-        {
-          "maxLength": 500,
+    "RejectReview": {
+      "properties": {
+        "action": {
+          "const": "reject",
+          "title": "Action",
           "type": "string"
         },
-        {
-          "type": "null"
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
         }
+      },
+      "required": [
+        "action"
       ],
-      "default": null,
-      "title": "Note"
-    },
-    "override": {
-      "default": false,
-      "title": "Override",
-      "type": "boolean"
-    },
-    "subject": {
-      "anyOf": [
-        {
-          "maxLength": 150,
-          "minLength": 1,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Subject"
+      "title": "RejectReview",
+      "type": "object"
     }
   },
-  "required": [
-    "action"
-  ],
-  "title": "ReviewRequest",
-  "type": "object"
+  "discriminator": {
+    "mapping": {
+      "approve": "#/$defs/ApproveReview",
+      "edit": "#/$defs/EditReview",
+      "regenerate": "#/$defs/RegenerateReview",
+      "reject": "#/$defs/RejectReview"
+    },
+    "propertyName": "action"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ApproveReview"
+    },
+    {
+      "$ref": "#/$defs/EditReview"
+    },
+    {
+      "$ref": "#/$defs/RejectReview"
+    },
+    {
+      "$ref": "#/$defs/RegenerateReview"
+    }
+  ]
 }

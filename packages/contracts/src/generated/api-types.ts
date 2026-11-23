@@ -345,6 +345,19 @@ export interface components {
       /** Value */
       value: string | number | boolean;
     };
+    /** ApproveReview */
+    ApproveReview: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      action: "approve";
+      /**
+       * Override
+       * @default false
+       */
+      override: boolean;
+    };
     /**
      * CriterionBreakdown
      * @description One scored criterion: what was judged, the points it earned and the evidence.
@@ -377,6 +390,26 @@ export interface components {
       message_id: string;
       /** Status */
       status: string;
+    };
+    /**
+     * EditReview
+     * @description Edit and approve: the operator's text replaces the draft (the original is kept).
+     */
+    EditReview: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      action: "edit";
+      /** Body */
+      body: string;
+      /**
+       * Override
+       * @default false
+       */
+      override: boolean;
+      /** Subject */
+      subject?: string | null;
     };
     /** FieldOption */
     FieldOption: {
@@ -796,6 +829,26 @@ export interface components {
       /** Tier */
       tier?: string | null;
     };
+    /** RegenerateReview */
+    RegenerateReview: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      action: "regenerate";
+      /** Feedback */
+      feedback?: string | null;
+    };
+    /** RejectReview */
+    RejectReview: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      action: "reject";
+      /** Note */
+      note?: string | null;
+    };
     /** RetriggerResult */
     RetriggerResult: {
       /** Attempt */
@@ -805,27 +858,6 @@ export interface components {
        * Format: uuid
        */
       event_id: string;
-    };
-    /** ReviewRequest */
-    ReviewRequest: {
-      /**
-       * Action
-       * @enum {string}
-       */
-      action: "approve" | "edit" | "reject" | "regenerate";
-      /** Body */
-      body?: string | null;
-      /** Feedback */
-      feedback?: string | null;
-      /** Note */
-      note?: string | null;
-      /**
-       * Override
-       * @default false
-       */
-      override: boolean;
-      /** Subject */
-      subject?: string | null;
     };
     /** ReviewResult */
     ReviewResult: {
@@ -1054,7 +1086,11 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["ReviewRequest"];
+        "application/json":
+          | components["schemas"]["ApproveReview"]
+          | components["schemas"]["EditReview"]
+          | components["schemas"]["RejectReview"]
+          | components["schemas"]["RegenerateReview"];
       };
     };
     responses: {
