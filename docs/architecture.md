@@ -321,3 +321,18 @@ Graph order: `extract -> qualify -> answer -> draft -> validate_draft -> human_r
 - **Storage** (migration `0011`): `lead_answers` and `answer_citations` (deleted with the lead). Citations
   keep source path, heading and quote and have no foreign key to `kb_chunks`, so re-ingesting the knowledge
   base never breaks them. `GET /admin/leads/{id}` returns them as `kb_answers`.
+
+## Ask the docs (M3.4)
+
+The dashboard page `/dashboard/ask` answers one question at a time from a workspace's knowledge base.
+
+- **Agent**: `POST /admin/kb/{slug}/ask` `{question (3-500 chars), language?}` and
+  `GET /admin/kb/{slug}/queries`. It calls `answer_questions`, the same function as the answer node (same
+  retrieval threshold, citation validation, escaping and draft-guard downgrade). Not covered questions get the
+  fixed text, in Spanish when the question looks Spanish. Limit: `KB_ASK_PER_HOUR` per workspace (429).
+- **Runs**: each question is its own `agent_runs` row (`kind = 'kb_chat'`, no lead, migration `0012`), so its
+  model call lands in `llm_calls` and is covered by the budget and per-run call caps. The answer is logged in
+  `kb_queries` (question, answer, covered, citations, run id). Both are purged after `LLM_CALLS_RETENTION_DAYS`.
+- **Web**: BFF routes `/bff/kb/{slug}/ask` (anti-CSRF header, Sec-Fetch-Site, Zod, 2.3 KB body cap) and
+  `/bff/kb/{slug}/queries`. The page shows the thread, sources as disclosures (document, heading path,
+  quote), the explicit "Not in the docs" state and the recent questions.
