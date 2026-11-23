@@ -63,6 +63,17 @@ calls the admin API (the Next.js BFF does, with a server-side token); a transact
 at-least-once delivery. More in [docs/architecture.md](docs/architecture.md) and the full plan in
 [docs/PLAN.md](docs/PLAN.md).
 
+## Design decisions
+
+- Pydantic models are the single source of truth for the workspace schema and API contracts; TypeScript
+  types and Zod schemas are generated and drift-checked in CI.
+- Persist first, orchestrate after (transactional outbox), so an unavailable n8n never loses a lead.
+- The browser never calls the admin API; a Next.js BFF holds the token.
+- Repositories are concrete SQLAlchemy Core classes rather than Protocol ports (see
+  [docs/architecture.md](docs/architecture.md)).
+- The score filter in the dashboard uses bands (hot, warm, cold). The API also accepts exact
+  `score_min` and `score_max`, which the UI does not expose.
+
 ## Stack
 
 Python 3.12, FastAPI, SQLAlchemy Core (async) and Alembic, PostgreSQL 17 (pgvector image),
@@ -94,6 +105,20 @@ ORCHESTRATOR=n8n COMPOSE_PROFILES=n8n docker compose up -d --build --wait   # n8
 
 Stop everything with `docker compose down` (add `-v` to delete the database volume).
 
+## Security notes (Phase 1)
+
+- **There is no login locally.** The dashboard and its `/bff/*` routes are open on `127.0.0.1`; do not
+  publish those ports to a network. A real operator login arrives in Phase 4 (private instance).
+- **Production fails closed.** With `APP_ENV=production` the web app serves `/dashboard` and `/bff` only
+  behind HTTP Basic auth (`DASHBOARD_USER`, `DASHBOARD_PASSWORD`); without them it answers 503. The agent
+  refuses to start unless `ADMIN_API_TOKEN`, `N8N_API_TOKEN`, `N8N_WEBHOOK_SECRET` and `IP_HASH_SECRET` are
+  at least 16 characters and not the `local-dev-*` placeholders from `docker-compose.yml`.
+- **Expose only the public surface.** Put a reverse proxy in front that routes just `/api/*` and `/healthz`
+  to the agent. `/admin/*` and `/internal/*` are for the web server and n8n on a private network; set
+  `EXPOSE_ADMIN_API=false` on an instance that must not serve them at all. Set `TRUSTED_PROXIES` to the proxy
+  CIDRs so rate limits see the real client IP (uvicorn runs with `--no-proxy-headers`).
+- Personal data never reaches the logs: SQL parameters are hidden and exception messages are withheld.
+
 ## Configuration
 
 Copy `.env.example` to `.env` to change anything; every variable is optional locally (Compose ships
@@ -113,11 +138,13 @@ must be set to at least 16 characters or the agent refuses to start.
 | `IP_HASH_SECRET` | Key for hashing client IPs and emails in rate limits |
 | `ORCHESTRATOR` | `inline` (default) or `n8n` |
 | `RATE_*`, `TRUSTED_PROXIES` | Rate limits and proxy trust for `X-Forwarded-For` |
+| `EXPOSE_ADMIN_API` | `false` stops mounting `/admin` and `/internal` (default `true`) |
+| `DASHBOARD_USER`, `DASHBOARD_PASSWORD` | Basic-auth credentials, required when `APP_ENV=production` |
 
 ## Tests
 
 ```bash
-make test                      # agent (pytest + Testcontainers) and web (Vitest)
+make test                      # agent (needs Docker for Testcontainers) and web (Vitest)
 cd apps/agent && uv run pytest # needs Docker, or set TEST_DATABASE_URL
 pnpm --filter web test         # unit tests
 pnpm --filter web e2e          # Playwright; needs the stack from "Run it" plus the seed

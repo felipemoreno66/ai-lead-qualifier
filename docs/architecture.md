@@ -8,6 +8,10 @@ schema, lead state machine, form validation). Services depend on small ports (`C
 dispatcher, publishers). Repositories take an `AsyncConnection`, so each use case controls its own
 transaction.
 
+**Deviation from the plan:** repositories are concrete SQLAlchemy Core classes, not Protocol ports. A port
+would only be satisfied by one implementation and would hide transaction boundaries; `Clock` and
+`EventPublisher`, which really have several implementations, are ports. Revisit if a second store appears.
+
 ## Lead intake
 
 ```mermaid
@@ -69,3 +73,16 @@ Only what the form collects plus consent metadata is stored. IPs are kept as HMA
 are JSON with a redaction processor and never contain names, emails, form answers or IPs. A lead can be
 hard-deleted from the dashboard (cascades to its events and outbox rows). The seed script refuses any
 workspace other than the fictional demo and refuses to run in production.
+
+## Webhook security
+
+The agent signs `"<unix timestamp>." + raw body` with HMAC-SHA256 (`X-Timestamp`, `X-Signature`). n8n verifies
+the signature in constant time and rejects timestamps older than 5 minutes, answering 401. The dispatcher treats
+401/403 and other 4xx rejections as permanent: the event becomes `dead` at once with the reason, visible in the
+dashboard, instead of being retried for hours.
+
+## Exposure
+
+Public surface: `/api/*` and `/healthz`. Private: `/admin/*` (web server, admin token) and `/internal/*`
+(n8n, its own token); `EXPOSE_ADMIN_API=false` unmounts both. In production the dashboard requires HTTP Basic
+auth and fails closed (503) when credentials are not configured.
