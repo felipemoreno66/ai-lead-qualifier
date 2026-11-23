@@ -132,8 +132,8 @@ async def test_unsafe_and_unreadable_files_are_skipped_not_fatal(service, kb_dir
     (kb_dir / "b.md").write_bytes(b"# Beta\n\n\xff\xfe not utf-8")
     result = await service.ingest(SLUG, kb_dir)
     assert result.skipped == 3
-    assert result.removed == 0  # b.md keeps its last good version
-    assert await _count(db, "kb_documents") == 2
+    assert result.removed == 1  # b.md became unreadable: its stale chunks go too
+    assert await _count(db, "kb_documents") == 1
 
 
 async def test_a_second_reindex_of_the_same_workspace_is_refused(service, kb_dir):
@@ -191,3 +191,32 @@ async def test_reindex_times_out_with_504(make_client, db, monkeypatch):
         monkeypatch.setattr(client.app.state.kb, "ingest", never)
         response = await client.post(f"/admin/kb/{SLUG}/reindex", headers=AUTH)
     assert response.status_code == 504
+
+
+async def test_the_workspace_stays_busy_until_the_embedding_thread_ends(db, kb_dir):
+    import asyncio
+    import threading
+
+    from lead_qualifier.domain.errors import Conflict
+
+    release = threading.Event()
+
+    class Blocking(FakeEmbeddings):
+        def embed(self, texts):
+            release.wait(5)
+            return super().embed(texts)
+
+    service = KnowledgeBaseService(db, Blocking(), SystemClock())
+    first = asyncio.create_task(service.ingest(SLUG, kb_dir))
+    await asyncio.sleep(0.2)
+    first.cancel()  # what asyncio.timeout does
+    with pytest.raises(asyncio.CancelledError):
+        await first
+    with pytest.raises(Conflict):
+        await service.ingest(SLUG, kb_dir)  # the thread is still busy
+    release.set()
+    for _ in range(50):
+        await asyncio.sleep(0.05)
+        if SLUG not in service._running:
+            break
+    assert (await service.ingest(SLUG, kb_dir)).added == 2

@@ -19,6 +19,7 @@ HEADING_SEPARATOR = " > "
 MIN_BODY_TOKENS = 20
 _HEADERS = [("#", "h1"), ("##", "h2"), ("###", "h3"), ("####", "h4")]
 _WORD = re.compile(r"\w+|[^\w\s]")
+_LINKISH = re.compile(r"(?:https?://|www\.)\S+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 
 
 @dataclass(frozen=True)
@@ -31,8 +32,17 @@ class Chunk:
 
 def count_tokens(text: str) -> int:
     """Deterministic, deliberately pessimistic estimate of word pieces (no tokenizer download):
-    every punctuation mark is one token and a word costs one token per 5 characters."""
-    return sum(1 if not m[0].isalnum() else math.ceil(len(m) / 5) for m in _WORD.findall(text))
+    punctuation is one token, a word one token per 5 characters or per 3 digits (whichever is
+    more), and a URL or email address one token per 3 characters."""
+    links = _LINKISH.findall(text)
+    total = sum(math.ceil(len(link) / 3) for link in links)
+    for match in _WORD.findall(_LINKISH.sub(" ", text)):
+        if not match[0].isalnum():
+            total += 1
+        else:
+            digits = sum(c.isdigit() for c in match)
+            total += max(math.ceil(len(match) / 5), math.ceil(digits / 3))
+    return total
 
 
 _LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
