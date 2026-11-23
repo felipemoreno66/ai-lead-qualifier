@@ -20,7 +20,7 @@ n8n is then on http://127.0.0.1:5678 (create the owner account on first visit). 
 | `message-approved.json` | `POST /webhook/message-approved` (signed by the agent) | Verifies the signature, fetches the approved message (`GET /internal/messages/{id}`), sends it by SMTP when `channel` is `email` (any other channel reports a failure), then reports `POST /internal/messages/{id}/sent` or `/send-failed` and acknowledges the event |
 
 The callbacks to `/sent` and `/send-failed` carry the bearer token **and** `X-Timestamp` /
-`X-Signature` (`sha256=HMAC(timestamp + "." + body)` with `N8N_WEBHOOK_SECRET`); the agent rejects
+`X-Signature` (`sha256=HMAC(timestamp + "." + "POST " + path + "." + body)` with `N8N_WEBHOOK_SECRET`); the agent rejects
 bad signatures and anything older than 5 minutes, so a captured callback cannot be replayed.
 Reporting is idempotent: a second `sent` for the same message changes nothing, and a late
 `send-failed` never overrides a message that was already sent. A failed send puts the lead in `error`
@@ -31,7 +31,8 @@ only when n8n really processed it; any failure (bad signature, SMTP down) is ret
 
 ## Security notes
 
-- The agent signs the raw request body with `N8N_WEBHOOK_SECRET` (`X-Signature: sha256=...`).
+- The agent signs the timestamp, method, path and raw body with `N8N_WEBHOOK_SECRET`
+  (`X-Signature: sha256=...`), so a signed request cannot be replayed against another workflow.
   The first node verifies it in constant time.
 - n8n calls the agent with `N8N_API_TOKEN` (`/internal/*` only).
 - Workflows are committed **without credentials or execution data**. `scripts/sanitize_n8n.py`
