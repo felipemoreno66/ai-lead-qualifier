@@ -189,7 +189,7 @@ def check_draft_detailed(
     allowed = config.drafting.allowed_link_domains
     own_terms = config_words(config)
     # A mail client may read the text differently from our normalised copy (fullwidth delimiters
-    # such as the fullwidth slash or at-sign), so links are checked on the raw text AND the normalised text.
+    # such as the fullwidth slash or at-sign), so links are checked on the raw AND normalised text.
     for candidate in dict.fromkeys((raw, text)):
         tokens = _URL_RE.findall(candidate)
         remainder = _EMAIL_RE.sub(" ", _URL_RE.sub(" ", candidate))
