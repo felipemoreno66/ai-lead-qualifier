@@ -346,3 +346,23 @@ async def test_the_sweep_removes_orphaned_and_old_finished_threads_only(make_cli
     assert removed >= 2  # (threads left by other tests in this shared database are orphans too)
     assert f"lead:{waiting}:run:1" in remaining  # a lead waiting for a human keeps its thread
     assert not {f"lead:{done}:run:1", f"lead:{gone}:run:1"} & remaining
+
+
+async def test_the_detail_explains_the_score_and_the_runs_endpoint_lists_the_calls(make_client, db):
+    async with make_client(llm_provider=provider(db)) as client:
+        lead_id = await pending(client, "r1@example.com")
+        detail = (await client.get(f"/admin/leads/{lead_id}", headers=AUTH)).json()
+        runs = await client.get(f"/admin/leads/{lead_id}/runs", headers=AUTH)
+        unknown = await client.get(f"/admin/leads/{uuid.uuid4()}/runs", headers=AUTH)
+        anonymous = await client.get(f"/admin/leads/{lead_id}/runs")
+    breakdown = detail["breakdown"]
+    assert breakdown[0]["id"] == "goal_fit"
+    assert round(sum(c["max_points"] for c in breakdown)) == 100
+    assert abs(sum(c["points"] for c in breakdown) - detail["score"]) <= 1
+    assert detail["reasons"] and detail["tier_capped"] is False
+    assert runs.status_code == 200
+    (run,) = runs.json()
+    assert run["run_number"] == 1
+    assert [c["node"] for c in run["calls"]] == ["extract", "qualify", "draft"]
+    assert all(c["prompt_version"] and c["success"] for c in run["calls"])
+    assert unknown.status_code == 404 and anonymous.status_code == 401

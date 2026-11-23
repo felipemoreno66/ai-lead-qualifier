@@ -1,0 +1,78 @@
+{
+  "properties": {
+    "action": {
+      "enum": [
+        "approve",
+        "edit",
+        "reject",
+        "regenerate"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "body": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Body"
+    },
+    "feedback": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Feedback"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    },
+    "override": {
+      "default": false,
+      "title": "Override",
+      "type": "boolean"
+    },
+    "subject": {
+      "anyOf": [
+        {
+          "maxLength": 150,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Subject"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "title": "ReviewRequest",
+  "type": "object"
+}

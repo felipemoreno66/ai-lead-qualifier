@@ -72,6 +72,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/admin/leads/{lead_id}/runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Lead Runs
+     * @description Agent runs of a lead with their model calls (tokens, latency, cost, prompt version).
+     */
+    get: operations["lead_runs_admin_leads__lead_id__runs_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/admin/outbox": {
     parameters: {
       query?: never;
@@ -282,6 +302,35 @@ export interface components {
        */
       status: "delivered";
     };
+    /** AgentRunOut */
+    AgentRunOut: {
+      /** Calls */
+      calls: components["schemas"]["LlmCallOut"][];
+      /** Duration Ms */
+      duration_ms: number | null;
+      /** Error */
+      error: string | null;
+      /** Finished At */
+      finished_at: string | null;
+      /** Graph Version */
+      graph_version: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Run Number */
+      run_number: number;
+      /**
+       * Started At
+       * Format: date-time
+       */
+      started_at: string;
+      /** Status */
+      status: string;
+      /** Total Cost Usd */
+      total_cost_usd: number;
+    };
     /** AnswerOut */
     AnswerOut: {
       /** Display */
@@ -292,6 +341,27 @@ export interface components {
       label: string;
       /** Value */
       value: string | number | boolean;
+    };
+    /**
+     * CriterionBreakdown
+     * @description One scored criterion: what was judged, the points it earned and the evidence.
+     */
+    CriterionBreakdown: {
+      /** Description */
+      description: string;
+      /** Evidence */
+      evidence: string;
+      /** Id */
+      id: string;
+      /**
+       * Judgment
+       * @enum {string}
+       */
+      judgment: "met" | "partial" | "unmet";
+      /** Max Points */
+      max_points: number;
+      /** Points */
+      points: number;
     };
     /** DeliveryOut */
     DeliveryOut: {
@@ -343,6 +413,8 @@ export interface components {
     LeadDetail: {
       /** Answers */
       answers: components["schemas"]["AnswerOut"][];
+      /** Breakdown */
+      breakdown?: components["schemas"]["CriterionBreakdown"][];
       /**
        * Consent At
        * Format: date-time
@@ -391,6 +463,8 @@ export interface components {
       } | null;
       /** Qualified At */
       qualified_at: string | null;
+      /** Reasons */
+      reasons?: string[];
       /** Recommended Product */
       recommended_product: string | null;
       /** Recommended Product Name */
@@ -407,6 +481,11 @@ export interface components {
       status: string;
       /** Tier */
       tier: string | null;
+      /**
+       * Tier Capped
+       * @default false
+       */
+      tier_capped: boolean;
       /**
        * Updated At
        * Format: date-time
@@ -492,6 +571,41 @@ export interface components {
       tier: string | null;
       /** Workspace Slug */
       workspace_slug: string;
+    };
+    /** LlmCallOut */
+    LlmCallOut: {
+      /** Attempt */
+      attempt: number;
+      /** Cost Usd */
+      cost_usd: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Error Code */
+      error_code: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Input Tokens */
+      input_tokens: number;
+      /** Latency Ms */
+      latency_ms: number;
+      /** Model */
+      model: string;
+      /** Node */
+      node: string;
+      /** Output Tokens */
+      output_tokens: number;
+      /** Prompt Version */
+      prompt_version: string | null;
+      /** Provider */
+      provider: string;
+      /** Success */
+      success: boolean;
     };
     /**
      * MessageContent
@@ -701,6 +815,11 @@ export interface components {
       feedback?: string | null;
       /** Note */
       note?: string | null;
+      /**
+       * Override
+       * @default false
+       */
+      override: boolean;
       /** Subject */
       subject?: string | null;
     };
@@ -725,9 +844,19 @@ export interface components {
     SendFailedCallback: {
       /** Error */
       error?: string | null;
+      /**
+       * Message Id
+       * Format: uuid
+       */
+      message_id: string;
     };
     /** SentCallback */
     SentCallback: {
+      /**
+       * Message Id
+       * Format: uuid
+       */
+      message_id: string;
       /** Provider Message Id */
       provider_message_id?: string | null;
     };
@@ -932,6 +1061,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ReviewResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  lead_runs_admin_leads__lead_id__runs_get: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path: {
+        lead_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentRunOut"][];
         };
       };
       /** @description Validation Error */

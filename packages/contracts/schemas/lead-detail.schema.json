@@ -41,6 +41,50 @@
       "title": "AnswerOut",
       "type": "object"
     },
+    "CriterionBreakdown": {
+      "description": "One scored criterion: what was judged, the points it earned and the evidence.",
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "judgment": {
+          "enum": [
+            "met",
+            "partial",
+            "unmet"
+          ],
+          "title": "Judgment",
+          "type": "string"
+        },
+        "max_points": {
+          "title": "Max Points",
+          "type": "number"
+        },
+        "points": {
+          "title": "Points",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "judgment",
+        "points",
+        "max_points",
+        "evidence"
+      ],
+      "title": "CriterionBreakdown",
+      "type": "object"
+    },
     "LeadEventOut": {
       "properties": {
         "actor": {
@@ -326,6 +370,13 @@
       "title": "Answers",
       "type": "array"
     },
+    "breakdown": {
+      "items": {
+        "$ref": "#/$defs/CriterionBreakdown"
+      },
+      "title": "Breakdown",
+      "type": "array"
+    },
     "consent_at": {
       "format": "date-time",
       "title": "Consent At",
@@ -458,6 +509,13 @@
       ],
       "title": "Qualified At"
     },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
     "recommended_product": {
       "anyOf": [
         {
@@ -525,6 +583,11 @@
         }
       ],
       "title": "Tier"
+    },
+    "tier_capped": {
+      "default": false,
+      "title": "Tier Capped",
+      "type": "boolean"
     },
     "updated_at": {
       "format": "date-time",

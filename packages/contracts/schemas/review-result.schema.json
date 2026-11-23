@@ -1,0 +1,37 @@
+{
+  "properties": {
+    "error_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Reason"
+    },
+    "lead_id": {
+      "format": "uuid",
+      "title": "Lead Id",
+      "type": "string"
+    },
+    "message_id": {
+      "format": "uuid",
+      "title": "Message Id",
+      "type": "string"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "lead_id",
+    "status",
+    "message_id"
+  ],
+  "title": "ReviewResult",
+  "type": "object"
+}

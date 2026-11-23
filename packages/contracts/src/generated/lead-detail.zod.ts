@@ -10,6 +10,20 @@ export const leadDetailSchema = z.object({
       value: z.union([z.string(), z.number().int(), z.number(), z.boolean()]),
     }),
   ),
+  breakdown: z
+    .array(
+      z
+        .object({
+          description: z.string(),
+          evidence: z.string(),
+          id: z.string(),
+          judgment: z.enum(["met", "partial", "unmet"]),
+          max_points: z.number(),
+          points: z.number(),
+        })
+        .describe("One scored criterion: what was judged, the points it earned and the evidence."),
+    )
+    .optional(),
   consent_at: z.string().datetime({ offset: true }),
   consent_notice_version: z.string(),
   country: z.union([z.string(), z.null()]),
@@ -68,6 +82,7 @@ export const leadDetailSchema = z.object({
   ),
   qualification: z.union([z.record(z.string(), z.any()), z.null()]),
   qualified_at: z.union([z.string().datetime({ offset: true }), z.null()]),
+  reasons: z.array(z.string()).optional(),
   recommended_product: z.union([z.string(), z.null()]),
   recommended_product_name: z.union([z.string(), z.null()]),
   reference: z.string(),
@@ -76,6 +91,7 @@ export const leadDetailSchema = z.object({
   source: z.string(),
   status: z.string(),
   tier: z.union([z.string(), z.null()]),
+  tier_capped: z.boolean().default(false),
   updated_at: z.string().datetime({ offset: true }),
   workspace_name: z.string(),
   workspace_slug: z.string(),

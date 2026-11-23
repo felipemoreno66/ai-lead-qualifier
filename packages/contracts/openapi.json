@@ -26,6 +26,91 @@
         "title": "AckResult",
         "type": "object"
       },
+      "AgentRunOut": {
+        "properties": {
+          "calls": {
+            "items": {
+              "$ref": "#/components/schemas/LlmCallOut"
+            },
+            "title": "Calls",
+            "type": "array"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "graph_version": {
+            "title": "Graph Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "run_number": {
+            "title": "Run Number",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total_cost_usd": {
+            "title": "Total Cost Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "run_number",
+          "status",
+          "graph_version",
+          "started_at",
+          "finished_at",
+          "duration_ms",
+          "total_cost_usd",
+          "error",
+          "calls"
+        ],
+        "title": "AgentRunOut",
+        "type": "object"
+      },
       "AnswerOut": {
         "properties": {
           "display": {
@@ -65,6 +150,50 @@
           "display"
         ],
         "title": "AnswerOut",
+        "type": "object"
+      },
+      "CriterionBreakdown": {
+        "description": "One scored criterion: what was judged, the points it earned and the evidence.",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "judgment": {
+            "enum": [
+              "met",
+              "partial",
+              "unmet"
+            ],
+            "title": "Judgment",
+            "type": "string"
+          },
+          "max_points": {
+            "title": "Max Points",
+            "type": "number"
+          },
+          "points": {
+            "title": "Points",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "judgment",
+          "points",
+          "max_points",
+          "evidence"
+        ],
+        "title": "CriterionBreakdown",
         "type": "object"
       },
       "DeliveryOut": {
@@ -175,6 +304,13 @@
               "$ref": "#/components/schemas/AnswerOut"
             },
             "title": "Answers",
+            "type": "array"
+          },
+          "breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/CriterionBreakdown"
+            },
+            "title": "Breakdown",
             "type": "array"
           },
           "consent_at": {
@@ -309,6 +445,13 @@
             ],
             "title": "Qualified At"
           },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
           "recommended_product": {
             "anyOf": [
               {
@@ -376,6 +519,11 @@
               }
             ],
             "title": "Tier"
+          },
+          "tier_capped": {
+            "default": false,
+            "title": "Tier Capped",
+            "type": "boolean"
           },
           "updated_at": {
             "format": "date-time",
@@ -642,6 +790,95 @@
           "group"
         ],
         "title": "LeadListItem",
+        "type": "object"
+      },
+      "LlmCallOut": {
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "node": {
+            "title": "Node",
+            "type": "string"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "node",
+          "provider",
+          "model",
+          "attempt",
+          "input_tokens",
+          "output_tokens",
+          "latency_ms",
+          "cost_usd",
+          "success",
+          "error_code",
+          "prompt_version",
+          "created_at"
+        ],
+        "title": "LlmCallOut",
         "type": "object"
       },
       "MessageContent": {
@@ -1250,6 +1487,11 @@
             ],
             "title": "Note"
           },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          },
           "subject": {
             "anyOf": [
               {
@@ -1319,13 +1561,26 @@
               }
             ],
             "title": "Error"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
           }
         },
+        "required": [
+          "message_id"
+        ],
         "title": "SendFailedCallback",
         "type": "object"
       },
       "SentCallback": {
         "properties": {
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
           "provider_message_id": {
             "anyOf": [
               {
@@ -1339,6 +1594,9 @@
             "title": "Provider Message Id"
           }
         },
+        "required": [
+          "message_id"
+        ],
         "title": "SentCallback",
         "type": "object"
       },
@@ -1853,6 +2111,70 @@
           }
         },
         "summary": "Review Lead",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/leads/{lead_id}/runs": {
+      "get": {
+        "description": "Agent runs of a lead with their model calls (tokens, latency, cost, prompt version).",
+        "operationId": "lead_runs_admin_leads__lead_id__runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lead_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lead Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentRunOut"
+                  },
+                  "title": "Response Lead Runs Admin Leads  Lead Id  Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lead Runs",
         "tags": [
           "admin"
         ]

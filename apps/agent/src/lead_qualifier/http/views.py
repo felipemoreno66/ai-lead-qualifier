@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from lead_qualifier.domain.scoring import JUDGMENT_VALUE, Judgment
 from lead_qualifier.domain.workspace import FieldType, WorkspaceConfig
 from lead_qualifier.http.schemas import (
     AnswerOut,
+    CriterionBreakdown,
     LeadDetail,
     LeadEventOut,
     MessageOut,
@@ -51,6 +53,37 @@ def answers_view(config: WorkspaceConfig | None, answers: dict[str, Any]) -> lis
     return out
 
 
+def score_breakdown(
+    config: WorkspaceConfig | None, qualification: dict[str, Any] | None
+) -> list[CriterionBreakdown]:
+    """Per-criterion points (100 in total) from the stored judgments and the config weights."""
+    if config is None or not qualification:
+        return []
+    weights = {c.id: c for c in config.qualification.criteria}
+    total = sum(c.weight for c in weights.values())
+    out: list[CriterionBreakdown] = []
+    for item in qualification.get("criteria") or []:
+        criterion = weights.get(item.get("id"))
+        try:
+            judgment = Judgment(item.get("judgment"))
+        except ValueError:
+            continue
+        if criterion is None:
+            continue
+        maximum = criterion.weight / total * 100
+        out.append(
+            CriterionBreakdown(
+                id=criterion.id,
+                description=criterion.description,
+                judgment=judgment.value,
+                points=round(maximum * JUDGMENT_VALUE[judgment], 1),
+                max_points=round(maximum, 1),
+                evidence=str(item.get("evidence", "")),
+            )
+        )
+    return out
+
+
 def lead_detail(
     lead: dict[str, Any],
     events: list[dict[str, Any]],
@@ -90,6 +123,9 @@ def lead_detail(
                 "sent_at",
             )
         },
+        breakdown=score_breakdown(config, lead["qualification"]),
+        reasons=[str(r) for r in (lead["qualification"] or {}).get("reasons") or []],
+        tier_capped=bool((lead["qualification"] or {}).get("tier_capped")),
         injection_suspected=bool(
             ((lead["qualification"] or {}).get("profile") or {}).get("injection_suspected")
         ),

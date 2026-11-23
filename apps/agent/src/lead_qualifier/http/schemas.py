@@ -75,6 +75,17 @@ class OutboxEventOut(BaseModel):
     delivered_at: datetime | None
 
 
+class CriterionBreakdown(BaseModel):
+    """One scored criterion: what was judged, the points it earned and the evidence."""
+
+    id: str
+    description: str
+    judgment: Literal["met", "partial", "unmet"]
+    points: float
+    max_points: float
+    evidence: str
+
+
 class LeadDetail(BaseModel):
     id: uuid.UUID
     reference: str
@@ -94,6 +105,9 @@ class LeadDetail(BaseModel):
     recommended_product: str | None
     recommended_product_name: str | None
     qualification: dict[str, Any] | None
+    breakdown: list[CriterionBreakdown] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    tier_capped: bool = False
     injection_suspected: bool = False
     detected_language: str | None
     error_reason: str | None
@@ -105,6 +119,35 @@ class LeadDetail(BaseModel):
     events: list[LeadEventOut]
     outbox: list[OutboxEventOut]
     messages: list[MessageOut]
+
+
+class LlmCallOut(BaseModel):
+    id: uuid.UUID
+    node: str
+    provider: str
+    model: str
+    attempt: int
+    input_tokens: int
+    output_tokens: int
+    latency_ms: int
+    cost_usd: float
+    success: bool
+    error_code: str | None
+    prompt_version: str | None
+    created_at: datetime
+
+
+class AgentRunOut(BaseModel):
+    id: uuid.UUID
+    run_number: int
+    status: str
+    graph_version: str
+    started_at: datetime
+    finished_at: datetime | None
+    duration_ms: int | None
+    total_cost_usd: float
+    error: str | None
+    calls: list[LlmCallOut]
 
 
 class RetriggerResult(BaseModel):
