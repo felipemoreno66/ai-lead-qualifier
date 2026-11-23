@@ -153,8 +153,8 @@ async def test_delete_removes_the_lead_and_everything_related(make_client, db, s
             assert n == 0
 
 
-async def submit(client, email: str = "retry@example.com") -> str:
-    response = await client.post(URL, json=body(fields={"email": email}))
+async def submit(client, email: str = "retry@example.com", **fields: str) -> str:
+    response = await client.post(URL, json=body(fields={"email": email, **fields}))
     assert response.status_code == 202
     return response.json()["reference"]
 
