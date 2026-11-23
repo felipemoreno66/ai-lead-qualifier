@@ -87,6 +87,8 @@ jobs:
       - run: uv run python -m lead_qualifier.scripts.export_schemas
         working-directory: apps/agent
       - run: pnpm --filter contracts generate
+      - name: Generated TypeScript compiles
+        run: pnpm --filter contracts typecheck
       - name: Generated contracts are up to date
         run: git diff --exit-code -- packages/contracts
 
@@ -118,6 +120,31 @@ jobs:
             apps/web/playwright-report
             apps/web/test-results
       - if: failure()
-        run: docker compose logs --tail=200
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --tail=200
       - if: always()
-        run: docker compose down -v
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v
+
+  audit:
+    name: Dependency audit (report only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.9"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.21.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: pip-audit
+        continue-on-error: true
+        working-directory: apps/agent
+        run: |
+          uv export --frozen --no-dev --no-emit-project -o /tmp/requirements.txt
+          uvx pip-audit -r /tmp/requirements.txt --no-deps --disable-pip
+      - name: pnpm audit (production dependencies)
+        continue-on-error: true
+        run: pnpm audit --prod
