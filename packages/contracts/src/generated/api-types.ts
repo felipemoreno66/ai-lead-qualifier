@@ -608,6 +608,11 @@ export interface components {
       feedback?: string | null;
       /** Note */
       note?: string | null;
+      /**
+       * Override
+       * @default false
+       */
+      override: boolean;
       /** Subject */
       subject?: string | null;
     };

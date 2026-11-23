@@ -1149,6 +1149,11 @@
             ],
             "title": "Note"
           },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          },
           "subject": {
             "anyOf": [
               {
