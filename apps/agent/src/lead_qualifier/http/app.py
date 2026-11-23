@@ -18,21 +18,33 @@ from lead_qualifier.http.routers import admin, health, internal, public
 from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
 from lead_qualifier.infrastructure.db.engine import create_engine
 from lead_qualifier.infrastructure.email.smtp import SmtpSender
+from lead_qualifier.infrastructure.embeddings import build_embeddings
 from lead_qualifier.infrastructure.llm.router import build_provider
 from lead_qualifier.infrastructure.outbox.dispatcher import OutboxDispatcher
 from lead_qualifier.infrastructure.outbox.publishers import InlinePublisher, N8nPublisher
 from lead_qualifier.logging import configure_logging, get_logger
 from lead_qualifier.ports.channel import EmailSender
 from lead_qualifier.ports.clock import Clock, SystemClock
+from lead_qualifier.ports.embeddings import Embeddings
 from lead_qualifier.ports.events import EventPublisher
 from lead_qualifier.ports.llm import LLMProvider
 from lead_qualifier.services.delivery import DeliveryService
 from lead_qualifier.services.intake import IntakeService
+from lead_qualifier.services.kb import KnowledgeBaseService
+from lead_qualifier.services.kb_chat import KbChatService
 from lead_qualifier.services.qualify import QualifyService
 from lead_qualifier.services.rate_limit import RateLimiter
 from lead_qualifier.services.review import ReviewService
 from lead_qualifier.services.workspace_sync import sync_workspaces
 from lead_qualifier.workspaces.loader import WorkspaceRegistry, load_workspaces
+
+
+async def _warm(embeddings: Embeddings) -> None:
+    """Load the embedding model in the background so the first reindex or question is fast."""
+    try:
+        await asyncio.to_thread(embeddings.warm)
+    except Exception as exc:
+        get_logger("app").warning("embeddings_warm_failed", error_type=type(exc).__name__)
 
 
 def create_app(
@@ -43,6 +55,7 @@ def create_app(
     publisher: EventPublisher | None = None,
     llm_provider: LLMProvider | None = None,
     email_sender: EmailSender | None = None,
+    embeddings: Embeddings | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -57,6 +70,8 @@ def create_app(
     )
 
     checkpointer = PostgresCheckpointer(settings.database_url)
+    embedder = embeddings or build_embeddings(settings)
+    kb = KnowledgeBaseService(engine, embedder, clock)
     qualifier = QualifyService(
         engine,
         settings,
@@ -64,6 +79,7 @@ def create_app(
         llm_provider or build_provider(settings, engine),
         clock,
         checkpointer,
+        kb,
     )
     reviewer = ReviewService(engine, clock, qualifier)
     delivery = DeliveryService(
@@ -109,7 +125,14 @@ def create_app(
             if settings.dispatcher_enabled
             else None
         )
+        warm = (
+            asyncio.create_task(_warm(embedder), name="embeddings-warm")
+            if settings.embeddings_warm_on_startup
+            else None
+        )
         yield
+        if warm:
+            warm.cancel()
         if task:
             task.cancel()
             with suppress(asyncio.CancelledError):
@@ -133,7 +156,11 @@ def create_app(
     app.state.checkpointer = checkpointer
     app.state.workspaces_synced = False
     app.state.trusted_networks = parse_networks(settings.trusted_proxy_list)
+    app.state.kb = kb
     app.state.limiter = RateLimiter(engine, clock)
+    app.state.kb_chat = KbChatService(
+        engine, settings, qualifier.provider, clock, app.state.limiter
+    )
     app.state.intake = IntakeService(engine, settings, clock, app.state.limiter)
     app.add_middleware(
         WorkspaceCORSMiddleware,

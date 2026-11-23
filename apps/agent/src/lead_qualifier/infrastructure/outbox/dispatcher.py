@@ -130,9 +130,9 @@ class OutboxDispatcher:
         self._last_purge = now
         async with self.engine.begin() as conn:
             removed = await RateLimitRepository(conn).purge_before(now - RATE_LIMIT_RETENTION)
-            purged = await LlmCallRepository(conn).purge_before(
-                now - timedelta(days=self.settings.llm_calls_retention_days)
-            )
+            cutoff = now - timedelta(days=self.settings.llm_calls_retention_days)
+            purged = await LlmCallRepository(conn).purge_before(cutoff)
+            await LlmCallRepository(conn).purge_kb_chat_before(cutoff)
         threads = 0
         if self.checkpointer is not None:
             threads = await self.checkpointer.purge_stale_threads(

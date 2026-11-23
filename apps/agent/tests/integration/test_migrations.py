@@ -21,6 +21,11 @@ APP_TABLES = {
     "llm_calls",
     "messages",
     "llm_spend",
+    "kb_documents",
+    "kb_chunks",
+    "lead_answers",
+    "answer_citations",
+    "kb_queries",
 }
 
 

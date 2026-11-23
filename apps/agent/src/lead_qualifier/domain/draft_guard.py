@@ -165,6 +165,15 @@ def _language_scores(text: str) -> dict[str, int]:
     return {lang: sum(w in stops for w in words) for lang, stops in _STOPWORDS.items()}
 
 
+def guess_language(text: str) -> str | None:
+    """The language (of those with stopword lists) a text most looks like, or None when unsure."""
+    scores = _language_scores(text)
+    best = max(scores, key=lambda k: scores[k], default=None)
+    if best is None or scores[best] < 2:
+        return None
+    return best
+
+
 def check_draft_detailed(
     config: WorkspaceConfig,
     *,
@@ -262,6 +271,27 @@ def check_draft_detailed(
     for problem in problems:
         unique.setdefault(problem.message, problem)
     return list(unique.values())
+
+
+ANSWER_BLOCKING_CODES = frozenset(
+    {
+        "control_chars",
+        "unsafe_link",
+        "disallowed_link",
+        "foreign_email",
+        "placeholder",
+        "unknown_price",
+    }
+)
+
+
+def answer_problems(config: WorkspaceConfig, text: str) -> list[str]:
+    """Codes of the draft rules that also apply to a fragment of a future email (links, emails,
+    prices, placeholders, hidden characters). Length and language are the draft's business."""
+    found = check_draft_detailed(
+        config, language="en", subject="Answer", body=text, short_body=None
+    )
+    return sorted({p.code for p in found} & ANSWER_BLOCKING_CODES)
 
 
 def check_draft(

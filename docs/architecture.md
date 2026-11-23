@@ -269,3 +269,70 @@ flowchart LR
 
 Deviation from the plan: the call cap counts per agent run, not per lead across runs, because
 `llm_calls` references runs; a re-run gets a fresh allowance and the global budget still applies.
+
+## Knowledge base ingestion (M3.2)
+
+`python -m lead_qualifier.scripts.ingest_kb <workspace> [--force]` (or `POST /admin/kb/{slug}/reindex`,
+admin token) reads `workspaces/<slug>/<knowledge_base.path>/*.md` and stores chunks in pgvector.
+
+- **Chunking** (`domain/kb_chunker.py`): LangChain `MarkdownHeaderTextSplitter` on `#` to `####`, then a
+  recursive splitter caps each section. The cap is a property of the embedding model
+  (`Embeddings.max_chunk_tokens`): fastembed's MiniLM reads only 128 word pieces and drops the rest, so its
+  chunks are at most 120 estimated tokens with 20 overlap, counting the document title and heading path that
+  are embedded with the text. The token estimate is deliberately pessimistic (no tokenizer download).
+  OpenAI uses 500/50. Each chunk keeps its heading path (`Pricing > Bootcamp > Payment plan`).
+- **Idempotent**: the stored hash covers the file bytes, the chunker version and the model's chunk size, so
+  editing a file or changing the chunking re-ingests it, and nothing else. Documents deleted from disk lose
+  their chunks. A file that is skipped (symlink or outside the folder, over 1 MB, invalid UTF-8) keeps its
+  last good version in the database and is reported as `skipped`.
+- **Concurrency**: chunking and embedding run before the transaction; only the writes run under a per-workspace
+  advisory lock. A second reindex of the same workspace in the same process gets `409`, and a reindex that
+  exceeds `KB_REINDEX_TIMEOUT_SECONDS` answers `504`.
+- **Embeddings port** (`ports/embeddings.py`): `fastembed` with
+  `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensions), an optional OpenAI adapter
+  (`text-embedding-3-small` at 384 dimensions, redirects off, untested against the real API) and a
+  deterministic `FakeEmbeddings` used by tests and CI.
+- **Model download**: not at image build. Run `python -m lead_qualifier.scripts.ingest_kb --warm` once (or set
+  `EMBEDDINGS_WARM_ON_STARTUP=true`) so the first reindex does not wait for the download. The model files live
+  in `EMBEDDINGS_CACHE_DIR`; fastembed has no revision pin, so the exact files are whatever the cache volume
+  holds. Keep the volume to freeze them, and re-ingest if you ever replace it.
+- **Tables** (migration `0010`): `kb_documents`, `kb_chunks` with `vector(384)`, an HNSW index with
+  `vector_cosine_ops` and a CHECK on `embedding_model`. Retrieval (`KnowledgeBaseService.retrieve`) only
+  compares vectors of the active model and returns the top-k above a minimum cosine similarity.
+- `knowledge_base.path` must be a relative folder without `..`.
+
+## Answer node (M3.3)
+
+Graph order: `extract -> qualify -> answer -> draft -> validate_draft -> human_review`. `answer` runs only when
+`extract` found questions (`profile.questions`).
+
+- **Retrieval**: each question goes through `KnowledgeBaseService.retrieve` (`KB_TOP_K`, `KB_MIN_SIMILARITY`).
+  A question with nothing above the threshold never reaches the model: it gets the fixed text
+  "Not covered in our documentation — the team will reply personally" (Spanish equivalent for `es`).
+- **Structured output**: one item per question with `answer`, `covered` and `citations [{chunk_id, quote}]`.
+  The domain check requires that the item repeats its question, that every `chunk_id` was retrieved for that
+  very question, and that the quote (at least 15 characters or 3 words) appears word for word in the chunk
+  text as a reader sees it (markdown, links and table pipes removed). Violations go through the usual repair loop (2 repairs), then fail the run.
+- **Untrusted text**: questions and chunk text are JSON-encoded with angle brackets escaped and wrapped in
+  `<lead_questions>` and `<kb_context>`; the prompts tell the model they are data.
+- **Draft**: receives `<kb_answers>` and may state facts only from covered answers or the workspace config;
+  for uncovered questions it says the team will reply personally. A covered answer that contains a link, email,
+  price or placeholder the draft guard would reject is downgraded to not covered. The draft guard is unchanged.
+- **Storage** (migration `0011`): `lead_answers` and `answer_citations` (deleted with the lead). Citations
+  keep source path, heading and quote and have no foreign key to `kb_chunks`, so re-ingesting the knowledge
+  base never breaks them. `GET /admin/leads/{id}` returns them as `kb_answers`.
+
+## Ask the docs (M3.4)
+
+The dashboard page `/dashboard/ask` answers one question at a time from a workspace's knowledge base.
+
+- **Agent**: `POST /admin/kb/{slug}/ask` `{question (3-500 chars), language?}` and
+  `GET /admin/kb/{slug}/queries`. It calls `answer_questions`, the same function as the answer node (same
+  retrieval threshold, citation validation, escaping and draft-guard downgrade). Not covered questions get the
+  fixed text, in Spanish when the question looks Spanish. Limit: `KB_ASK_PER_HOUR` per workspace (429).
+- **Runs**: each question is its own `agent_runs` row (`kind = 'kb_chat'`, no lead, migration `0012`), so its
+  model call lands in `llm_calls` and is covered by the budget and per-run call caps. The answer is logged in
+  `kb_queries` (question, answer, covered, citations, run id). Both are purged after `LLM_CALLS_RETENTION_DAYS`.
+- **Web**: BFF routes `/bff/kb/{slug}/ask` (anti-CSRF header, Sec-Fetch-Site, Zod, 2.3 KB body cap) and
+  `/bff/kb/{slug}/queries`. The page shows the thread, sources as disclosures (document, heading path,
+  quote), the explicit "Not in the docs" state and the recent questions.

@@ -16,6 +16,8 @@ COPY apps/agent/alembic.ini ./alembic.ini
 COPY apps/agent/migrations ./migrations
 COPY workspaces /app/workspaces
 COPY db /app/db
+# Cache of the embedding model (a named volume in compose); the model is downloaded on first use.
+RUN mkdir -p /var/cache/fastembed && chown app /var/cache/fastembed
 USER app
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn lead_qualifier.entrypoint:app --host 0.0.0.0 --port 8000 --no-proxy-headers"]

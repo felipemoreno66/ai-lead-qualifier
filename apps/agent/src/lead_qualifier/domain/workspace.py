@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
+from pathlib import PurePosixPath
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -220,6 +221,14 @@ class Cors(_Strict):
 class KnowledgeBase(_Strict):
     path: str = "knowledge-base"
     enabled: bool = True
+
+    @field_validator("path")
+    @classmethod
+    def _inside_the_workspace(cls, value: str) -> str:
+        parts = PurePosixPath(value).parts
+        if not value or PurePosixPath(value).is_absolute() or ".." in parts or "\\" in value:
+            raise ValueError("knowledge_base.path must be a relative folder inside the workspace")
+        return value
 
 
 class Notifications(_Strict):

@@ -2,6 +2,14 @@
   "$defs": {
     "CostMetrics": {
       "properties": {
+        "ask_questions": {
+          "title": "Ask Questions",
+          "type": "integer"
+        },
+        "ask_total_usd": {
+          "title": "Ask Total Usd",
+          "type": "number"
+        },
         "avg_per_lead_usd": {
           "anyOf": [
             {
@@ -47,6 +55,8 @@
         "leads_with_runs",
         "llm_calls",
         "providers",
+        "ask_total_usd",
+        "ask_questions",
         "lifetime_spent_usd",
         "budget_usd"
       ],

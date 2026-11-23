@@ -61,7 +61,8 @@ async def test_qualify_persists_score_run_and_llm_calls(make_client, db: AsyncEn
     assert run.prompt_versions == {
         "extract": "extract@1",
         "qualify": "qualify@1",
-        "draft": "draft@1",
+        "answer": "answer@1",
+        "draft": "draft@2",
     }
     assert run.total_cost_usd == 0 and run.duration_ms is not None
 

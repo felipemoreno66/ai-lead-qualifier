@@ -255,13 +255,17 @@ function Cards({ m }: { m: Metrics }) {
         <h2 id="m-cost">{costHeadline(m)}</h2>
         <p className="cap">
           {m.cost.avg_per_lead_usd !== null ? `Average ${formatUsd(m.cost.avg_per_lead_usd)} per lead. ` : ""}
-          Spend on these leads: {formatUsd(m.cost.total_usd)}.
+          Spend on these leads: {formatUsd(m.cost.total_usd)}. Questions asked in Ask the docs are counted separately below.
         </p>
         <dl className="kv">
           <dt>Model calls</dt>
           <dd className="num">{m.cost.llm_calls}</dd>
           <dt>Provider</dt>
           <dd>{m.cost.providers.length ? m.cost.providers.join(", ") : "none recorded"}</dd>
+          <dt>Ask the docs</dt>
+          <dd className="num">
+            {pluralize(m.cost.ask_questions, "question")}, {formatUsd(m.cost.ask_total_usd)}
+          </dd>
           <dt>Spent in total</dt>
           <dd className="num">
             {formatUsd(m.cost.lifetime_spent_usd)} of the {formatUsd(m.cost.budget_usd)} budget

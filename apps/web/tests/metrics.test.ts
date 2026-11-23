@@ -50,6 +50,8 @@ const base: Metrics = {
     leads_with_runs: 43,
     llm_calls: 129,
     providers: ["anthropic"],
+    ask_total_usd: 0.02,
+    ask_questions: 4,
     lifetime_spent_usd: 0.4,
     budget_usd: 5,
   },

@@ -80,7 +80,7 @@ async def compute_metrics(
     )
     run_scope = (
         "FROM agent_runs r JOIN leads l ON l.id = r.lead_id "
-        "WHERE (CAST(:ws AS text) IS NULL OR l.workspace_slug = :ws) "
+        "WHERE r.kind = 'qualify' AND (CAST(:ws AS text) IS NULL OR l.workspace_slug = :ws) "
         "AND l.created_at >= :start AND l.created_at < :end"
     )
     # The ``scope`` fragments below are constants; every value reaches SQL as a bound parameter.
@@ -119,8 +119,13 @@ async def compute_metrics(
             "FILTER (WHERE c.provider IS NOT NULL), '{}') "
             "FROM llm_calls c JOIN agent_runs r ON r.id = c.agent_run_id "
             "JOIN leads l ON l.id = r.lead_id "
-            "WHERE (CAST(:ws AS text) IS NULL OR l.workspace_slug = :ws) "
+            "WHERE r.kind = 'qualify' AND (CAST(:ws AS text) IS NULL OR l.workspace_slug = :ws) "
             "AND l.created_at >= :start AND l.created_at < :end"
+        )
+        (ask,) = await rows(
+            "SELECT coalesce(sum(r.total_cost_usd), 0), count(*) FROM agent_runs r "
+            "WHERE r.kind = 'kb_chat' AND (CAST(:ws AS text) IS NULL OR r.workspace_slug = :ws) "
+            "AND r.started_at >= :start AND r.started_at < :end"
         )
         lifetime = (await conn.execute(sa.text("SELECT spent_usd FROM llm_budget"))).scalar()
 
@@ -160,6 +165,8 @@ async def compute_metrics(
             leads_with_runs=leads_with_runs,
             llm_calls=int(calls[0]),
             providers=providers,
+            ask_total_usd=float(ask[0]),
+            ask_questions=int(ask[1]),
             lifetime_spent_usd=float(lifetime or 0),
             budget_usd=budget_usd,
         ),

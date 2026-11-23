@@ -1,5 +1,7 @@
 import {
   agentRunsSchema,
+  kbChatEntriesSchema,
+  kbChatEntrySchema,
   leadDetailSchema,
   leadListSchema,
   metricsSchema,
@@ -9,10 +11,12 @@ import {
   reviewResultSchema,
   workspaceSummariesSchema,
 } from "contracts";
-import type { z } from "zod";
+import { z } from "zod";
 
 export {
   agentRunsSchema,
+  kbChatEntriesSchema,
+  kbChatEntrySchema,
   leadDetailSchema,
   leadListSchema,
   metricsSchema,
@@ -30,3 +34,15 @@ export type Breakdown = import("contracts").LeadDetailSchema["breakdown"][number
 export type AgentRun = z.infer<typeof agentRunsSchema>[number];
 export type Metrics = z.infer<typeof metricsSchema>;
 export type ReviewInput = z.input<typeof reviewRequestSchema>;
+
+export type KbEntry = z.infer<typeof kbChatEntrySchema>;
+export type KbCitation = KbEntry["citations"][number];
+
+/** Body of "Ask the docs": mirrors the agent's limits (3 to 500 characters). */
+export const kbAskRequestSchema = z.object({
+  question: z.string().trim().min(3).max(500),
+  language: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
+});

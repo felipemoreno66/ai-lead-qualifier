@@ -216,6 +216,32 @@ async def test_cost_counts_priced_runs_and_lifetime_keeps_deleted_leads(make_cli
     assert after["budget_usd"] > 0
 
 
+async def test_ask_the_docs_spend_is_its_own_figure(make_client, db):
+    lead = await add_lead(db, NOW - timedelta(days=1))
+    await add_run(db, lead, "0.300000")
+    async with db.begin() as conn:
+        await conn.execute(
+            sa.text(
+                "INSERT INTO agent_runs (thread_id, run_number, graph_version, kind,"
+                " workspace_slug, total_cost_usd, started_at) VALUES"
+                " (:t1, 1, 'kb', 'kb_chat', :ws, 0.05, :inside),"
+                " (:t2, 1, 'kb', 'kb_chat', :ws, 0.02, :outside)"
+            ),
+            {
+                "t1": str(uuid.uuid4()),
+                "t2": str(uuid.uuid4()),
+                "ws": NW,
+                "inside": NOW - timedelta(days=2),
+                "outside": NOW - timedelta(days=90),
+            },
+        )
+    async with make_client(clock=clock()) as client:
+        cost = (await get(client, workspace=NW))["cost"]
+    # Lead figures count qualification runs only; chat runs have no lead and are listed apart.
+    assert cost["total_usd"] == pytest.approx(0.3) and cost["leads_with_runs"] == 1
+    assert cost["ask_total_usd"] == pytest.approx(0.05) and cost["ask_questions"] == 1
+
+
 async def test_a_qualified_lead_reports_calls_and_a_free_provider(make_client, db):
     async with make_client(llm_provider=provider(db)) as client:
         await pending(client, "m1@example.com")

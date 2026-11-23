@@ -4,6 +4,8 @@ import { z } from "zod";
 export const metricsSchema = z.object({
   by_status: z.array(z.object({ count: z.number().int(), status: z.string() })),
   cost: z.object({
+    ask_questions: z.number().int(),
+    ask_total_usd: z.number(),
     avg_per_lead_usd: z.union([z.number(), z.null()]),
     budget_usd: z.number(),
     leads_with_runs: z.number().int(),

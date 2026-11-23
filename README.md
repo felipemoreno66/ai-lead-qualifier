@@ -157,6 +157,8 @@ Stop everything with `docker compose down` (add `-v` to delete the database volu
   `EXPOSE_ADMIN_API=false` on an instance that must not serve them at all. Set `TRUSTED_PROXIES` to the proxy
   CIDRs so rate limits see the real client IP (uvicorn runs with `--no-proxy-headers`).
 - Personal data never reaches the logs: SQL parameters are hidden and exception messages are withheld.
+- **Embeddings stay local by default** (fastembed). If you set `EMBEDDINGS_PROVIDER=openai`, the text of your
+  knowledge-base documents (at ingest) and each lead's questions (at answer time) are sent to OpenAI.
 
 ## Configuration
 
@@ -204,7 +206,10 @@ and the Playwright suite, all without secrets.
 1. ~~Qualification agent~~ (built): LangGraph graph (extract, score against your criteria, draft in the
    lead's language), fake provider for keyless use, human approve/edit/reject before any email is sent.
    Remaining: one real-provider eval run.
-2. **Knowledge base with citations** (RAG) over your own Markdown.
+2. **Knowledge base with citations** (RAG) over your own Markdown. Built: the fictional Northwind KB, the
+   ingestion pipeline and the answer node (questions in an application are answered from the KB with
+   validated citations, or marked as not covered), the dashboard's "Ask the docs" page and a RAG eval
+   (see [architecture](docs/architecture.md)). Remaining: a real-provider eval run and the private KB.
 3. **Metrics and keyless demo polish**, deployment notes.
 4. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta
    WhatsApp Cloud API and n8n, with a separate opt-in from the lead.

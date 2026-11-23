@@ -111,6 +111,7 @@ def make_settings(migrated_url: str):
             "migrations_dir": AGENT_DIR / "migrations",
             "enabled_workspaces": "northwind-academy",
             "dispatcher_enabled": False,
+            "embeddings_provider": "fake",
             "min_fill_seconds": 0,
             "admin_api_token": "test-admin-token-123456",
             "n8n_api_token": "test-n8n-token-1234567",
@@ -136,6 +137,7 @@ async def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_setting
         clock: object | None = None,
         llm_provider: object | None = None,
         email_sender: object | None = None,
+        embeddings: object | None = None,
         **overrides: object,
     ) -> httpx.AsyncClient:
         settings = make_settings(**overrides)
@@ -148,6 +150,7 @@ async def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_setting
             clock=clock,  # type: ignore[arg-type]
             llm_provider=llm_provider,  # type: ignore[arg-type]
             email_sender=email_sender,  # type: ignore[arg-type]
+            embeddings=embeddings,  # type: ignore[arg-type]
         )
         client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),

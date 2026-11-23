@@ -112,6 +112,12 @@ services:
       AGENT_RUN_TIMEOUT_MINUTES: ${AGENT_RUN_TIMEOUT_MINUTES:-10}
       QUALIFY_MAX_RUNS_PER_DAY: ${QUALIFY_MAX_RUNS_PER_DAY:-5}
       AWS_REGION: ${AWS_REGION:-us-east-1}
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-fastembed}
+      EMBEDDINGS_CACHE_DIR: /var/cache/fastembed
+      EMBEDDINGS_WARM_ON_STARTUP: ${EMBEDDINGS_WARM_ON_STARTUP:-false}
+      KB_TOP_K: ${KB_TOP_K:-5}
+      KB_MIN_SIMILARITY: ${KB_MIN_SIMILARITY:-0.3}
+      KB_ASK_PER_HOUR: ${KB_ASK_PER_HOUR:-60}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -126,6 +132,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      - fastembed_cache:/var/cache/fastembed
     mem_limit: 768m
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
@@ -161,3 +169,4 @@ services:
 
 volumes:
   pgdata:
+  fastembed_cache:

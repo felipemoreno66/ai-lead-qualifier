@@ -53,6 +53,35 @@ class AnswerOut(BaseModel):
     display: str
 
 
+class CitationOut(BaseModel):
+    chunk_id: uuid.UUID
+    document_path: str
+    document_title: str
+    heading_path: str
+    quote: str
+
+
+class KbAnswerOut(BaseModel):
+    question: str
+    answer: str
+    covered: bool
+    citations: list[CitationOut]
+
+
+class KbAskRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=500)
+    language: str | None = Field(default=None, pattern=r"^[a-z]{2}$")
+
+
+class KbChatEntryOut(BaseModel):
+    id: uuid.UUID
+    question: str
+    answer: str
+    covered: bool
+    citations: list[CitationOut]
+    created_at: datetime
+
+
 class LeadEventOut(BaseModel):
     id: uuid.UUID
     type: str
@@ -116,6 +145,7 @@ class LeadDetail(BaseModel):
     qualified_at: datetime | None
     sent_at: datetime | None
     answers: list[AnswerOut]
+    kb_answers: list[KbAnswerOut]
     events: list[LeadEventOut]
     outbox: list[OutboxEventOut]
     messages: list[MessageOut]
@@ -312,6 +342,8 @@ class CostMetrics(BaseModel):
     leads_with_runs: int
     llm_calls: int
     providers: list[str]
+    ask_total_usd: float  # "Ask the docs" chat runs of the workspace, not tied to any lead
+    ask_questions: int
     lifetime_spent_usd: float
     budget_usd: float
 
@@ -333,3 +365,13 @@ class MetricsOut(BaseModel):
     time_to_qualify: TimeToQualify
     leads_per_day: list[DayCount]
     cost: CostMetrics
+
+
+class KbReindexResult(BaseModel):
+    workspace: str
+    added: int
+    updated: int
+    unchanged: int
+    removed: int
+    skipped: int
+    chunks: int

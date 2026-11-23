@@ -76,3 +76,46 @@ class DraftOutput(BaseModel):
     subject: str = Field(min_length=1, max_length=150)
     body: str = Field(min_length=1, max_length=4000)
     short_body: str | None = Field(default=None, max_length=1000)
+
+
+class Citation(BaseModel):
+    """A claim's evidence as the model returns it: a retrieved chunk id and a verbatim quote."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    chunk_id: str = Field(max_length=64)
+    quote: str = Field(min_length=1, max_length=300)
+
+
+class AnswerItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(max_length=500)
+    answer: str = Field(max_length=1200)
+    covered: bool
+    citations: list[Citation] = Field(default_factory=list, max_length=5)
+
+
+class AnswerOutput(BaseModel):
+    """Output of ``answer``: one item per question sent, in the same order."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answers: list[AnswerItem] = Field(max_length=5)
+
+
+class ResolvedCitation(BaseModel):
+    chunk_id: str
+    quote: str
+    document_path: str
+    document_title: str
+    heading_path: str
+
+
+class AnswerResult(BaseModel):
+    """A validated answer to one of the lead's questions, ready to store and to feed ``draft``."""
+
+    question: str
+    answer: str
+    covered: bool
+    citations: list[ResolvedCitation] = Field(default_factory=list)
