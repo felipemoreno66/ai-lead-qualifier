@@ -253,7 +253,9 @@ async def test_approving_a_draft_that_still_has_problems_needs_the_override(make
         assert (await review(client, lead_id, action="approve", override=True)).status_code == 200
 
 
-@pytest.mark.parametrize("subject", ["Hi\r\nBcc: boss@evil.test", "Hi\nthere", "Hi‮txt", "Hi\x00"])
+@pytest.mark.parametrize(
+    "subject", ["Hi\r\nBcc: boss@evil.test", "Hi\nthere", "Hi‮txt", "Hi\x00", "Hi\u200bthere"]
+)
 async def test_a_subject_with_control_characters_is_a_validation_error(make_client, db, subject):
     async with make_client(llm_provider=provider(db)) as client:
         lead_id = await pending(client, "v3@example.com")
@@ -346,3 +348,78 @@ async def test_the_sweep_removes_orphaned_and_old_finished_threads_only(make_cli
     assert removed >= 2  # (threads left by other tests in this shared database are orphans too)
     assert f"lead:{waiting}:run:1" in remaining  # a lead waiting for a human keeps its thread
     assert not {f"lead:{done}:run:1", f"lead:{gone}:run:1"} & remaining
+
+
+async def test_repeating_an_approval_after_an_edit_is_still_idempotent(make_client, db):
+    async with make_client(llm_provider=provider(db)) as client:
+        lead_id = await pending(client, "e9@example.com")
+        edited = await review(
+            client, lead_id, action="edit", subject="Hello", body="Fine body here."
+        )
+        again = await review(client, lead_id, action="approve")
+    assert edited.status_code == 200 and again.status_code == 200
+    assert again.json()["message_id"] == edited.json()["message_id"]
+    assert (
+        len(await rows(db, "SELECT 1 FROM outbox_events WHERE event_type='message.approved'")) == 1
+    )
+
+
+async def test_the_sweep_survives_a_thread_that_cannot_be_deleted(make_client, db):
+    from datetime import UTC, datetime, timedelta
+
+    async with make_client(llm_provider=provider(db)) as client:
+        for n in range(2):
+            lead_id = await pending(client, f"w{n}@example.com")
+            async with db.begin() as conn:
+                await conn.execute(sa.text("DELETE FROM leads WHERE id = :i"), {"i": lead_id})
+        checkpointer = client.app.state.checkpointer
+        saver = await checkpointer.get()
+        real = saver.adelete_thread
+        calls: list[str] = []
+
+        async def flaky(thread_id: str) -> None:
+            calls.append(thread_id)
+            if len(calls) == 1:
+                raise RuntimeError("db hiccup")
+            await real(thread_id)
+
+        saver.adelete_thread = flaky  # type: ignore[method-assign]
+        removed = await checkpointer.purge_stale_threads(db, datetime.now(UTC), timedelta(days=30))
+        saver.adelete_thread = real  # type: ignore[method-assign]
+    assert len(calls) >= 2 and removed == len(calls) - 1  # the failure did not stop the loop
+
+
+async def test_a_crash_right_after_a_regenerate_claim_is_reaped_but_a_live_one_is_not(
+    make_client, db, monkeypatch: pytest.MonkeyPatch
+):
+    import asyncio
+    from datetime import timedelta
+
+    from lead_qualifier.ports.clock import SystemClock
+    from lead_qualifier.services import review as review_module
+    from lead_qualifier.services.reaper import reap_stale_runs
+
+    async def killed(*_a: object, **_k: object) -> None:
+        raise asyncio.CancelledError  # the process dies after the claim is committed
+
+    async with make_client(llm_provider=provider(db)) as client:
+        lead_id = await pending(client, "r9@example.com")
+        async with db.begin() as conn:  # the run is old, as in any run that waited for review
+            await conn.execute(
+                sa.text("UPDATE agent_runs SET started_at = now() - interval '5 days'")
+            )
+        monkeypatch.setattr(review_module, "resume_review", killed)
+        with pytest.raises(asyncio.CancelledError):
+            await client.app.state.reviewer.review(uuid.UUID(lead_id), "regenerate", feedback="x")
+        monkeypatch.undo()
+        state = await rows(db, "SELECT l.status, r.status AS run FROM leads l, agent_runs r")
+        assert (state[0].status, state[0].run) == ("qualifying", "running")
+        # the claim just refreshed the lead, so a regenerate in progress is left alone
+        assert await reap_stale_runs(db, SystemClock(), timedelta(minutes=10)) == 0
+        async with db.begin() as conn:
+            await conn.execute(
+                sa.text("UPDATE leads SET updated_at = now() - interval '30 minutes'")
+            )
+        assert await reap_stale_runs(db, SystemClock(), timedelta(minutes=10)) == 1
+    final = await rows(db, "SELECT status, error_reason FROM leads")
+    assert final[0].status == "error" and final[0].error_reason.startswith("interrupted")

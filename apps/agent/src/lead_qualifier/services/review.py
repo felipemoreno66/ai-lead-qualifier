@@ -155,7 +155,8 @@ class ReviewService:
     async def _repeat_of_approval(
         self, conn: AsyncConnection, lead: dict[str, Any], action: Action
     ) -> ReviewOutcome | None:
-        """Approving an already-approved lead is idempotent: same answer, no second outbox event."""
+        """Approving an already-approved lead is idempotent, even after an operator edit: same
+        answer, no second outbox event."""
         if action != "approve" or lead["status"] not in (
             LeadStatus.APPROVED.value,
             LeadStatus.SENT.value,
@@ -168,7 +169,6 @@ class ReviewService:
                     .where(
                         messages.c.lead_id == lead["id"],
                         messages.c.status.in_(("approved", "sent")),
-                        messages.c.edited_by_operator.is_(False),
                     )
                     .order_by(messages.c.version.desc())
                     .limit(1)

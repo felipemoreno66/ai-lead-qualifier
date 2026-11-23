@@ -118,16 +118,21 @@ class Problem:
 
 
 def has_unsafe_chars(text: str, *, allow_newlines: bool) -> bool:
-    """Control characters (header injection) and bidi controls (visual spoofing)."""
+    """Control characters (header injection), bidi controls and other invisible format characters
+    such as zero-width spaces (visual spoofing, hidden text)."""
     for char in text:
         if char in _UNSAFE_CHARS:
             return True
-        if unicodedata.category(char) == "Cc" and not (allow_newlines and char in "\n\r\t"):
+        category = unicodedata.category(char)
+        if category == "Cf":  # zero-width characters, soft hyphen, BOM...
+            return True
+        if category == "Cc" and not (allow_newlines and char in "\n\r\t"):
             return True
     return False
 
 
 def _normalise_for_links(text: str) -> str:
+    text = "".join(c for c in text if unicodedata.category(c) != "Cf")  # evil<ZWSP>.com
     text = unicodedata.normalize("NFKC", text).translate(_DOT_VARIANTS)
     return _OBFUSCATED_DOT_RE.sub(".", text)
 

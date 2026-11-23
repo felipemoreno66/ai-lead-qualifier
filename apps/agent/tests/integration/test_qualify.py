@@ -219,8 +219,15 @@ async def test_the_reaper_fails_stale_runs_but_not_waiting_or_recent_ones(make_c
             "waiting": ("3 days", "interrupted"),
         }.items():
             await conn.execute(
-                sa.text("UPDATE leads SET status = :s WHERE id = :i"),
-                {"s": "pending_review" if name == "waiting" else "qualifying", "i": ids[name]},
+                sa.text(
+                    "UPDATE leads SET status = :s, updated_at = now() - CAST(:a AS interval)"
+                    " WHERE id = :i"
+                ),
+                {
+                    "s": "pending_review" if name == "waiting" else "qualifying",
+                    "i": ids[name],
+                    "a": age,
+                },
             )
             await conn.execute(
                 sa.text(

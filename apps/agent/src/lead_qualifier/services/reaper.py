@@ -18,8 +18,13 @@ REASON = "interrupted: the qualification run did not finish"
 
 
 async def reap_stale_runs(engine: AsyncEngine, clock: Clock, max_age: timedelta) -> int:
-    """Mark ``running`` runs older than ``max_age`` as failed and their ``qualifying`` lead as
-    ``error`` (retryable). Runs paused for a human (``interrupted``) are never touched."""
+    """Mark ``running`` runs whose ``qualifying`` lead has not been touched for ``max_age`` as
+    failed and the lead as ``error`` (retryable).
+
+    Staleness is the lead's ``updated_at``, which every claim (start of a run, operator
+    regenerate) refreshes, so a long-lived run that is regenerating right now is not reaped, while
+    a crash right after a regenerate claim is. Runs paused for a human (``interrupted``) are
+    never touched."""
     now = clock.now()
     reaped = 0
     async with engine.connect() as conn:
@@ -29,7 +34,7 @@ async def reap_stale_runs(engine: AsyncEngine, clock: Clock, max_age: timedelta)
                 .join(leads, leads.c.id == agent_runs.c.lead_id)
                 .where(
                     agent_runs.c.status == "running",
-                    agent_runs.c.started_at < now - max_age,
+                    leads.c.updated_at < now - max_age,
                     leads.c.status == LeadStatus.QUALIFYING.value,
                 )
             )
