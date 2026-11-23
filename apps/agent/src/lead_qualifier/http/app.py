@@ -97,13 +97,14 @@ def create_app(
     app.add_middleware(
         WorkspaceCORSMiddleware,
         registry=registry,
-        web_origins=[o.strip() for o in settings.web_public_origin.split(",")],
+        web_origins=settings.web_origins,
         allow_draft=settings.allow_draft_workspaces,
     )
     app.add_middleware(RequestIdMiddleware)
     install_error_handlers(app)
     app.include_router(health.router)
     app.include_router(public.router)
-    app.include_router(admin.router)
-    app.include_router(internal.router)
+    if settings.expose_admin_api:
+        app.include_router(admin.router)
+        app.include_router(internal.router)
     return app

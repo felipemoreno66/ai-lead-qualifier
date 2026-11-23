@@ -11,6 +11,8 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_SECRET_LENGTH = 16
+# Placeholder values shipped in docker-compose.yml for local use; never acceptable in production.
+KNOWN_DEFAULT_PREFIX = "local-dev-"
 
 
 class Settings(BaseSettings):
@@ -35,6 +37,7 @@ class Settings(BaseSettings):
     ip_hash_secret: str = ""
     trusted_proxies: str = ""
 
+    expose_admin_api: bool = True
     orchestrator: Literal["n8n", "inline"] = "inline"
     n8n_webhook_base_url: str = "http://n8n:5678"
     dispatcher_enabled: bool = True
@@ -68,10 +71,22 @@ class Settings(BaseSettings):
                         f"{name.upper()} must be set to at least {MIN_SECRET_LENGTH} characters "
                         "when APP_ENV=production"
                     )
+                if value.startswith(KNOWN_DEFAULT_PREFIX):
+                    raise ValueError(
+                        f"{name.upper()} still has a development default value; generate a real "
+                        "secret when APP_ENV=production"
+                    )
             elif not value:
                 # Ephemeral secret: fine for tests and a first local run, never for production.
                 object.__setattr__(self, name, secrets.token_urlsafe(32))
         return self
+
+    @property
+    def web_origins(self) -> frozenset[str]:
+        """Origin(s) of the web app (``WEB_PUBLIC_ORIGIN``), normalised without trailing slash."""
+        return frozenset(
+            o.strip().rstrip("/") for o in self.web_public_origin.split(",") if o.strip()
+        )
 
     @property
     def enabled_workspace_slugs(self) -> frozenset[str]:
