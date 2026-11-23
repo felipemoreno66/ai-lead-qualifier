@@ -34,7 +34,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const crypto = require('crypto');\nconst MAX_AGE_SECONDS = 300;\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (!secret) throw new Error('N8N_WEBHOOK_SECRET is not set');\nconst item = $input.first();\nconst raw = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst timestamp = String(item.json.headers['x-timestamp'] || '');\nconst received = String(item.json.headers['x-signature'] || '');\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.').update(raw).digest('hex');\nconst a = Buffer.from(expected);\nconst b = Buffer.from(received);\nconst fresh = /^\\d+$/.test(timestamp) && Math.abs(Date.now() / 1000 - Number(timestamp)) <= MAX_AGE_SECONDS;\nconst valid = fresh && a.length === b.length && crypto.timingSafeEqual(a, b);\nif (!valid) return [{ json: { valid: false } }];\nreturn [{ json: { valid: true, ...JSON.parse(raw.toString('utf8')) } }];"
+        "jsCode": "const crypto = require('crypto');\nconst MAX_AGE_SECONDS = 300;\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (!secret) throw new Error('N8N_WEBHOOK_SECRET is not set');\nconst item = $input.first();\nconst raw = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst timestamp = String(item.json.headers['x-timestamp'] || '');\nconst received = String(item.json.headers['x-signature'] || '');\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.POST /webhook/message-approved.').update(raw).digest('hex');\nconst a = Buffer.from(expected);\nconst b = Buffer.from(received);\nconst fresh = /^\\d+$/.test(timestamp) && Math.abs(Date.now() / 1000 - Number(timestamp)) <= MAX_AGE_SECONDS;\nconst valid = fresh && a.length === b.length && crypto.timingSafeEqual(a, b);\nif (!valid) return [{ json: { valid: false } }];\nreturn [{ json: { valid: true, ...JSON.parse(raw.toString('utf8')) } }];"
       }
     },
     {
@@ -168,7 +168,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (!secret) throw new Error('N8N_WEBHOOK_SECRET is not set');\nconst id = $('Verify signature').first().json.message.id;\nconst messageId = $input.first().json.messageId || null;\nconst body = JSON.stringify({ provider_message_id: messageId });\nconst timestamp = String(Math.floor(Date.now() / 1000));\nconst signature = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.' + body).digest('hex');\nreturn [{ json: { url: `${$env.AGENT_INTERNAL_URL}/internal/messages/${id}/sent`, body, timestamp, signature } }];"
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (!secret) throw new Error('N8N_WEBHOOK_SECRET is not set');\nconst id = $('Verify signature').first().json.message.id;\nconst messageId = $input.first().json.messageId || null;\nconst body = JSON.stringify({ message_id: id, provider_message_id: messageId });\nconst path = `/internal/messages/${id}/sent`;\nconst timestamp = String(Math.floor(Date.now() / 1000));\nconst signature = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.POST ' + path + '.' + body).digest('hex');\nreturn [{ json: { url: `${$env.AGENT_INTERNAL_URL}${path}`, body, timestamp, signature } }];"
       }
     },
     {
@@ -183,7 +183,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (!secret) throw new Error('N8N_WEBHOOK_SECRET is not set');\nconst id = $('Verify signature').first().json.message.id;\nconst body = JSON.stringify({ error: 'send_failed' });\nconst timestamp = String(Math.floor(Date.now() / 1000));\nconst signature = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.' + body).digest('hex');\nreturn [{ json: { url: `${$env.AGENT_INTERNAL_URL}/internal/messages/${id}/send-failed`, body, timestamp, signature } }];"
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (!secret) throw new Error('N8N_WEBHOOK_SECRET is not set');\nconst id = $('Verify signature').first().json.message.id;\nconst body = JSON.stringify({ message_id: id, error: 'send_failed' });\nconst path = `/internal/messages/${id}/send-failed`;\nconst timestamp = String(Math.floor(Date.now() / 1000));\nconst signature = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.POST ' + path + '.' + body).digest('hex');\nreturn [{ json: { url: `${$env.AGENT_INTERNAL_URL}${path}`, body, timestamp, signature } }];"
       }
     },
     {
