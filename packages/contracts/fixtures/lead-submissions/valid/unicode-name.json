@@ -1,0 +1,18 @@
+{
+  "description": "non-ASCII names are fine",
+  "workspace": "northwind-academy",
+  "fields": {
+    "name": "Mar\u00eda Jos\u00e9 N\u00fa\u00f1ez",
+    "email": "ana@example.com",
+    "country": "CO",
+    "program": "data-ai-course",
+    "career_goal": "I want to move from accounting into data work.",
+    "budget": "500-2500",
+    "availability": "5-10h",
+    "looking_for": "Is there a payment plan?"
+  },
+  "expect": {
+    "valid": true,
+    "error_fields": []
+  }
+}

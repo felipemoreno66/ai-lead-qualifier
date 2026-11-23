@@ -1,0 +1,17 @@
+{
+  "description": "all required fields missing",
+  "workspace": "northwind-academy",
+  "fields": {},
+  "expect": {
+    "valid": false,
+    "error_fields": [
+      "availability",
+      "budget",
+      "career_goal",
+      "country",
+      "email",
+      "name",
+      "program"
+    ]
+  }
+}

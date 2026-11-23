@@ -1,0 +1,20 @@
+{
+  "description": "more than three links in free text",
+  "workspace": "northwind-academy",
+  "fields": {
+    "name": "Ana Torres",
+    "email": "ana@example.com",
+    "country": "CO",
+    "program": "data-ai-course",
+    "career_goal": "I want to move from accounting into data work.",
+    "budget": "500-2500",
+    "availability": "5-10h",
+    "looking_for": "https://a.example https://b.example https://c.example www.d.example"
+  },
+  "expect": {
+    "valid": false,
+    "error_fields": [
+      "looking_for"
+    ]
+  }
+}

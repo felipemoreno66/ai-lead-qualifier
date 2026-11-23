@@ -1,0 +1,17 @@
+{
+  "description": "optional free text omitted",
+  "workspace": "northwind-academy",
+  "fields": {
+    "name": "Ana Torres",
+    "email": "ana@example.com",
+    "country": "CO",
+    "program": "data-ai-course",
+    "career_goal": "I want to move from accounting into data work.",
+    "budget": "500-2500",
+    "availability": "5-10h"
+  },
+  "expect": {
+    "valid": true,
+    "error_fields": []
+  }
+}

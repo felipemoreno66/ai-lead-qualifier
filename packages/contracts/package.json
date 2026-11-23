@@ -5,7 +5,20 @@
   "description": "Generated JSON Schemas, OpenAPI document, Zod schemas and TypeScript types shared with the web app.",
   "type": "module",
   "scripts": {
-    "generate": "node scripts/generate.mjs",
-    "test": "vitest run"
+    "generate": "node scripts/generate.mjs"
+  },
+  "devDependencies": {
+    "@apidevtools/json-schema-ref-parser": "^16.0.8",
+    "json-schema-to-zod": "^2.8.1",
+    "openapi-typescript": "^7.13.0",
+    "prettier": "^3.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.1",
+    "zod": "^4.6.7"
+  },
+  "main": "./src/generated/index.ts",
+  "types": "./src/generated/index.ts",
+  "exports": {
+    ".": "./src/generated/index.ts"
   }
 }

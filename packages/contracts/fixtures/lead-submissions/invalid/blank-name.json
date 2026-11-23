@@ -1,0 +1,20 @@
+{
+  "description": "whitespace-only name counts as missing",
+  "workspace": "northwind-academy",
+  "fields": {
+    "name": "   ",
+    "email": "ana@example.com",
+    "country": "CO",
+    "program": "data-ai-course",
+    "career_goal": "I want to move from accounting into data work.",
+    "budget": "500-2500",
+    "availability": "5-10h",
+    "looking_for": "Is there a payment plan?"
+  },
+  "expect": {
+    "valid": false,
+    "error_fields": [
+      "name"
+    ]
+  }
+}

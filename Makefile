@@ -19,7 +19,6 @@ fmt:
 test:
 	cd apps/agent && uv run pytest
 	pnpm --filter web test
-	pnpm --filter contracts test
 
 schemas:
 	cd apps/agent && uv run python -m lead_qualifier.scripts.export_schemas

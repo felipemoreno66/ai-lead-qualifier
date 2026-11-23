@@ -1,0 +1,212 @@
+{
+  "$defs": {
+    "FieldOption": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Label",
+          "type": "object"
+        },
+        "value": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ],
+      "title": "FieldOption",
+      "type": "object"
+    },
+    "FieldRole": {
+      "enum": [
+        "name",
+        "email",
+        "free_text"
+      ],
+      "title": "FieldRole",
+      "type": "string"
+    },
+    "FieldType": {
+      "enum": [
+        "text",
+        "email",
+        "textarea",
+        "select",
+        "country",
+        "number",
+        "checkbox"
+      ],
+      "title": "FieldType",
+      "type": "string"
+    },
+    "PublicForm": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/PublicFormField"
+          },
+          "title": "Fields",
+          "type": "array"
+        },
+        "submit_label": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Submit Label",
+          "type": "object"
+        }
+      },
+      "required": [
+        "submit_label",
+        "fields"
+      ],
+      "title": "PublicForm",
+      "type": "object"
+    },
+    "PublicFormField": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Label",
+          "type": "object"
+        },
+        "max_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Length"
+        },
+        "options": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FieldOption"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FieldRole"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "$ref": "#/$defs/FieldType"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "required",
+        "label"
+      ],
+      "title": "PublicFormField",
+      "type": "object"
+    },
+    "PublicPrivacy": {
+      "additionalProperties": false,
+      "properties": {
+        "controller": {
+          "title": "Controller",
+          "type": "string"
+        },
+        "notice": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Notice",
+          "type": "object"
+        },
+        "retention_days": {
+          "title": "Retention Days",
+          "type": "integer"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "controller",
+        "retention_days",
+        "notice"
+      ],
+      "title": "PublicPrivacy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "default_language": {
+      "title": "Default Language",
+      "type": "string"
+    },
+    "form": {
+      "$ref": "#/$defs/PublicForm"
+    },
+    "languages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Languages",
+      "type": "array"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "privacy": {
+      "$ref": "#/$defs/PublicPrivacy"
+    },
+    "slug": {
+      "title": "Slug",
+      "type": "string"
+    },
+    "tagline": {
+      "title": "Tagline",
+      "type": "string"
+    }
+  },
+  "required": [
+    "slug",
+    "name",
+    "tagline",
+    "default_language",
+    "languages",
+    "form",
+    "privacy"
+  ],
+  "title": "PublicWorkspaceConfig",
+  "type": "object"
+}

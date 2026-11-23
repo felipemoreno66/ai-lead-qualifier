@@ -1,0 +1,713 @@
+{
+  "$defs": {
+    "Channels": {
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "$ref": "#/$defs/EmailChannel",
+          "default": {
+            "enabled": true
+          }
+        },
+        "whatsapp": {
+          "$ref": "#/$defs/WhatsAppChannel",
+          "default": {
+            "enabled": false,
+            "provider": null,
+            "template_name": null
+          }
+        }
+      },
+      "title": "Channels",
+      "type": "object"
+    },
+    "Cors": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_origins": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Origins",
+          "type": "array"
+        }
+      },
+      "title": "Cors",
+      "type": "object"
+    },
+    "Criterion": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "guide": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guide"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "weight": {
+          "exclusiveMinimum": 0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "weight"
+      ],
+      "title": "Criterion",
+      "type": "object"
+    },
+    "Drafting": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_link_domains": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Link Domains",
+          "type": "array"
+        },
+        "call_to_action": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Call To Action",
+          "type": "object"
+        },
+        "max_words": {
+          "exclusiveMinimum": 0,
+          "maximum": 1000,
+          "title": "Max Words",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_words",
+        "call_to_action"
+      ],
+      "title": "Drafting",
+      "type": "object"
+    },
+    "EmailChannel": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "EmailChannel",
+      "type": "object"
+    },
+    "FieldOption": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Label",
+          "type": "object"
+        },
+        "value": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ],
+      "title": "FieldOption",
+      "type": "object"
+    },
+    "FieldRole": {
+      "enum": [
+        "name",
+        "email",
+        "free_text"
+      ],
+      "title": "FieldRole",
+      "type": "string"
+    },
+    "FieldType": {
+      "enum": [
+        "text",
+        "email",
+        "textarea",
+        "select",
+        "country",
+        "number",
+        "checkbox"
+      ],
+      "title": "FieldType",
+      "type": "string"
+    },
+    "Form": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/FormField"
+          },
+          "minItems": 1,
+          "title": "Fields",
+          "type": "array"
+        },
+        "submit_label": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Submit Label",
+          "type": "object"
+        }
+      },
+      "required": [
+        "submit_label",
+        "fields"
+      ],
+      "title": "Form",
+      "type": "object"
+    },
+    "FormField": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Label",
+          "type": "object"
+        },
+        "max_length": {
+          "anyOf": [
+            {
+              "maximum": 5000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Length"
+        },
+        "options": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FieldOption"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FieldRole"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "$ref": "#/$defs/FieldType"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "label"
+      ],
+      "title": "FormField",
+      "type": "object"
+    },
+    "KnowledgeBase": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "path": {
+          "default": "knowledge-base",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "title": "KnowledgeBase",
+      "type": "object"
+    },
+    "Languages": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "title": "Default",
+          "type": "string"
+        },
+        "supported": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Supported",
+          "type": "array"
+        }
+      },
+      "required": [
+        "default",
+        "supported"
+      ],
+      "title": "Languages",
+      "type": "object"
+    },
+    "Notifications": {
+      "additionalProperties": false,
+      "properties": {
+        "notify_tiers": {
+          "default": [
+            "hot"
+          ],
+          "items": {
+            "$ref": "#/$defs/Tier"
+          },
+          "title": "Notify Tiers",
+          "type": "array"
+        },
+        "owner_email": {
+          "title": "Owner Email",
+          "type": "string"
+        }
+      },
+      "required": [
+        "owner_email"
+      ],
+      "title": "Notifications",
+      "type": "object"
+    },
+    "Price": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "currency"
+      ],
+      "title": "Price",
+      "type": "object"
+    },
+    "Privacy": {
+      "additionalProperties": false,
+      "properties": {
+        "controller": {
+          "title": "Controller",
+          "type": "string"
+        },
+        "notice": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Notice",
+          "type": "object"
+        },
+        "retention_days": {
+          "exclusiveMinimum": 0,
+          "title": "Retention Days",
+          "type": "integer"
+        },
+        "version": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "controller",
+        "retention_days",
+        "notice"
+      ],
+      "title": "Privacy",
+      "type": "object"
+    },
+    "Product": {
+      "additionalProperties": false,
+      "properties": {
+        "duration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration"
+        },
+        "id": {
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Price"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "summary"
+      ],
+      "title": "Product",
+      "type": "object"
+    },
+    "Profile": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_email": {
+          "title": "Contact Email",
+          "type": "string"
+        },
+        "draft": {
+          "default": false,
+          "title": "Draft",
+          "type": "boolean"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "tagline": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Tagline",
+          "type": "string"
+        },
+        "timezone": {
+          "minLength": 1,
+          "title": "Timezone",
+          "type": "string"
+        },
+        "website": {
+          "title": "Website",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "tagline",
+        "website",
+        "contact_email",
+        "timezone"
+      ],
+      "title": "Profile",
+      "type": "object"
+    },
+    "Qualification": {
+      "additionalProperties": false,
+      "properties": {
+        "criteria": {
+          "items": {
+            "$ref": "#/$defs/Criterion"
+          },
+          "minItems": 1,
+          "title": "Criteria",
+          "type": "array"
+        },
+        "tiers": {
+          "$ref": "#/$defs/Tiers"
+        }
+      },
+      "required": [
+        "criteria",
+        "tiers"
+      ],
+      "title": "Qualification",
+      "type": "object"
+    },
+    "Tier": {
+      "enum": [
+        "hot",
+        "warm",
+        "cold"
+      ],
+      "title": "Tier",
+      "type": "string"
+    },
+    "Tiers": {
+      "additionalProperties": false,
+      "properties": {
+        "hot_min": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Hot Min",
+          "type": "integer"
+        },
+        "warm_min": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Warm Min",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hot_min",
+        "warm_min"
+      ],
+      "title": "Tiers",
+      "type": "object"
+    },
+    "Tone": {
+      "additionalProperties": false,
+      "properties": {
+        "do": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Do",
+          "type": "array"
+        },
+        "dont": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Dont",
+          "type": "array"
+        },
+        "signature": {
+          "title": "Signature",
+          "type": "string"
+        },
+        "style": {
+          "title": "Style",
+          "type": "string"
+        }
+      },
+      "required": [
+        "style",
+        "signature"
+      ],
+      "title": "Tone",
+      "type": "object"
+    },
+    "WhatsAppChannel": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "template_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Template Name"
+        }
+      },
+      "title": "WhatsAppChannel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "channels": {
+      "$ref": "#/$defs/Channels",
+      "default": {
+        "email": {
+          "enabled": true
+        },
+        "whatsapp": {
+          "enabled": false,
+          "provider": null,
+          "template_name": null
+        }
+      }
+    },
+    "cors": {
+      "$ref": "#/$defs/Cors",
+      "default": {
+        "allowed_origins": []
+      }
+    },
+    "drafting": {
+      "$ref": "#/$defs/Drafting"
+    },
+    "form": {
+      "$ref": "#/$defs/Form"
+    },
+    "knowledge_base": {
+      "$ref": "#/$defs/KnowledgeBase",
+      "default": {
+        "enabled": true,
+        "path": "knowledge-base"
+      }
+    },
+    "languages": {
+      "$ref": "#/$defs/Languages"
+    },
+    "notifications": {
+      "$ref": "#/$defs/Notifications"
+    },
+    "privacy": {
+      "$ref": "#/$defs/Privacy"
+    },
+    "products": {
+      "items": {
+        "$ref": "#/$defs/Product"
+      },
+      "minItems": 1,
+      "title": "Products",
+      "type": "array"
+    },
+    "profile": {
+      "$ref": "#/$defs/Profile"
+    },
+    "qualification": {
+      "$ref": "#/$defs/Qualification"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "slug": {
+      "title": "Slug",
+      "type": "string"
+    },
+    "tone": {
+      "$ref": "#/$defs/Tone"
+    }
+  },
+  "required": [
+    "slug",
+    "profile",
+    "languages",
+    "tone",
+    "products",
+    "qualification",
+    "form",
+    "privacy",
+    "notifications",
+    "drafting"
+  ],
+  "title": "WorkspaceConfig",
+  "type": "object"
+}
