@@ -32,3 +32,8 @@ data/private/
 .DS_Store
 .idea/
 .vscode/
+*.tsbuildinfo
+.coverage
+backups/
+workspaces/*/private/
+evals/results/raw/
