@@ -187,11 +187,11 @@ async def review_lead(lead_id: uuid.UUID, payload: ReviewRequest, request: Reque
     outcome = await request.app.state.reviewer.review(
         lead_id,
         payload.action,
-        subject=payload.subject,
-        body=payload.body,
-        feedback=payload.feedback,
-        note=payload.note,
-        override=payload.override,
+        subject=getattr(payload, "subject", None),
+        body=getattr(payload, "body", None),
+        feedback=getattr(payload, "feedback", None),
+        note=getattr(payload, "note", None),
+        override=getattr(payload, "override", False),
     )
     return ReviewResult(**vars(outcome))
 

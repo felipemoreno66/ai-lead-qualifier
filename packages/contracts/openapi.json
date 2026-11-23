@@ -152,6 +152,25 @@
         "title": "AnswerOut",
         "type": "object"
       },
+      "ApproveReview": {
+        "properties": {
+          "action": {
+            "const": "approve",
+            "title": "Action",
+            "type": "string"
+          },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ApproveReview",
+        "type": "object"
+      },
       "CriterionBreakdown": {
         "description": "One scored criterion: what was judged, the points it earned and the evidence.",
         "properties": {
@@ -218,6 +237,46 @@
           "changed"
         ],
         "title": "DeliveryOut",
+        "type": "object"
+      },
+      "EditReview": {
+        "description": "Edit and approve: the operator's text replaces the draft (the original is kept).",
+        "properties": {
+          "action": {
+            "const": "edit",
+            "title": "Action",
+            "type": "string"
+          },
+          "body": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "maxLength": 150,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "action",
+          "body"
+        ],
+        "title": "EditReview",
         "type": "object"
       },
       "FieldOption": {
@@ -1458,6 +1517,58 @@
         "title": "QualifyResult",
         "type": "object"
       },
+      "RegenerateReview": {
+        "properties": {
+          "action": {
+            "const": "regenerate",
+            "title": "Action",
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "RegenerateReview",
+        "type": "object"
+      },
+      "RejectReview": {
+        "properties": {
+          "action": {
+            "const": "reject",
+            "title": "Action",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "RejectReview",
+        "type": "object"
+      },
       "RetriggerResult": {
         "properties": {
           "attempt": {
@@ -1475,80 +1586,6 @@
           "attempt"
         ],
         "title": "RetriggerResult",
-        "type": "object"
-      },
-      "ReviewRequest": {
-        "properties": {
-          "action": {
-            "enum": [
-              "approve",
-              "edit",
-              "reject",
-              "regenerate"
-            ],
-            "title": "Action",
-            "type": "string"
-          },
-          "body": {
-            "anyOf": [
-              {
-                "maxLength": 4000,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Body"
-          },
-          "feedback": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Feedback"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "override": {
-            "default": false,
-            "title": "Override",
-            "type": "boolean"
-          },
-          "subject": {
-            "anyOf": [
-              {
-                "maxLength": 150,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject"
-          }
-        },
-        "required": [
-          "action"
-        ],
-        "title": "ReviewRequest",
         "type": "object"
       },
       "ReviewResult": {
@@ -2121,7 +2158,30 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReviewRequest"
+                "discriminator": {
+                  "mapping": {
+                    "approve": "#/components/schemas/ApproveReview",
+                    "edit": "#/components/schemas/EditReview",
+                    "regenerate": "#/components/schemas/RegenerateReview",
+                    "reject": "#/components/schemas/RejectReview"
+                  },
+                  "propertyName": "action"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ApproveReview"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EditReview"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RejectReview"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RegenerateReview"
+                  }
+                ],
+                "title": "Payload"
               }
             }
           },

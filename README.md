@@ -48,10 +48,11 @@ heavy and their "AI" is a black box.
   **Approve and send, Edit, Reject and Regenerate**, the delivery status, and a collapsible agent run
   log (node, provider, model, tokens, latency, cost, prompt version). Edits are kept next to the
   original; a draft that fails the safety checks needs an explicit **Send anyway** (recorded in the
-  timeline). Errors show a reason code and a retry button. All actions go through the Next.js BFF
+  timeline) and asks for confirmation first. Errors show a plain sentence, the reason code and a **Retry** button. All actions go through the Next.js BFF
   (server-side token, anti-CSRF header, Zod validation from the generated contracts).
 - **Qualification eval**: ten labelled fictional leads in [evals/qualification](evals/qualification/README.md),
-  run in CI with the fake provider (`make eval`); a capped real-provider run is documented and opt-in.
+  run in CI with the fake provider (`make eval`); a capped real-provider run is documented and opt-in. Fake-provider results verify the plumbing and the
+  scoring code, not model accuracy: only a real-provider run measures that.
 - **LLM provider layer**: one port with Anthropic, a deterministic fake
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
   cost, and `LLM_BUDGET_USD` blocks real providers once spent.
@@ -172,6 +173,7 @@ must be set to at least 16 characters or the agent refuses to start.
 | `ANTHROPIC_API_KEY`, `AWS_REGION`, `OPENAI_API_KEY` | Provider credentials; only needed for that provider |
 | `RATE_*`, `TRUSTED_PROXIES` | Rate limits and proxy trust for `X-Forwarded-For` |
 | `EXPOSE_ADMIN_API` | `false` stops mounting `/admin` and `/internal` (default `true`) |
+| `TRUST_FORWARDED_HOST` | `true` only behind a reverse proxy you control: the web app then believes `X-Forwarded-Host` for its same-origin check |
 | `DASHBOARD_USER`, `DASHBOARD_PASSWORD` | Basic-auth credentials, required when `APP_ENV=production` |
 
 ## Tests

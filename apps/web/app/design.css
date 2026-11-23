@@ -130,3 +130,20 @@ input[aria-invalid=true],select[aria-invalid=true],textarea[aria-invalid=true]{b
   .runlog td,.runlog th{border:0;padding:0;text-align:left!important}.runlog td::before{content:attr(data-label) " ";color:var(--wq-muted)}.runlog tr>:first-child::before{content:""}
 }
 .notice ul,.reasons{list-style:disc}
+
+/* M2.5 review fixes */
+.criteria{max-width:none}
+.summary{display:flex;gap:24px;align-items:center;background:var(--wq-card);border:1px solid var(--wq-line);border-radius:24px;padding:20px 28px;margin-bottom:20px}
+.summary .bignum{font-size:3.5rem!important}.summary p{margin:0 0 6px}.summary ul{margin:0 0 8px;padding-left:20px;list-style:disc}.summary a{font-weight:600}
+.errbox .reason{color:#5E1810;font-size:.9375rem}.errbox .actions{margin-top:4px}.errbox .btn{text-decoration:none}
+.status-line{min-height:0;margin:0}.status-line:not(:empty){margin-top:12px}.status-line.ok:empty{display:block}
+.draft-subj{resize:none;field-sizing:content;min-height:52px;line-height:1.4}
+.actions .btn{white-space:nowrap}
+.problems{margin:0 0 20px;padding-left:20px;list-style:disc}
+.log summary{border:1.5px solid var(--wq-line);border-radius:16px;padding:8px 16px;background:var(--wq-card)}.log summary:hover{border-color:var(--wq-plum)}
+.log summary::-webkit-details-marker{display:none}.log summary{list-style:none}.chev{transition:transform .2s cubic-bezier(.2,.8,.2,1);align-self:center}.log[open] .chev{transform:rotate(180deg)}
+@media (max-width:760px){
+  .summary{flex-direction:column;align-items:flex-start;gap:8px;padding:18px}
+  .notice.bad{padding:14px 16px}.notice.bad ul{margin:6px 0 10px}
+  .actions .btn:not(.primary){flex:1 1 40%}
+}

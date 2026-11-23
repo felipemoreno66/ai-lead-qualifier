@@ -219,6 +219,9 @@ White bordered panel (28px radius, 32px padding). Key-value grid `minmax(120px,2
 - **Error box** (red wash, 28px radius, icon, plain cause, Retry), **warning box** (amber wash), **empty state** (lavender block, 24px radius, one action), **skeleton** (1.4s shimmer, disabled under reduced motion), **status line** (`.ok` sage), **pager**.
 - **Confirm dialog** (Radix alert-dialog via shadcn): white, 24px radius, right-aligned actions.
 
+### Review card (M2.5)
+Reuses the tokens above. Additions: **Field wash** (#FCFBFE) for read-only draft fields, **Deep Red/Amber Ink** (#3D0F0A, #3D2A00, #5E1810) for text on alert and warning washes, 16px radius for draft fields, 24px for the score summary and 20px for notices. The run-log summary is a bordered row with a chevron; destructive and override actions always sit behind a confirm dialog.
+
 ### Motion
 Minimal: button background .2s and press scale (ease `cubic-bezier(.2,.8,.2,1)`), pill background .15s, skeleton shimmer. All motion is disabled under `prefers-reduced-motion`.
 

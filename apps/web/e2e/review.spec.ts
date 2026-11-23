@@ -14,7 +14,7 @@ test.describe("Phase 2: review the drafted reply", () => {
     await expect(page.getByRole("heading", { name: "Why this score" })).toBeVisible();
     await expect(page.getByText("Goal fit")).toBeVisible();
     await expect(page.getByLabel(/points$/).first()).toBeVisible();
-    await expect(page.getByLabel(/^Score \d+ out of 100$/)).toBeVisible();
+    await expect(page.getByLabel(/^Score \d+ out of 100$/).last()).toBeVisible();
 
     // Nothing is sent before approval.
     expect(await mailsTo(request, who.email)).toHaveLength(0);
@@ -96,7 +96,7 @@ test.describe("Phase 2: review the drafted reply", () => {
 
     const alert = page.getByRole("alert").filter({ hasText: "did not pass the safety checks" });
     await expect(alert).toBeVisible();
-    await expect(alert).toContainText("evil.example");
+    await expect(alert).toContainText("domain the business has not allowed");
     expect(await mailsTo(request, who.email)).toHaveLength(0);
     // The failed attempt did not change anything: the draft is still waiting.
     await expect(page.getByRole("heading", { name: `Draft reply to ${who.first}` })).toBeVisible();
@@ -106,6 +106,14 @@ test.describe("Phase 2: review the drafted reply", () => {
     expect(serious.map((v) => `${v.id}: ${v.nodes[0]?.html}`)).toEqual([]);
 
     await alert.getByRole("button", { name: "Send anyway" }).click();
+    // A confirmation names the recipient and the flagged problem before anything is sent.
+    const confirm = page.getByRole("alertdialog");
+    await expect(confirm).toContainText(who.email);
+    await expect(confirm).toContainText("domain the business has not allowed");
+    await confirm.getByRole("button", { name: "Go back and fix it" }).click();
+    expect(await mailsTo(request, who.email)).toHaveLength(0);
+    await alert.getByRole("button", { name: "Send anyway" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Yes, send anyway" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Approved with your edits" })).toBeVisible();
     await expect(page.getByText("The reply draft was edited and approved despite failed checks.")).toBeVisible();
     await expect(page.locator(".letter .badge")).toContainText("Sent", { timeout: 30_000 });

@@ -99,7 +99,7 @@ const REASON_TEXT: Record<string, string> = {
   llm_provider_error: "The language model provider reported an error.",
   llm_output_invalid: "The model's answer did not match the expected format.",
   budget_exceeded: "The spending limit for model calls was reached.",
-  send_failed: "The email could not be delivered.",
+  send_failed: "The email could not be delivered, so the applicant has not received it.",
   internal_error: "The agent hit an unexpected problem.",
 };
 
@@ -108,4 +108,49 @@ export function explainReason(code: string | null): string | null {
   if (!code) return null;
   const known = REASON_TEXT[code.split(":")[0]];
   return known ?? null;
+}
+
+/** Badge class (`s-*`) for each message status. */
+export const MESSAGE_BADGE: Record<string, string> = {
+  draft: "pending_review",
+  approved: "approved",
+  sent: "sent",
+  failed: "error",
+  rejected: "rejected",
+};
+
+const PROBLEM_LABEL: Record<string, string> = {
+  unsafe_link: "A link points to an unsafe address",
+  disallowed_link: "A link goes to a domain the business has not allowed",
+  foreign_email: "An email address that is not the business's",
+  placeholder: "Unfinished placeholder text",
+  control_chars: "Hidden control characters",
+  empty_body: "The message is empty",
+  short_body_too_long: "The short version is too long",
+  short_body_markdown: "The short version contains formatting marks",
+};
+
+/** Human-readable heading of a failed draft check; unknown codes fall back to the server's text. */
+export const describeProblem = (p: { code: string; message: string }): string =>
+  PROBLEM_LABEL[p.code] ?? p.message;
+
+/** Headline and one plain sentence for an error lead; never repeats provider or model details. */
+export function errorSummary(code: string | null): { headline: string; sentence: string } {
+  const sendFailed = code?.startsWith("send_failed");
+  return {
+    headline: sendFailed ? "The reply could not be delivered" : "The agent could not finish this lead",
+    sentence: explainReason(code) ?? "Something went wrong while the agent worked on this lead.",
+  };
+}
+
+/** The applicant's goal and questions as extracted by the agent, or null when absent. */
+export function profileSummary(
+  qualification: unknown,
+): { goal: string; questions: string[] } | null {
+  const profile = (qualification as { profile?: Record<string, unknown> } | null)?.profile;
+  if (!profile || typeof profile.goal_summary !== "string" || !profile.goal_summary.trim()) return null;
+  const questions = Array.isArray(profile.questions)
+    ? profile.questions.filter((q): q is string => typeof q === "string").slice(0, 3)
+    : [];
+  return { goal: profile.goal_summary.trim(), questions };
 }

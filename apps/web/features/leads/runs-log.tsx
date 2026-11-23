@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import {
   formatCost,
   formatLatency,
@@ -22,6 +23,7 @@ export function RunsLog({ leadId }: { leadId: string }) {
   return (
     <details className="log" id="runlog">
       <summary>
+        <ChevronDown className="ic chev" aria-hidden="true" />
         Agent run log <span className="muted">{runsSummary(runs)}</span>
       </summary>
       {runs.map((run) => {

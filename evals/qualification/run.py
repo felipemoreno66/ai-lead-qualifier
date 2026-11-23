@@ -252,11 +252,11 @@ async def main(args: argparse.Namespace) -> int:
     print(json.dumps(summary, indent=2))
     if capped is not None:
         print(f"\nSpent ${capped.spent} in {capped.calls} calls (cap ${args.budget_usd}).")
+    if args.output:
+        write_output(args.output, summary, results)  # also after a budget stop: keep what ran
     if stopped:
         print(f"\n{stopped}", file=sys.stderr)
         return 3
-    if args.output:
-        write_output(args.output, summary, results)
     ok = (
         summary["tier_accuracy"] >= args.min_accuracy
         and summary["hot_despite_injection"] == 0
