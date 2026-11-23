@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
+
+from lead_qualifier.domain.draft_guard import has_unsafe_chars
 from lead_qualifier.domain.workspace import EMAIL_RE
 from lead_qualifier.ports.channel import (
     ChannelMessage,
@@ -9,6 +13,15 @@ from lead_qualifier.ports.channel import (
     MessageChannel,
     UnsupportedChannel,
 )
+
+
+def sanitize_header(text: str) -> str:
+    """One line without control or bidirectional characters: a header can never be split."""
+    cleaned = "".join(
+        " " if has_unsafe_chars(c, allow_newlines=False) or unicodedata.category(c) == "Cc" else c
+        for c in text
+    )
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 class EmailChannel:
@@ -24,13 +37,13 @@ class EmailChannel:
 
     def render(self, message: ChannelMessage) -> ChannelPayload:
         self.validate_recipient(message.recipient)
-        if not message.subject:
+        if not message.subject or not sanitize_header(message.subject):
             raise ValueError("an email needs a subject")
         return ChannelPayload(
             channel=self.name,
             sender=self.sender,
             recipient=message.recipient,
-            subject=message.subject,
+            subject=sanitize_header(message.subject),
             text=message.body,
             message_id=f"<{message.id}@{self.message_id_domain}>",
         )

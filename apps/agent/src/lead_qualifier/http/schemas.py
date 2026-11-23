@@ -187,10 +187,12 @@ class MessageContent(BaseModel):
 
 
 class SentCallback(BaseModel):
+    message_id: uuid.UUID
     provider_message_id: str | None = Field(default=None, max_length=200)
 
 
 class SendFailedCallback(BaseModel):
+    message_id: uuid.UUID
     error: str | None = Field(default=None, max_length=200)  # accepted, never stored
 
 

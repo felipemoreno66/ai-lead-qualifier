@@ -24,9 +24,15 @@ WEBHOOK_PATHS = {"lead.created": "lead-created", "message.approved": "message-ap
 PERMANENT_STATUSES = frozenset({400, 401, 403, 404, 410, 422})
 
 
-def sign(body: bytes, secret: str, timestamp: str = "") -> str:
-    """HMAC-SHA256 over ``"<timestamp>."`` + raw body (just the body when no timestamp)."""
-    payload = f"{timestamp}.".encode() + body if timestamp else body
+def sign(body: bytes, secret: str, timestamp: str = "", *, method: str = "", path: str = "") -> str:
+    """HMAC-SHA256 over ``"<timestamp>.<METHOD> <path>."`` + raw body.
+
+    Binding the method and path stops a signed request from being replayed against another
+    endpoint or message id. Without ``path`` the older ``"<timestamp>."`` + body form is used."""
+    prefix = f"{timestamp}." if timestamp else ""
+    if path:
+        prefix += f"{method.upper()} {path}."
+    payload = prefix.encode() + body
     return "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
@@ -58,7 +64,9 @@ class N8nPublisher:
                     "Content-Type": "application/json",
                     "X-Event-ID": event["event_id"],
                     "X-Timestamp": timestamp,
-                    "X-Signature": sign(body, self.secret, timestamp),
+                    "X-Signature": sign(
+                        body, self.secret, timestamp, method="POST", path=f"/webhook/{path}"
+                    ),
                 },
             )
         except httpx.HTTPError as exc:

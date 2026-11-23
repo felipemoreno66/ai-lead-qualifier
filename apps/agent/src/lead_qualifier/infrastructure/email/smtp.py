@@ -7,6 +7,7 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 
+from lead_qualifier.domain.channel import sanitize_header
 from lead_qualifier.ports.channel import ChannelPayload, EmailSendError
 
 
@@ -29,7 +30,7 @@ class SmtpSender:
         message = EmailMessage()
         message["From"] = payload.sender
         message["To"] = payload.recipient
-        message["Subject"] = payload.subject
+        message["Subject"] = sanitize_header(payload.subject)  # defence in depth
         message["Message-ID"] = payload.message_id
         message.set_content(payload.text)
         with smtplib.SMTP(self.host, self.port, timeout=self.timeout) as smtp:

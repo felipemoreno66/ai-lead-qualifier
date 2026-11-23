@@ -9,7 +9,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Request
 
-from lead_qualifier.domain.errors import Unauthorized
+from lead_qualifier.domain.errors import BadRequest, Unauthorized
 from lead_qualifier.http.auth import require_n8n
 from lead_qualifier.http.deps import EngineDep, SettingsDep
 from lead_qualifier.http.schemas import (
@@ -33,16 +33,29 @@ async def verify_callback_signature(
     x_signature: Annotated[str | None, Header()] = None,
 ) -> None:
     """Delivery callbacks are signed like the webhook in the other direction:
-    ``X-Signature: sha256=HMAC(timestamp + "." + raw body)`` and a timestamp at most 5 minutes
-    old, so a captured callback cannot be replayed later."""
+    ``X-Signature: sha256=HMAC(timestamp + "." + METHOD + " " + path + "." + raw body)`` and a
+    timestamp at most 5 minutes old, so a captured callback can be replayed neither later nor
+    against another endpoint or message."""
     timestamp = x_timestamp or ""
     fresh = timestamp.isdigit() and abs(time.time() - int(timestamp)) <= MAX_CALLBACK_AGE_SECONDS
-    expected = sign(await request.body(), settings.n8n_webhook_secret, timestamp)
+    expected = sign(
+        await request.body(),
+        settings.n8n_webhook_secret,
+        timestamp,
+        method=request.method,
+        path=request.url.path,
+    )
     if not (fresh and x_signature and hmac.compare_digest(expected, x_signature)):
         raise Unauthorized("Invalid or expired callback signature.")
 
 
 Signed = Depends(verify_callback_signature)
+
+
+def _require_same_message(path_id: uuid.UUID, body_id: uuid.UUID) -> None:
+    if path_id != body_id:
+        raise BadRequest("The message id in the body does not match the one in the path.")
+
 
 router = APIRouter(prefix="/internal", tags=["internal"], dependencies=[require_n8n])
 
@@ -69,6 +82,7 @@ async def get_message(message_id: uuid.UUID, request: Request) -> MessageContent
 async def message_sent(
     message_id: uuid.UUID, payload: SentCallback, request: Request
 ) -> DeliveryOut:
+    _require_same_message(message_id, payload.message_id)
     result = await request.app.state.delivery.mark_sent(message_id, payload.provider_message_id)
     return DeliveryOut(**vars(result))
 
@@ -79,5 +93,6 @@ async def message_sent(
 async def message_send_failed(
     message_id: uuid.UUID, payload: SendFailedCallback, request: Request
 ) -> DeliveryOut:
+    _require_same_message(message_id, payload.message_id)
     result = await request.app.state.delivery.mark_send_failed(message_id, "n8n_send_failed")
     return DeliveryOut(**vars(result))

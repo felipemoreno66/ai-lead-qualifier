@@ -93,18 +93,19 @@ class DeliveryService:
             raise Conflict(f"A message in status '{row['status']}' is not waiting to be sent.")
         try:
             payload = self.payload_for(row)
-        except (UnsupportedChannel, ValueError):
-            payload = None
+        except (UnsupportedChannel, ValueError) as exc:
+            # Never serve raw columns around the validation the inline path applies.
+            raise Conflict(f"The message cannot be sent: {type(exc).__name__}.") from exc
         return {
             "id": str(row["id"]),
             "lead_id": str(row["lead_id"]),
-            "channel": row["channel"],
-            "recipient": row["channel_recipient"],
-            "subject": row["subject"],
-            "body": row["body"],
+            "channel": payload.channel,
+            "recipient": payload.recipient,
+            "subject": payload.subject,
+            "body": payload.text,
             "language": row["language"],
-            "from_address": payload.sender if payload else None,
-            "message_id_header": payload.message_id if payload else None,
+            "from_address": payload.sender,
+            "message_id_header": payload.message_id,
         }
 
     async def deliver(self, message_id: uuid.UUID) -> DeliveryResult:
