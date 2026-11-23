@@ -6,10 +6,13 @@ import hashlib
 import hmac
 import json
 import time
+import uuid
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
 
+from lead_qualifier.domain.errors import Conflict, NotFound
 from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.events import PermanentPublishError, PublishError
 
@@ -71,7 +74,21 @@ class N8nPublisher:
 
 
 class InlinePublisher:
-    """Inline orchestration: nothing external to call. Phase 1 only logs the event."""
+    """Inline orchestration: ``lead.created`` runs the qualification graph in-process.
+
+    A lead that is no longer qualifiable (already processed, or deleted) is not an error: the
+    event is simply done, which keeps redelivery idempotent. A failed graph run is recorded on the
+    lead (``error``, retryable) and does not fail the event.
+    """
+
+    def __init__(self, qualify: Callable[[uuid.UUID], Awaitable[object]] | None = None) -> None:
+        self._qualify = qualify
 
     async def publish(self, event: dict[str, Any]) -> None:
         log.info("inline_event", event_id=event["event_id"], event_type=event["event_type"])
+        if event["event_type"] != "lead.created" or self._qualify is None:
+            return
+        try:
+            await self._qualify(uuid.UUID(event["lead"]["id"]))
+        except (Conflict, NotFound) as exc:
+            log.info("inline_qualify_skipped", reason=exc.detail)

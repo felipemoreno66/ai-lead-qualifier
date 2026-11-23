@@ -10,6 +10,7 @@ from lead_qualifier.config import Settings
 from lead_qualifier.infrastructure.llm.anthropic_provider import AnthropicProvider
 from lead_qualifier.infrastructure.llm.bedrock_provider import BedrockProvider
 from lead_qualifier.infrastructure.llm.fake import FakeProvider
+from lead_qualifier.infrastructure.llm.fake_handlers import FAKE_HANDLERS
 from lead_qualifier.infrastructure.llm.openai_provider import OpenAIProvider
 from lead_qualifier.infrastructure.llm.pricing import PricingTable
 from lead_qualifier.infrastructure.llm.recording import RecordingProvider
@@ -26,7 +27,7 @@ def model_for(settings: Settings, task: str) -> str:
 def _adapter(settings: Settings) -> LLMProvider:
     match settings.llm_provider:
         case "fake":
-            return FakeProvider()
+            return FakeProvider(handlers=FAKE_HANDLERS)
         case "anthropic":
             key = settings.anthropic_api_key.get_secret_value()
             if not key:

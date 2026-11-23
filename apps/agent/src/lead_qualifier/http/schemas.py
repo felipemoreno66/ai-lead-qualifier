@@ -108,6 +108,16 @@ class RetriggerResult(BaseModel):
     attempt: int
 
 
+class QualifyResult(BaseModel):
+    lead_id: uuid.UUID
+    agent_run_id: uuid.UUID
+    status: str
+    score: int | None = None
+    tier: str | None = None
+    recommended_product: str | None = None
+    error_reason: str | None = None
+
+
 class AckResult(BaseModel):
     event_id: uuid.UUID
     status: Literal["delivered"] = "delivered"
