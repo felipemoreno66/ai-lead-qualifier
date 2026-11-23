@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.config import Settings
+from lead_qualifier.infrastructure.db.engine import create_engine
 from lead_qualifier.infrastructure.llm.fake import FakeProvider
 from lead_qualifier.infrastructure.llm.pricing import PricingTable
 from lead_qualifier.infrastructure.llm.recording import RecordingProvider
@@ -126,6 +127,71 @@ async def test_unknown_model_is_billed_at_the_highest_known_rate(db: AsyncEngine
     (row,) = await rows(db)
     assert row.is_estimated
     assert row.cost_usd == Decimal("0.000554")  # Sonnet rates, 554.5 per million
+
+
+async def spend(engine: AsyncEngine) -> Decimal:
+    async with engine.connect() as conn:
+        return Decimal(
+            (await conn.execute(sa.text("SELECT spent_usd FROM llm_budget"))).scalar_one()
+        )
+
+
+async def test_reservation_is_settled_with_the_real_cost(db: AsyncEngine):
+    run_id = await make_run(db)
+    provider = recorder(provider_for(Wire(ok(json.dumps(GOOD)))), db)
+    await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    assert await spend(db) == Decimal("0.000028")
+    async with db.connect() as conn:
+        states = (await conn.execute(sa.text("SELECT state FROM llm_spend"))).scalars().all()
+    assert list(states) == ["settled"]
+
+
+async def test_purge_and_lead_deletion_do_not_lower_the_spend(db: AsyncEngine):
+    run_id = await make_run(db)
+    provider = recorder(provider_for(Wire(ok(json.dumps(GOOD)), ok(json.dumps(GOOD)))), db)
+    await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    async with db.begin() as conn:
+        await conn.execute(sa.text("UPDATE llm_calls SET created_at = now() - interval '90 days'"))
+        await LlmCallRepository(conn).purge_before(datetime.now(UTC) - timedelta(days=30))
+    assert await rows(db) == [] and await spend(db) == Decimal("0.000028")
+    await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    async with db.begin() as conn:
+        await conn.execute(sa.text("DELETE FROM leads"))
+    assert await rows(db) == [] and await spend(db) == Decimal("0.000056")
+
+
+async def test_two_processes_share_reservations_through_the_database(db: AsyncEngine):
+    run_id = await make_run(db)
+    other_engine = create_engine(db.url.render_as_string(hide_password=False))
+    try:
+        wire_a, wire_b = Wire(ok(json.dumps(GOOD))), Wire(ok(json.dumps(GOOD)))
+        # room for exactly one worst-case call (about 0.000266)
+        a = recorder(provider_for(wire_a), db, budget="0.000280")
+        b = recorder(provider_for(wire_b), other_engine, budget="0.000280")
+        outcomes = await asyncio.gather(
+            a.generate_structured(verdict_request(agent_run_id=run_id)),
+            b.generate_structured(verdict_request(agent_run_id=run_id)),
+            return_exceptions=True,
+        )
+    finally:
+        await other_engine.dispose()
+    assert sum(isinstance(o, BudgetExceeded) for o in outcomes) == 1
+    assert len(wire_a.requests) + len(wire_b.requests) == 1
+
+
+async def test_stale_reservations_expire(db: AsyncEngine):
+    run_id = await make_run(db)
+    async with db.begin() as conn:
+        await conn.execute(
+            sa.text(
+                "INSERT INTO llm_spend (agent_run_id, provider, model, state, amount_usd,"
+                " created_at) VALUES (:r, 'anthropic', 'm', 'reserved', 4.9,"
+                " now() - interval '11 minutes')"
+            ),
+            {"r": run_id},
+        )
+    provider = recorder(provider_for(Wire(ok(json.dumps(GOOD)))), db)
+    await provider.generate_structured(verdict_request(agent_run_id=run_id))
 
 
 async def test_calls_without_an_agent_run_are_refused(db: AsyncEngine):

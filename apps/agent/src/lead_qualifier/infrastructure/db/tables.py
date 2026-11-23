@@ -230,3 +230,20 @@ messages = Table(
     CheckConstraint(_in("channel", MESSAGE_CHANNELS), name="ck_messages_channel"),
     Index("ix_messages_lead", "lead_id"),
 )
+
+# Append-only budget ledger. No foreign keys on purpose: neither lead deletion nor the llm_calls
+# retention purge may lower the lifetime spend that ``llm_budget`` reports.
+llm_spend = Table(
+    "llm_spend",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("agent_run_id", UUID(as_uuid=True), nullable=False),
+    Column("provider", Text, nullable=False),
+    Column("model", Text, nullable=False),
+    Column("state", Text, nullable=False),
+    Column("amount_usd", Numeric(14, 6), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("settled_at", DateTime(timezone=True)),
+    CheckConstraint(_in("state", ("reserved", "settled")), name="ck_llm_spend_state"),
+    Index("ix_llm_spend_run", "agent_run_id"),
+)
