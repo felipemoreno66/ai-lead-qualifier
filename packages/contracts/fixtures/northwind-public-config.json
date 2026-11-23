@@ -12,6 +12,10 @@
         "options": [],
         "required": true,
         "role": "name",
+        "section": {
+          "en": "About you",
+          "es": "Sobre ti"
+        },
         "type": "text"
       },
       {
@@ -24,6 +28,10 @@
         "options": [],
         "required": true,
         "role": "email",
+        "section": {
+          "en": "About you",
+          "es": "Sobre ti"
+        },
         "type": "email"
       },
       {
@@ -36,6 +44,10 @@
         "options": [],
         "required": true,
         "role": null,
+        "section": {
+          "en": "About you",
+          "es": "Sobre ti"
+        },
         "type": "country"
       },
       {
@@ -77,6 +89,10 @@
         ],
         "required": true,
         "role": null,
+        "section": {
+          "en": "What you are aiming for",
+          "es": "Lo que buscas"
+        },
         "type": "select"
       },
       {
@@ -89,6 +105,26 @@
         "options": [],
         "required": true,
         "role": null,
+        "section": {
+          "en": "What you are aiming for",
+          "es": "Lo que buscas"
+        },
+        "type": "textarea"
+      },
+      {
+        "id": "looking_for",
+        "label": {
+          "en": "What are you looking for?",
+          "es": "¿Qué estás buscando?"
+        },
+        "max_length": 2000,
+        "options": [],
+        "required": false,
+        "role": "free_text",
+        "section": {
+          "en": "What you are aiming for",
+          "es": "Lo que buscas"
+        },
         "type": "textarea"
       },
       {
@@ -130,6 +166,10 @@
         ],
         "required": true,
         "role": null,
+        "section": {
+          "en": "Fit and timing",
+          "es": "Ajuste y tiempos"
+        },
         "type": "select"
       },
       {
@@ -171,19 +211,11 @@
         ],
         "required": true,
         "role": null,
-        "type": "select"
-      },
-      {
-        "id": "looking_for",
-        "label": {
-          "en": "What are you looking for?",
-          "es": "¿Qué estás buscando?"
+        "section": {
+          "en": "Fit and timing",
+          "es": "Ajuste y tiempos"
         },
-        "max_length": 2000,
-        "options": [],
-        "required": false,
-        "role": "free_text",
-        "type": "textarea"
+        "type": "select"
       }
     ],
     "submit_label": {

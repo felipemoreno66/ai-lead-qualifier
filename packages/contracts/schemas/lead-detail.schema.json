@@ -1,0 +1,425 @@
+{
+  "$defs": {
+    "AnswerOut": {
+      "properties": {
+        "display": {
+          "title": "Display",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "value",
+        "display"
+      ],
+      "title": "AnswerOut",
+      "type": "object"
+    },
+    "LeadEventOut": {
+      "properties": {
+        "actor": {
+          "title": "Actor",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "from_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "From Status"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "to_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "To Status"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "from_status",
+        "to_status",
+        "actor",
+        "payload",
+        "created_at"
+      ],
+      "title": "LeadEventOut",
+      "type": "object"
+    },
+    "OutboxEventOut": {
+      "properties": {
+        "attempts": {
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "delivered_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delivered At"
+        },
+        "event_type": {
+          "title": "Event Type",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "last_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Error"
+        },
+        "lead_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Lead Id"
+        },
+        "next_attempt_at": {
+          "format": "date-time",
+          "title": "Next Attempt At",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "event_type",
+        "lead_id",
+        "status",
+        "attempts",
+        "next_attempt_at",
+        "last_error",
+        "created_at",
+        "delivered_at"
+      ],
+      "title": "OutboxEventOut",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "answers": {
+      "items": {
+        "$ref": "#/$defs/AnswerOut"
+      },
+      "title": "Answers",
+      "type": "array"
+    },
+    "consent_at": {
+      "format": "date-time",
+      "title": "Consent At",
+      "type": "string"
+    },
+    "consent_notice_version": {
+      "title": "Consent Notice Version",
+      "type": "string"
+    },
+    "country": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Country"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "detected_language": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Detected Language"
+    },
+    "email": {
+      "title": "Email",
+      "type": "string"
+    },
+    "error_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Error Reason"
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/LeadEventOut"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "locale": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Locale"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "origin": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Origin"
+    },
+    "outbox": {
+      "items": {
+        "$ref": "#/$defs/OutboxEventOut"
+      },
+      "title": "Outbox",
+      "type": "array"
+    },
+    "qualification": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Qualification"
+    },
+    "qualified_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Qualified At"
+    },
+    "recommended_product": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Recommended Product"
+    },
+    "recommended_product_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Recommended Product Name"
+    },
+    "reference": {
+      "title": "Reference",
+      "type": "string"
+    },
+    "score": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Score"
+    },
+    "sent_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Sent At"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "tier": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Tier"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "workspace_name": {
+      "title": "Workspace Name",
+      "type": "string"
+    },
+    "workspace_slug": {
+      "title": "Workspace Slug",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "reference",
+    "workspace_slug",
+    "workspace_name",
+    "status",
+    "name",
+    "email",
+    "country",
+    "locale",
+    "source",
+    "origin",
+    "consent_at",
+    "consent_notice_version",
+    "score",
+    "tier",
+    "recommended_product",
+    "recommended_product_name",
+    "qualification",
+    "detected_language",
+    "error_reason",
+    "created_at",
+    "updated_at",
+    "qualified_at",
+    "sent_at",
+    "answers",
+    "events",
+    "outbox"
+  ],
+  "title": "LeadDetail",
+  "type": "object"
+}

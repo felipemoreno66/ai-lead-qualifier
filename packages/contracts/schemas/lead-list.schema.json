@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "LeadListItem": {
+      "properties": {
+        "country": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Country"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "error_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Error Reason"
+        },
+        "group": {
+          "enum": [
+            "attention",
+            "hot",
+            "warm",
+            "scoring",
+            "cold"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "interest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Interest"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "recommended_product": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Recommended Product"
+        },
+        "reference": {
+          "title": "Reference",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Score"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "tier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tier"
+        },
+        "workspace_slug": {
+          "title": "Workspace Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "reference",
+        "workspace_slug",
+        "status",
+        "name",
+        "email",
+        "country",
+        "interest",
+        "score",
+        "tier",
+        "recommended_product",
+        "error_reason",
+        "created_at",
+        "group"
+      ],
+      "title": "LeadListItem",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/LeadListItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "page": {
+      "title": "Page",
+      "type": "integer"
+    },
+    "page_size": {
+      "title": "Page Size",
+      "type": "integer"
+    },
+    "total": {
+      "title": "Total",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items",
+    "page",
+    "page_size",
+    "total"
+  ],
+  "title": "LeadList",
+  "type": "object"
+}

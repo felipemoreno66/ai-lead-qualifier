@@ -2,4 +2,8 @@
 export * from "./workspace.zod";
 export * from "./public-config.zod";
 export * from "./lead-submission.zod";
+export * from "./lead-list.zod";
+export * from "./lead-detail.zod";
+export * from "./retrigger-result.zod";
+export * from "./workspace-summaries.zod";
 export type { components, paths } from "./api-types";

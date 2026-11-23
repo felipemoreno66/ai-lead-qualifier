@@ -55,6 +55,7 @@ export const workspaceConfigSchema = z
                   .default([]),
                 required: z.boolean().default(true),
                 role: z.union([z.enum(["name", "email", "free_text"]), z.null()]).default(null),
+                section: z.union([z.record(z.string(), z.string()), z.null()]).default(null),
                 type: z.enum([
                   "text",
                   "email",

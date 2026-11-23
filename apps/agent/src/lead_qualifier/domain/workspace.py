@@ -158,6 +158,7 @@ class FormField(_Strict):
     type: FieldType
     required: bool = True
     max_length: int | None = Field(default=None, ge=1, le=5000)
+    section: LocalizedText | None = None
     label: LocalizedText
     options: list[FieldOption] = []
 
@@ -294,6 +295,8 @@ class WorkspaceConfig(_Strict):
         ]
         for f in self.form.fields:
             texts.append((f"form.fields.{f.id}.label", f.label))
+            if f.section:
+                texts.append((f"form.fields.{f.id}.section", f.section))
             texts.extend(
                 (f"form.fields.{f.id}.options.{o.value}.label", o.label) for o in f.options
             )
@@ -336,6 +339,7 @@ class PublicFormField(_Strict):
     type: FieldType
     required: bool
     max_length: int | None = None
+    section: LocalizedText | None = None
     label: LocalizedText
     options: list[FieldOption] = []
 
@@ -378,6 +382,7 @@ def to_public(config: WorkspaceConfig) -> PublicWorkspaceConfig:
                     type=f.type,
                     required=f.required,
                     max_length=f.max_length,
+                    section=f.section,
                     label=f.label,
                     options=f.options,
                 )

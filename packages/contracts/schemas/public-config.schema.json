@@ -120,6 +120,21 @@
           ],
           "default": null
         },
+        "section": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
         "type": {
           "$ref": "#/$defs/FieldType"
         }

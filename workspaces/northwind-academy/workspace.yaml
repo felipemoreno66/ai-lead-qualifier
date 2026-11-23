@@ -56,22 +56,26 @@ qualification:
 form:
   submit_label: { en: Apply, es: Enviar solicitud }
   fields:
-    - { id: name, role: name, type: text, required: true, max_length: 120, label: { en: Full name, es: Nombre completo } }
-    - { id: email, role: email, type: email, required: true, label: { en: Email, es: Correo } }
-    - { id: country, type: country, required: true, label: { en: Country, es: País } }
+    # `section` groups consecutive fields under one heading on the public form.
+    - { id: name, role: name, type: text, required: true, max_length: 120, section: &about { en: About you, es: Sobre ti }, label: { en: Full name, es: Nombre completo } }
+    - { id: email, role: email, type: email, required: true, section: *about, label: { en: Email, es: Correo } }
+    - { id: country, type: country, required: true, section: *about, label: { en: Country, es: País } }
     - id: program
       type: select
       required: true
+      section: &aiming { en: What you are aiming for, es: Lo que buscas }
       label: { en: Program of interest, es: Programa de interés }
       options:
         - { value: fullstack-bootcamp, label: { en: Full Stack Bootcamp, es: Bootcamp Full Stack } }
         - { value: data-ai-course, label: { en: Data & AI Course, es: Curso de Datos e IA } }
         - { value: mentorship-1on1, label: { en: 1:1 Mentorship, es: Mentoría 1:1 } }
         - { value: not-sure, label: { en: Not sure yet, es: Aún no lo sé } }
-    - { id: career_goal, type: textarea, required: true, max_length: 600, label: { en: Career goal, es: Meta profesional } }
+    - { id: career_goal, type: textarea, required: true, max_length: 600, section: *aiming, label: { en: Career goal, es: Meta profesional } }
+    - { id: looking_for, role: free_text, type: textarea, required: false, max_length: 2000, section: *aiming, label: { en: "What are you looking for?", es: "¿Qué estás buscando?" } }
     - id: budget
       type: select
       required: true
+      section: &fit { en: Fit and timing, es: Ajuste y tiempos }
       label: { en: Budget, es: Presupuesto }
       options:
         - { value: lt-500, label: { en: Under USD 500, es: Menos de USD 500 } }
@@ -81,13 +85,13 @@ form:
     - id: availability
       type: select
       required: true
+      section: *fit
       label: { en: Weekly availability, es: Disponibilidad semanal }
       options:
         - { value: lt-5h, label: { en: Less than 5 h, es: Menos de 5 h } }
         - { value: 5-10h, label: { en: 5–10 h, es: 5–10 h } }
         - { value: 10-20h, label: { en: 10–20 h, es: 10–20 h } }
         - { value: gt-20h, label: { en: 20+ h, es: 20+ h } }
-    - { id: looking_for, role: free_text, type: textarea, required: false, max_length: 2000, label: { en: "What are you looking for?", es: "¿Qué estás buscando?" } }
 privacy:
   version: "2026-11-01"
   controller: Northwind Academy (fictional)

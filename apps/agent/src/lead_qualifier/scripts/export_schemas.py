@@ -10,10 +10,13 @@ import json
 from pathlib import Path
 from typing import Any
 
+from pydantic import TypeAdapter
+
 from lead_qualifier.config import Settings
 from lead_qualifier.domain.lead_intake import LeadSubmission
 from lead_qualifier.domain.workspace import PublicWorkspaceConfig, WorkspaceConfig, to_public
 from lead_qualifier.http.app import create_app
+from lead_qualifier.http.schemas import LeadDetail, LeadList, RetriggerResult, WorkspaceSummary
 from lead_qualifier.workspaces.loader import load_workspaces
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -37,6 +40,13 @@ def main() -> None:
     _write(schemas / "workspace.schema.json", WorkspaceConfig.model_json_schema())
     _write(schemas / "public-config.schema.json", PublicWorkspaceConfig.model_json_schema())
     _write(schemas / "lead-submission.schema.json", LeadSubmission.model_json_schema())
+    _write(schemas / "lead-list.schema.json", LeadList.model_json_schema())
+    _write(schemas / "lead-detail.schema.json", LeadDetail.model_json_schema())
+    _write(schemas / "retrigger-result.schema.json", RetriggerResult.model_json_schema())
+    _write(
+        schemas / "workspace-summaries.schema.json",
+        TypeAdapter(list[WorkspaceSummary]).json_schema(),
+    )
     _write(CONTRACTS / "openapi.json", create_app(settings, registry=registry).openapi())
 
     northwind = registry.get(NORTHWIND)

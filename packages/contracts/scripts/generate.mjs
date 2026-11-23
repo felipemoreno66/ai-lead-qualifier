@@ -26,6 +26,10 @@ const targets = [
   ["workspace.schema.json", "workspace.zod.ts", "workspaceConfigSchema"],
   ["public-config.schema.json", "public-config.zod.ts", "publicWorkspaceConfigSchema"],
   ["lead-submission.schema.json", "lead-submission.zod.ts", "leadSubmissionSchema"],
+  ["lead-list.schema.json", "lead-list.zod.ts", "leadListSchema"],
+  ["lead-detail.schema.json", "lead-detail.zod.ts", "leadDetailSchema"],
+  ["retrigger-result.schema.json", "retrigger-result.zod.ts", "retriggerResultSchema"],
+  ["workspace-summaries.schema.json", "workspace-summaries.zod.ts", "workspaceSummariesSchema"],
 ];
 
 for (const [input, output, name] of targets) {
