@@ -1,0 +1,6 @@
+# Public-demo parity: inline orchestration, no n8n.
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build --wait
+services:
+  agent:
+    environment:
+      ORCHESTRATOR: inline
