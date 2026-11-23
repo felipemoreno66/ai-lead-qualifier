@@ -287,6 +287,11 @@ export interface components {
        * Format: uuid
        */
       id: string;
+      /**
+       * Injection Suspected
+       * @default false
+       */
+      injection_suspected: boolean;
       /** Locale */
       locale: string | null;
       /** Name */
