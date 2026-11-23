@@ -16,6 +16,7 @@ from lead_qualifier.domain.kb_chunker import Chunk, chunk_markdown, document_tit
 from lead_qualifier.infrastructure.db.tables import kb_chunks, kb_documents
 from lead_qualifier.ports.clock import Clock
 from lead_qualifier.ports.embeddings import Embeddings
+from lead_qualifier.ports.knowledge import RetrievedChunk
 
 EMBED_BATCH = 32
 
@@ -36,16 +37,6 @@ class IngestResult:
             "removed": self.removed,
             "chunks": self.chunks,
         }
-
-
-@dataclass(frozen=True)
-class RetrievedChunk:
-    chunk_id: uuid.UUID
-    document_path: str
-    document_title: str
-    heading_path: str
-    content: str
-    similarity: float
 
 
 def list_documents(kb_dir: Path) -> list[Path]:
@@ -224,3 +215,25 @@ def _chunk_row(
         "embedding": vector,
         "embedding_model": model,
     }
+
+
+class WorkspaceRetriever:
+    """``KnowledgeRetriever`` bound to one workspace and the configured top-k and threshold."""
+
+    def __init__(
+        self,
+        service: KnowledgeBaseService,
+        workspace_slug: str,
+        *,
+        top_k: int,
+        min_similarity: float,
+    ) -> None:
+        self._service = service
+        self._slug = workspace_slug
+        self._top_k = top_k
+        self._min_similarity = min_similarity
+
+    async def retrieve(self, question: str) -> list[RetrievedChunk]:
+        return await self._service.retrieve(
+            self._slug, question, top_k=self._top_k, min_similarity=self._min_similarity
+        )
