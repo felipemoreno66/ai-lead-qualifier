@@ -33,6 +33,11 @@ class Conflict(AppError):
     title = "Conflict"
 
 
+class Unavailable(AppError):
+    status = 503
+    title = "Service unavailable"
+
+
 class UpstreamTimeout(AppError):
     status = 504
     title = "Timed out"

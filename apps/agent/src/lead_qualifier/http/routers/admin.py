@@ -4,18 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Annotated
+from dataclasses import asdict
+from typing import Annotated, Any
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request, Response
 
-from lead_qualifier.domain.errors import NotFound, UpstreamTimeout, ValidationFailed
+from lead_qualifier.domain.errors import NotFound, Unavailable, UpstreamTimeout, ValidationFailed
 from lead_qualifier.domain.lead import LeadStatus
 from lead_qualifier.domain.workspace import Tier
 from lead_qualifier.http.auth import require_admin
-from lead_qualifier.http.deps import EngineDep, KbDep, RegistryDep, SettingsDep
+from lead_qualifier.http.deps import EngineDep, KbChatDep, KbDep, RegistryDep, SettingsDep
 from lead_qualifier.http.schemas import (
     AgentRunOut,
+    KbAskRequest,
+    KbChatEntryOut,
     KbReindexResult,
     LeadDetail,
     LeadList,
@@ -37,6 +40,8 @@ from lead_qualifier.infrastructure.db.repositories import (
 )
 from lead_qualifier.infrastructure.db.tables import messages
 from lead_qualifier.services import retrigger as operator
+from lead_qualifier.services.kb import WorkspaceRetriever
+from lead_qualifier.services.kb_chat import KbChatUnavailable
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[require_admin])
 
@@ -218,3 +223,46 @@ async def reindex_knowledge_base(
             "The reindex took too long; warm the embedding model first (see the README)."
         ) from None
     return KbReindexResult(workspace=slug, **result.as_dict())
+
+
+def _kb_workspace(registry: RegistryDep, slug: str) -> Any:
+    workspace = registry.get(slug)
+    if workspace is None or not workspace.enabled:
+        raise NotFound("Unknown workspace.")
+    if not workspace.config.knowledge_base.enabled:
+        raise ValidationFailed("The knowledge base is disabled for this workspace.")
+    return workspace
+
+
+@router.post("/kb/{slug}/ask", response_model=KbChatEntryOut)
+async def ask_knowledge_base(
+    slug: str,
+    body: KbAskRequest,
+    registry: RegistryDep,
+    chat: KbChatDep,
+    kb: KbDep,
+    settings: SettingsDep,
+) -> KbChatEntryOut:
+    """Answer one question from the workspace's documents, with sources or "not covered"."""
+    workspace = _kb_workspace(registry, slug)
+    retriever = WorkspaceRetriever(
+        kb, slug, top_k=settings.kb_top_k, min_similarity=settings.kb_min_similarity
+    )
+    try:
+        entry = await chat.ask(workspace.config, retriever, body.question.strip(), body.language)
+    except KbChatUnavailable as exc:
+        raise Unavailable(
+            "The AI provider could not answer right now. Try again in a moment."
+        ) from exc
+    return KbChatEntryOut(**asdict(entry))
+
+
+@router.get("/kb/{slug}/queries", response_model=list[KbChatEntryOut])
+async def recent_kb_queries(
+    slug: str,
+    registry: RegistryDep,
+    chat: KbChatDep,
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> list[KbChatEntryOut]:
+    _kb_workspace(registry, slug)
+    return [KbChatEntryOut(**asdict(e)) for e in await chat.recent(slug, limit)]

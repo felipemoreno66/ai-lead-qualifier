@@ -263,16 +263,16 @@ def _resolve(item: Any, chunks: list[RetrievedChunk]) -> list[ResolvedCitation]:
     ]
 
 
-async def answer_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[str, Any]:
-    """Answer the lead's questions from the knowledge base, with validated citations.
+async def answer_questions(
+    deps: GraphDeps, questions: list[str], language: str
+) -> list[AnswerResult]:
+    """Answer questions from the knowledge base, with validated citations (raises ``LLMError``).
 
     Questions with nothing retrieved above the similarity threshold never reach the model: they are
-    answered with the fixed "not covered" text in code.
+    answered with the fixed "not covered" text in code. Used by the answer node and the dashboard's
+    "Ask the docs", so both share retrieval, the citation check, escaping and the draft rules.
     """
-    deps = runtime.context
     config = deps.workspace
-    questions = state["profile"].questions
-    language = state["profile"].detected_language
     retrieved: list[list[RetrievedChunk]] = []
     for question in questions:
         retrieved.append(await deps.knowledge.retrieve(question) if deps.knowledge else [])
@@ -297,10 +297,7 @@ async def answer_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[
             node="answer",
             agent_run_id=deps.agent_run_id,
         )
-        try:
-            result = await generate_validated(deps.provider, request, validate=_answer_check(asked))
-        except LLMError as exc:
-            return _error(exc)
+        result = await generate_validated(deps.provider, request, validate=_answer_check(asked))
         items = list(result.value.answers)
     by_question = {q: (item, chunks) for (q, chunks), item in zip(asked, items, strict=True)}
     answers: list[AnswerResult] = []
@@ -328,6 +325,17 @@ async def answer_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[
             answers.append(
                 AnswerResult(question=question, answer=not_covered_text(language), covered=False)
             )
+    return answers
+
+
+async def answer_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[str, Any]:
+    profile = state["profile"]
+    try:
+        answers = await answer_questions(
+            runtime.context, profile.questions, profile.detected_language
+        )
+    except LLMError as exc:
+        return _error(exc)
     return {"kb_answers": answers}
 
 

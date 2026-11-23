@@ -31,6 +31,7 @@ from lead_qualifier.ports.llm import LLMProvider
 from lead_qualifier.services.delivery import DeliveryService
 from lead_qualifier.services.intake import IntakeService
 from lead_qualifier.services.kb import KnowledgeBaseService
+from lead_qualifier.services.kb_chat import KbChatService
 from lead_qualifier.services.qualify import QualifyService
 from lead_qualifier.services.rate_limit import RateLimiter
 from lead_qualifier.services.review import ReviewService
@@ -157,6 +158,9 @@ def create_app(
     app.state.trusted_networks = parse_networks(settings.trusted_proxy_list)
     app.state.kb = kb
     app.state.limiter = RateLimiter(engine, clock)
+    app.state.kb_chat = KbChatService(
+        engine, settings, qualifier.provider, clock, app.state.limiter
+    )
     app.state.intake = IntakeService(engine, settings, clock, app.state.limiter)
     app.add_middleware(
         WorkspaceCORSMiddleware,
