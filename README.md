@@ -163,6 +163,10 @@ and the Playwright suite, all without secrets.
 4. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta
    WhatsApp Cloud API and n8n, with a separate opt-in from the lead.
 
+## Author
+
+**David Felipe Moreno** — [LinkedIn](https://www.linkedin.com/in/david-moren0/) · [GitHub](https://github.com/felipemoreno66)
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
