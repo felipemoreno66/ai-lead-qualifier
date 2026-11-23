@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.config import Settings
@@ -33,7 +34,6 @@ class RequestMeta:
     ip_hash: str
     origin: str | None
     user_agent: str | None
-    source: str
 
 
 def reference_prefix(config: WorkspaceConfig) -> str:
@@ -88,10 +88,11 @@ class IntakeService:
                 # email address learn another person's lead reference.
                 return new_reference(config)
 
+        email_hash = hash_value(email, self.settings.ip_hash_secret)
         await self.limiter.hit(
             [
                 Limit(
-                    f"email:{slug}:{hash_value(email, self.settings.ip_hash_secret)}",
+                    f"email:{slug}:{email_hash}",
                     self.settings.rate_email_per_day,
                     86400,
                 ),
@@ -100,7 +101,11 @@ class IntakeService:
                 Limit(f"ws:{slug}", self.settings.rate_workspace_per_hour, 3600),
             ]
         )
-        return await self._persist(config, submission, clean, meta)
+        return await self._persist(config, submission, clean, meta, email_hash)
+
+    def _source(self, meta: RequestMeta) -> str:
+        origin = (meta.origin or "").rstrip("/")
+        return "hosted_form" if origin in self.settings.web_origins else "external_api"
 
     def _is_spam(self, submission: LeadSubmission) -> bool:
         if submission.hp_company_website.strip():
@@ -135,6 +140,7 @@ class IntakeService:
         submission: LeadSubmission,
         clean: dict[str, Any],
         meta: RequestMeta,
+        email_hash: str,
     ) -> str:
         slug = config.slug
         now = self.clock.now()
@@ -150,6 +156,20 @@ class IntakeService:
 
         async with self.engine.begin() as conn:
             leads, outbox = LeadRepository(conn), OutboxRepository(conn)
+            # Serialise concurrent submissions of the same email so the duplicate check and the
+            # insert are atomic (the lock is released when the transaction ends).
+            await conn.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": f"{slug}:{email_hash}"},
+            )
+            window = timedelta(minutes=self.settings.duplicate_window_minutes)
+            if window:
+                duplicate = await leads.find_recent_duplicate(
+                    slug, str(clean[email_field]), now - window
+                )
+                if duplicate:
+                    log.info("duplicate_submission", workspace=slug, lead_id=str(duplicate["id"]))
+                    return new_reference(config)
             reference = new_reference(config)
             while await leads.reference_exists(reference):
                 reference = new_reference(config)
@@ -165,7 +185,7 @@ class IntakeService:
                     "locale": locale,
                     "answers": clean,
                     "free_text": clean.get(free_text_field) if free_text_field else None,
-                    "source": meta.source,
+                    "source": self._source(meta),
                     "origin": meta.origin,
                     "ip_hash": meta.ip_hash,
                     "user_agent": (meta.user_agent or "")[:USER_AGENT_MAX] or None,
@@ -178,7 +198,7 @@ class IntakeService:
             await leads.add_event(
                 lead_id,
                 "submitted",
-                payload={"reference": reference, "source": meta.source},
+                payload={"reference": reference, "source": self._source(meta)},
                 at=now,
             )
             await outbox.enqueue(
@@ -189,7 +209,7 @@ class IntakeService:
                 idempotency_key=f"lead:{lead_id}:created:1",
                 now=now,
             )
-        log.info("lead_accepted", lead_id=str(lead_id), workspace=slug, source=meta.source)
+        log.info("lead_accepted", lead_id=str(lead_id), workspace=slug, source=self._source(meta))
         return reference
 
 

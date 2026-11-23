@@ -64,13 +64,10 @@ async def submit_lead(
             ],
         ) from None
 
-    origin = request.headers.get("origin")
-    web_origins = {o.strip().rstrip("/") for o in settings.web_public_origin.split(",")}
     meta = RequestMeta(
         ip_hash=ip_hash,
-        origin=origin,
+        origin=request.headers.get("origin"),
         user_agent=request.headers.get("user-agent"),
-        source="hosted_form" if origin and origin in web_origins else "external_api",
     )
     reference = await intake.submit(workspace.config, submission, meta)
     return LeadAccepted(reference=reference)
