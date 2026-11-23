@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -7,6 +8,21 @@ import { leadDetailSchema } from "@/lib/api/schemas";
 import { AgentError, adminFetch } from "@/lib/api/server";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const parsed = z.uuid().safeParse((await params).id);
+  if (!parsed.success) return { title: "Lead" };
+  try {
+    const lead = await adminFetch(`/admin/leads/${parsed.data}`, leadDetailSchema);
+    return { title: `${lead.name} · Leads` };
+  } catch {
+    return { title: "Lead" };
+  }
+}
 
 export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
   const parsed = z.uuid().safeParse((await params).id);
