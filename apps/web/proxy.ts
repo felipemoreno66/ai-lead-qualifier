@@ -1,7 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { guardDashboard } from "@/lib/auth/dashboard-guard";
 
 /** Per-request CSP nonce plus baseline security headers for every page. */
 export function proxy(request: NextRequest) {
+  const denied = guardDashboard(request, {
+    APP_ENV: process.env.APP_ENV,
+    DASHBOARD_USER: process.env.DASHBOARD_USER,
+    DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD,
+  });
+  if (denied) return denied;
+
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
   let apiOrigin = "";
@@ -38,12 +46,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    {
-      source: "/((?!_next/static|_next/image|favicon.ico).*)",
-      missing: [
-        { type: "header", key: "next-router-prefetch" },
-        { type: "header", key: "purpose", value: "prefetch" },
-      ],
-    },
+    // Deliberately no prefetch exclusion: prefetch requests must pass the dashboard guard too.
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
