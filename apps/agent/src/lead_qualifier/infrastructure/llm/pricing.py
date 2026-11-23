@@ -78,11 +78,16 @@ class PricingTable:
         ) / _MILLION
         return Cost(total.quantize(_QUANT), is_estimated=estimated)
 
-    def worst_case(self, model: str, *, input_chars: int, max_tokens: int) -> Decimal:
-        """Upper bound of one call: input at 1 token per 2 characters plus a full output."""
+    def worst_case(self, model: str, *, input_bytes: int, max_tokens: int) -> Decimal:
+        """Upper bound of one call.
+
+        A token always covers at least one UTF-8 byte (CJK and emoji included), so the input is
+        priced at one token per byte plus a 25% margin, at the dearer of the input and cache-write
+        rates, plus a full ``max_tokens`` of output.
+        """
         price, _ = self._price_for(model)
+        input_tokens = Decimal(input_bytes) * Decimal("1.25") + 1
         total = (
-            Decimal(input_chars // 2 + 1) * max(price.input, price.cache_write)
-            + Decimal(max_tokens) * price.output
+            input_tokens * max(price.input, price.cache_write) + Decimal(max_tokens) * price.output
         ) / _MILLION
         return total.quantize(_QUANT)

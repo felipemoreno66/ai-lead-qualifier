@@ -115,6 +115,8 @@ def test_messages_are_channel_ready_and_budget_view_counts_live_reservations(mig
             {"l": lead_id},
         )
     with eng.begin() as conn:
+        conn.execute(sa.text("SET LOCAL app.allow_spend_reset = 'on'"))
+        conn.execute(sa.text("DELETE FROM llm_spend"))  # other tests share this database
         for state, amount, age in (
             ("settled", "0.5", "0 minutes"),
             ("reserved", "0.25", "1 minute"),
@@ -129,6 +131,7 @@ def test_messages_are_channel_ready_and_budget_view_counts_live_reservations(mig
                 {"s": state, "a": amount, "age": age},
             )
         assert conn.execute(sa.text("SELECT spent_usd FROM llm_budget")).scalar_one() == 9.75
+        conn.execute(sa.text("SET LOCAL app.allow_spend_reset = 'on'"))
         conn.execute(sa.text("DELETE FROM llm_spend"))
         conn.execute(sa.text("DELETE FROM leads WHERE workspace_slug = 'm-test'"))
         conn.execute(sa.text("DELETE FROM workspaces WHERE slug = 'm-test'"))

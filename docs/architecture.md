@@ -152,7 +152,15 @@ flowchart LR
   clamped to 8192. Unknown models are priced at the highest known rate, and `build_provider` refuses
   to start with a real provider whose model is missing from `pricing.yaml`. Every call needs an
   `agent_run_id` (`llm_calls.agent_run_id` is NOT NULL, so deleting a lead cascades to its calls).
-- **PII**: stored requests/responses have emails and phone numbers redacted and are purged after
+- **Reconciling the ledger**: reservations never expire, so a process that crashes between reserving
+  and settling leaves a worst-case charge. Check the provider's usage page, then settle the stuck rows
+  with their real cost: `UPDATE llm_spend SET state='settled', amount_usd=<usd>, settled_at=now()
+  WHERE state='reserved' AND created_at < now() - interval '1 hour' AND id = '<id>';`. `DELETE` and
+  `TRUNCATE` on `llm_spend` are blocked by triggers (migration 0006); a test database can bypass them
+  with `SET LOCAL app.allow_spend_reset = 'on'`. Timeouts and broken connections also keep the worst
+  case, because the provider may have billed a request whose response never arrived. The worst case
+  counts one token per UTF-8 byte of the prompt and schema plus 25%, so non-ASCII text is covered.
+- **PII**: stored requests/responses have emails and phone numbers redacted (only ASCII addresses and numbers of 9+ digits; names and free text are not masked, so retention is the real control) and are purged after
   `LLM_CALLS_RETENTION_DAYS` by the dispatcher's hourly maintenance. Provider error text is reduced to
   status code and error type. A failed insert after a paid call is logged with its cost, never lost.
 - **Tables** (migration 0002, 0003): `agent_runs`, `llm_calls`, `messages` (channel-ready: `channel`,
