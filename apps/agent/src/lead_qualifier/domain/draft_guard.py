@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from urllib.parse import urlparse
 
 from lead_qualifier.domain.workspace import WorkspaceConfig
 
 _URL_RE = re.compile(r"(?:https?://|www\.)[^\s<>()\"']+", re.IGNORECASE)
+# A bare domain such as ``evil.com`` or ``evil.com/x``: dotted labels ending in an alphabetic TLD.
+_BARE_RE = re.compile(r"(?<![\w@.-])(?:[^\W_]+(?:-[^\W_]+)*\.)+[^\W\d_]{2,}(?![\w@-])(?:[/?#]\S*)?")
+_HOST_RE = re.compile(r"^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$")
+_DEFAULT_PORTS = {"http": "80", "https": "443"}
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 _PLACEHOLDER_RE = re.compile(
     r"\[[^\]\n]{1,60}\]|\{\{[^}]*\}\}|\{[A-Za-z_ ]{1,30}\}|<[A-Z_ ]{2,30}>|TODO|lorem ipsum|XXX",
@@ -65,11 +68,54 @@ def known_amounts(config: WorkspaceConfig) -> set[int]:
     return found
 
 
+def _ascii_host(host: str) -> str | None:
+    """Lower-case IDNA (punycode) form of ``host``, or None when it is not a plain hostname."""
+    try:
+        ascii_host = host.strip(".").encode("idna").decode("ascii").lower()
+    except UnicodeError:
+        return None
+    return ascii_host if _HOST_RE.match(ascii_host) and ".." not in ascii_host else None
+
+
 def _host_allowed(host: str, allowed: Iterable[str]) -> bool:
-    host = host.lower().removeprefix("www.")
-    return any(
-        host == d.lower().removeprefix("www.") or host.endswith("." + d.lower()) for d in allowed
+    for domain in allowed:
+        base = _ascii_host(domain.removeprefix("www."))
+        if base and (host.removeprefix("www.") == base or host.endswith("." + base)):
+            return True
+    return False
+
+
+def config_words(config: WorkspaceConfig) -> set[str]:
+    """Dotted terms the business itself uses (``Node.js``): not links, even though they look like
+    domains."""
+    text = " ".join(
+        f"{p.name} {p.summary} {p.duration or ''} {p.price.note if p.price else ''}"
+        for p in config.products
     )
+    return {w.strip(".,;:!?()").lower() for w in text.split() if "." in w.strip(".,;:!?()")}
+
+
+def _link_problem(token: str, allowed: Iterable[str]) -> str | None:
+    """None when the link is acceptable, otherwise why not. The authority is split the way a
+    browser does (``/``, ``\\``, ``?``, ``#``) and anything that could make parsers disagree about
+    the host (userinfo, escapes, odd ports, non-hostname characters) is rejected outright."""
+    scheme = "https"
+    rest = token.rstrip(".,;:!?")
+    if "://" in rest:
+        scheme, rest = rest.split("://", 1)
+        scheme = scheme.lower()
+    authority = re.split(r"[/?#]", rest, maxsplit=1)[0]
+    if any(c in authority for c in "\\@%") or authority != authority.strip():
+        return f"link with an unsafe address: {token[:60]}"
+    host, _, port = authority.partition(":")
+    if port and port != _DEFAULT_PORTS.get(scheme):
+        return f"link with a non-default port: {token[:60]}"
+    ascii_host = _ascii_host(host)
+    if ascii_host is None:
+        return f"link with an invalid host: {token[:60]}"
+    if not _host_allowed(ascii_host, allowed):
+        return f"link to a domain that is not allowed: {ascii_host}"
+    return None
 
 
 def _language_scores(text: str) -> dict[str, int]:
@@ -87,16 +133,26 @@ def check_draft(
 ) -> list[str]:
     """Return human-readable problems; an empty list means the draft passes."""
     problems: list[str] = []
-    text = f"{subject}\n{body}"
+    # short_body is sent as-is by other channels, so every content rule covers it too.
+    text = "\n".join(part for part in (subject, body, short_body) if part)
     words = len(_WORD_RE.findall(body))
     if words > config.drafting.max_words:
         problems.append(f"body has {words} words; the maximum is {config.drafting.max_words}")
     if not body.strip():
         problems.append("body is empty")
-    for url in _URL_RE.findall(text):
-        host = urlparse(url if "://" in url else f"https://{url}").hostname or ""
-        if not _host_allowed(host, config.drafting.allowed_link_domains):
-            problems.append(f"link to a domain that is not allowed: {host}")
+    allowed = config.drafting.allowed_link_domains
+    tokens = _URL_RE.findall(text)
+    remainder = _EMAIL_RE.sub(" ", _URL_RE.sub(" ", text))
+    own_terms = config_words(config)
+    tokens += [
+        m.group(0)
+        for m in _BARE_RE.finditer(remainder)
+        if m.group(0).rstrip(".,;:!?").lower() not in own_terms
+    ]
+    for token in tokens:
+        problem = _link_problem(token, allowed)
+        if problem:
+            problems.append(problem)
     allowed_emails = {
         config.profile.contact_email.lower(),
         config.notifications.owner_email.lower(),

@@ -11,7 +11,7 @@ import re
 from collections.abc import Iterable
 
 from starlette.datastructures import Headers, MutableHeaders
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from lead_qualifier.workspaces.loader import WorkspaceRegistry
@@ -62,7 +62,7 @@ class WorkspaceCORSMiddleware:
             if not is_allowed:
                 await self._forbidden(scope, receive, send, origin)
                 return
-            response = JSONResponse(None, status_code=204)
+            response = Response(status_code=204)
             self._add_headers(response.headers, origin, preflight=True)
             await response(scope, receive, send)
             return

@@ -92,6 +92,7 @@ class LeadDetail(BaseModel):
     recommended_product: str | None
     recommended_product_name: str | None
     qualification: dict[str, Any] | None
+    injection_suspected: bool = False
     detected_language: str | None
     error_reason: str | None
     created_at: datetime

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import uuid
 from collections.abc import Callable
 from decimal import Decimal
@@ -32,6 +33,13 @@ from lead_qualifier.ports.llm import (
 log = structlog.get_logger(__name__)
 BUDGET_LOCK_KEY = 7_201_001  # pg_advisory_xact_lock key shared by every process using the budget
 MAX_TOKENS_CEILING = 8192
+
+
+def _schema_json(req: StructuredRequest[Any] | TextRequest) -> str:
+    """The JSON schema is sent with structured requests and counts as input."""
+    if isinstance(req, StructuredRequest):
+        return json.dumps(req.output_model.model_json_schema())
+    return ""
 
 
 def _error_payload(exc: BaseException, *, detail: bool = True) -> dict[str, Any]:
@@ -78,13 +86,15 @@ class RecordingProvider:
         """Check budget and call cap, then persist a reservation in the same locked transaction.
 
         The reservation counts in ``llm_budget`` for every process until it is settled (or expires
-        after 10 minutes), so concurrent callers cannot jointly overshoot the cap.
+        never: they only change when explicitly settled), so concurrent callers cannot jointly
+        overshoot the cap.
         """
         assert req.agent_run_id is not None
         if self._inner.name == "fake":
             return None, Decimal(0)
-        chars = len(req.system) + sum(len(m.content) for m in req.messages)
-        worst = self._pricing.worst_case(req.model, input_chars=chars, max_tokens=req.max_tokens)
+        text = req.system + "".join(m.content for m in req.messages)
+        size = len(text.encode()) + len(_schema_json(req))
+        worst = self._pricing.worst_case(req.model, input_bytes=size, max_tokens=req.max_tokens)
         async with self._engine.begin() as conn:
             await conn.execute(sa.text("SELECT pg_advisory_xact_lock(:k)"), {"k": BUDGET_LOCK_KEY})
             spent = Decimal(
@@ -134,7 +144,7 @@ class RecordingProvider:
                 async with self._engine.begin() as conn:
                     await conn.execute(
                         sa.update(llm_spend)
-                        .where(llm_spend.c.id == reservation)
+                        .where(llm_spend.c.id == reservation, llm_spend.c.state == "reserved")
                         .values(state="settled", amount_usd=amount, settled_at=sa.func.now())
                     )
                 return
@@ -216,7 +226,7 @@ class RecordingProvider:
             try:
                 result: LLMResult[R] = await call(req)
             except LLMError as exc:
-                amount = await self._safe_record(
+                settled = await self._safe_record(
                     req,
                     amount,
                     usage=exc.usage,
@@ -227,6 +237,8 @@ class RecordingProvider:
                     error_code=exc.code,
                     response=partial(_error_payload, exc),
                 )
+                # A timeout or broken connection may have been billed without usage reaching us.
+                amount = amount if exc.maybe_billed else settled
                 raise
             except Exception as exc:
                 # Unknown whether the provider billed anything: keep the worst case.

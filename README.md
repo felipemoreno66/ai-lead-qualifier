@@ -44,7 +44,7 @@ heavy and their "AI" is a black box.
   Sending the email and the dashboard UI come next.
 - **LLM provider layer**: one port with Anthropic, a deterministic fake
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
-  cost, and `LLM_BUDGET_USD` blocks real providers once spent. The qualification graph comes next.
+  cost, and `LLM_BUDGET_USD` blocks real providers once spent.
 
 | Lead detail | Public form (mobile) |
 |---|---|
@@ -153,6 +153,7 @@ must be set to at least 16 characters or the agent refuses to start.
 | `ORCHESTRATOR` | `inline` (default) or `n8n` |
 | `LLM_PROVIDER`, `LLM_MODEL_DEFAULT`, `LLM_MODEL_DRAFT` | `fake` (default), `anthropic`, `bedrock`, `openai` (skeleton only); models (default `claude-haiku-5-5`) |
 | `LLM_BUDGET_USD`, `LLM_MAX_CALLS_PER_LEAD` | Lifetime spend cap for real providers (default 5) and per-run call cap (12) |
+| `LLM_BUDGET_USD` note | A crash between reserving and settling a call charges its worst case until an operator reconciles it (see docs/architecture.md) |
 | `LLM_CALLS_RETENTION_DAYS` | Purge stored LLM requests/responses after N days (default 30) |
 | `ANTHROPIC_API_KEY`, `AWS_REGION`, `OPENAI_API_KEY` | Provider credentials; only needed for that provider |
 | `RATE_*`, `TRUSTED_PROXIES` | Rate limits and proxy trust for `X-Forwarded-For` |

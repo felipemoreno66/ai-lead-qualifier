@@ -89,6 +89,7 @@ def registry() -> WorkspaceRegistry:
 async def db(engine: AsyncEngine, registry: WorkspaceRegistry) -> AsyncEngine:
     """The migrated engine with every table emptied and workspaces re-synced."""
     async with engine.begin() as conn:
+        await conn.execute(sa.text("SET LOCAL app.allow_spend_reset = 'on'"))
         await conn.execute(
             sa.text(
                 "TRUNCATE leads, lead_events, outbox_events, rate_limit_hits, workspaces,"

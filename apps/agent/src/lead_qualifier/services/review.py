@@ -167,6 +167,9 @@ class ReviewService:
                     "body": decision["body"],
                     "subject": decision.get("subject") or row["subject"],
                     "edited_by_operator": True,
+                    # The operator's text replaces the draft; the generated plain-text variant
+                    # would no longer match it, so it is dropped rather than sent unreviewed.
+                    "short_body": None,
                 }
             await conn.execute(
                 sa.update(messages).where(messages.c.id == message_id).values(**values)

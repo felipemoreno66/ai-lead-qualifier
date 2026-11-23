@@ -42,7 +42,14 @@ from <workspace_context>. Give 1-5 short reasons that an operator can read."""
 def _escape(value: object) -> str:
     """JSON-encode and neutralise angle brackets so values cannot close our delimiter tags."""
     text = json.dumps(value, ensure_ascii=False, sort_keys=True)
-    return text.replace("<", "\\u003c").replace(">", "\\u003e")
+    for char, escaped in (
+        ("<", "\\u003c"),
+        (">", "\\u003e"),
+        ("\uff1c", "\\uff1c"),  # fullwidth look-alikes of the angle brackets
+        ("\uff1e", "\\uff1e"),
+    ):
+        text = text.replace(char, escaped)
+    return text
 
 
 def render_lead_submission(lead: LeadInput) -> str:

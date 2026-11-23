@@ -202,3 +202,63 @@ async def test_regenerate_redrafts_with_the_feedback_and_pauses_again(registry: 
     assert again["operator_feedback"] == "mention the payment plan"
     assert "__interrupt__" in again and again["guard_problems"] == []
     assert again["draft"].body == first["draft"].body  # the fake ignores feedback but is stable
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://northwind-academy.example\\@evil.com",
+        "https://northwind-academy.example@evil.com/login",
+        "https://evil.com%2F@northwind-academy.example",
+        "https://northwind-academy.example:8443/x",
+        "https://northwind-academy.example:444@evil.com",
+        "http://evil.com",
+        "evil.com/path",
+        "evil.com",
+        "www.evil.com/x",
+        "https://northwindı-academy.example/apply",  # dotless i look-alike  # noqa: RUF001
+        "https://nоrthwind-academy.example/apply",  # Cyrillic o look-alike  # noqa: RUF001
+        "https://northwind-academy.example.evil.com",
+        "https://xn--northwnd-academy-wmb.example",
+    ],
+)
+def test_link_parser_differentials_and_lookalikes_are_rejected(
+    registry: WorkspaceRegistry, link: str
+):
+    assert problems(registry, f"Please see {link} for details with you and the team."), link
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://northwind-academy.example",
+        "https://northwind-academy.example/apply?x=1#top",
+        "https://www.northwind-academy.example/apply",
+        "https://apply.northwind-academy.example:443/x",
+        "northwind-academy.example/apply",
+        "HTTPS://NORTHWIND-ACADEMY.EXAMPLE/Apply.",
+    ],
+)
+def test_allowed_links_in_normal_forms_pass(registry: WorkspaceRegistry, link: str):
+    assert problems(registry, f"Please see {link} for details with you and the team") == []
+
+
+def test_ordinary_text_is_not_mistaken_for_a_domain(registry: WorkspaceRegistry):
+    body = "Hi Ana, e.g. a 15-minute call, i.e. this week. Costs USD 2400. See you at 4.30 pm."
+    assert problems(registry, body) == []
+
+
+def test_every_content_rule_also_covers_short_body(registry: WorkspaceRegistry):
+    for bad in (
+        "Pay at https://evil.example now",
+        "Write to ceo@evil.example",
+        "Hi [First Name]",
+        "Only USD 99 today",
+        "evil.com/x",
+    ):
+        assert problems(registry, "Hello Ana, thanks for applying.", short_body=bad), bad
+    assert problems(registry, "Hello Ana", subject="See https://evil.example")
+
+
+def test_the_subject_is_checked_for_links_too(registry: WorkspaceRegistry):
+    assert problems(registry, "Hello Ana", subject="Visit evil.com")

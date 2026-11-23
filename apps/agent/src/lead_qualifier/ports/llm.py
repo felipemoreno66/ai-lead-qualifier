@@ -69,6 +69,8 @@ class LLMError(Exception):
     """Base class. ``usage`` is set when the provider billed tokens for the failed call."""
 
     code = "llm_error"
+    # True when the provider may have processed (and billed) the request although we got no usage.
+    maybe_billed = False
 
     def __init__(
         self,
@@ -88,12 +90,20 @@ class LLMError(Exception):
 
 class LLMTimeout(LLMError):
     code = "llm_timeout"
+    maybe_billed = True
 
 
 class LLMProviderError(LLMError):
-    """Transport or API failure after the SDK's own retries."""
+    """API failure after the SDK's own retries (an HTTP status the provider answered)."""
 
     code = "llm_provider_error"
+
+
+class LLMConnectionError(LLMProviderError):
+    """The connection broke mid-request: the provider may have processed it."""
+
+    code = "llm_connection_error"
+    maybe_billed = True
 
 
 class LLMOutputInvalid(LLMError):

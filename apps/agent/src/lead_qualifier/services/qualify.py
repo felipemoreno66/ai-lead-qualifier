@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -15,7 +16,7 @@ from lead_qualifier.agent.graph import GraphDeps, SendGateway, run_qualification
 from lead_qualifier.agent.models import LeadInput
 from lead_qualifier.agent.prompts import PROMPT_VERSIONS
 from lead_qualifier.config import Settings
-from lead_qualifier.domain.errors import Conflict, NotFound
+from lead_qualifier.domain.errors import Conflict, NotFound, RateLimited
 from lead_qualifier.domain.lead import LeadStatus, LeadTrigger, next_status
 from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
 from lead_qualifier.infrastructure.db.repositories import LeadRepository
@@ -113,6 +114,20 @@ class QualifyService:
             workspace = self.registry.get(lead["workspace_slug"])
             if workspace is None:
                 raise NotFound("The lead's workspace is not loaded.")
+            recent = (
+                await conn.execute(
+                    sa.select(sa.func.count())
+                    .select_from(agent_runs)
+                    .where(
+                        agent_runs.c.lead_id == lead_id,
+                        agent_runs.c.started_at > now - timedelta(days=1),
+                    )
+                )
+            ).scalar_one()
+            if recent >= self.settings.qualify_max_runs_per_day:
+                raise RateLimited(
+                    f"This lead was already qualified {recent} times in the last 24 hours."
+                )
             new_status = next_status(status, trigger)
             await leads.update_status(lead_id, status, new_status, now, error_reason=None)
             await leads.add_event(
@@ -245,6 +260,13 @@ class QualifyService:
                 payload={"trigger": LeadTrigger.REVIEW_READY.value, "message_version": version},
                 at=now,
             )
+            if result.profile.injection_suspected:
+                await leads.add_event(
+                    lead_id,
+                    "injection_suspected",
+                    payload={"tier_capped": result.tier_capped},
+                    at=now,
+                )
         log.info("qualify_done", lead_id=str(lead_id), score=result.score, tier=result.tier.value)
         return QualifyOutcome(
             lead_id,

@@ -64,6 +64,7 @@ class QualificationResult(BaseModel):
     criteria: list[CriterionJudgment]
     reasons: list[str]
     profile: LeadProfile
+    tier_capped: bool = False
 
 
 class DraftOutput(BaseModel):

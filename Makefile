@@ -1,4 +1,4 @@
-.PHONY: up down logs test lint fmt schemas seed e2e
+.PHONY: up down logs test lint fmt schemas seed seed-reset e2e
 
 up:
 	docker compose up -d --build --wait
@@ -27,5 +27,8 @@ schemas:
 seed:
 	docker compose run --rm agent python -m lead_qualifier.scripts.seed
 
-e2e:
+seed-reset:
+	docker compose run --rm agent python -m lead_qualifier.scripts.seed --reset
+
+e2e: seed-reset
 	pnpm --filter web e2e

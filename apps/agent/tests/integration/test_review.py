@@ -87,6 +87,7 @@ async def test_edit_keeps_the_original_body(make_client, db):
     (message,) = await rows(db, "SELECT * FROM messages")
     assert message.body == "A better, shorter reply." and message.subject == "Hello!"
     assert message.original_body == original and message.edited_by_operator
+    assert message.short_body is None  # the generated variant no longer matches the edit
     assert message.status == "approved"
 
 
@@ -179,3 +180,24 @@ async def test_deleting_a_lead_removes_its_checkpoints(make_client, db):
         assert (await rows(db, count, t=thread))[0].n > 0
         assert (await client.delete(f"/admin/leads/{lead_id}", headers=AUTH)).status_code == 204
         assert (await rows(db, count, t=thread))[0].n == 0
+
+
+async def test_a_draft_failure_is_a_generic_retryable_error(make_client, db):
+    from lead_qualifier.ports.llm import LLMTimeout
+
+    llm = RecordingProvider(
+        FakeProvider(handlers=FAKE_HANDLERS, script=[None, None, LLMTimeout("secret detail")]),
+        db,
+        PricingTable.load(),
+        budget_usd=Decimal(5),
+        max_calls_per_run=12,
+    )
+    async with make_client(llm_provider=llm) as client:
+        await submit(client, "f1@example.com")
+        lead_id = await lead_id_for(client, "f1@")
+        outcome = (await client.post(f"/internal/leads/{lead_id}/qualify", headers=N8N_AUTH)).json()
+        detail = (await client.get(f"/admin/leads/{lead_id}", headers=AUTH)).json()
+        retried = (await client.post(f"/internal/leads/{lead_id}/qualify", headers=N8N_AUTH)).json()
+    assert outcome["status"] == "error" and outcome["error_reason"].startswith("llm_timeout:")
+    assert "secret detail" not in str(detail) and detail["messages"] == []
+    assert retried["status"] == "pending_review"

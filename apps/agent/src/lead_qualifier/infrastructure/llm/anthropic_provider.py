@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from lead_qualifier.infrastructure.llm.structured import parse_output
 from lead_qualifier.ports.llm import (
     ChatMessage,
+    LLMConnectionError,
     LLMOutputInvalid,
     LLMProviderError,
     LLMResult,
@@ -82,7 +83,11 @@ class AnthropicProvider:
             raise LLMTimeout(
                 str(exc), provider=self.name, model=req.model, latency_ms=_ms(started)
             ) from exc
-        except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
+        except anthropic.APIConnectionError as exc:
+            raise LLMConnectionError(
+                _describe(exc), provider=self.name, model=req.model, latency_ms=_ms(started)
+            ) from exc
+        except anthropic.APIStatusError as exc:
             raise LLMProviderError(
                 _describe(exc),
                 provider=self.name,

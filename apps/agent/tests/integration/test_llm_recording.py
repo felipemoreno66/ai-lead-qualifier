@@ -19,7 +19,15 @@ from lead_qualifier.infrastructure.llm.recording import RecordingProvider
 from lead_qualifier.infrastructure.llm.repository import LlmCallRepository
 from lead_qualifier.infrastructure.llm.router import build_provider, model_for
 from lead_qualifier.infrastructure.llm.structured import generate_validated
-from lead_qualifier.ports.llm import BudgetExceeded, CallLimitExceeded, LLMOutputInvalid
+from lead_qualifier.ports.llm import (
+    BudgetExceeded,
+    CallLimitExceeded,
+    LLMConnectionError,
+    LLMOutputInvalid,
+    LLMProviderError,
+    LLMTimeout,
+    Usage,
+)
 from tests.unit.llm.helpers import verdict_request
 from tests.unit.llm.test_anthropic_provider import GOOD, Wire, ok, provider_for
 
@@ -36,11 +44,26 @@ def recorder(inner, engine: AsyncEngine, *, budget: str = "5", max_calls: int = 
     )
 
 
+def room_for_one_call() -> str:
+    """A budget that fits exactly one worst-case call of ``verdict_request()`` plus a bit."""
+    req = verdict_request()
+    text = (req.system + "".join(m.content for m in req.messages)).encode()
+    size = len(text) + len(json.dumps(req.output_model.model_json_schema()))
+    worst = PricingTable.load().worst_case(req.model, input_bytes=size, max_tokens=req.max_tokens)
+    return str(worst + Decimal("0.00001"))
+
+
 async def rows(engine: AsyncEngine) -> list[sa.Row[tuple[object, ...]]]:
     async with engine.connect() as conn:
         return list(
             (await conn.execute(sa.text("SELECT * FROM llm_calls ORDER BY created_at"))).all()
         )
+
+
+class FakeProviderAsAnthropic(FakeProvider):
+    """A scripted fake that the recorder treats as a paid provider (budget and ledger apply)."""
+
+    name = "anthropic"
 
 
 async def make_run(engine: AsyncEngine) -> UUID:
@@ -49,18 +72,19 @@ async def make_run(engine: AsyncEngine) -> UUID:
             await conn.execute(
                 sa.text(
                     "INSERT INTO leads (reference, workspace_slug, name, email, source, ip_hash,"
-                    " consent_at, consent_notice_version) VALUES ('R-1', 'northwind-academy',"
+                    " consent_at, consent_notice_version) VALUES (:ref, 'northwind-academy',"
                     " 'n', 'e@example.com', 'seed', 'h', now(), 'v') RETURNING id"
-                )
+                ),
+                {"ref": f"R-{uuid4().hex[:10]}"},
             )
         ).scalar_one()
         run_id = (
             await conn.execute(
                 sa.text(
                     "INSERT INTO agent_runs (lead_id, thread_id, run_number, graph_version)"
-                    " VALUES (:l, 't-1', 1, 'test') RETURNING id"
+                    " VALUES (:l, :t, 1, 'test') RETURNING id"
                 ),
-                {"l": lead_id},
+                {"l": lead_id, "t": f"t-{uuid4().hex}"},
             )
         ).scalar_one()
     return UUID(str(run_id))
@@ -97,8 +121,7 @@ async def test_fake_calls_cost_nothing_and_never_hit_the_budget(db: AsyncEngine)
 async def test_budget_exceeded_blocks_the_call_before_it_is_made(db: AsyncEngine):
     run_id = await make_run(db)
     wire = Wire(ok(json.dumps(GOOD)), ok(json.dumps(GOOD)))
-    # worst case of one call is about 0.000266 (512 max tokens at 0.50/MTok plus input)
-    provider = recorder(provider_for(wire), db, budget="0.000280")
+    provider = recorder(provider_for(wire), db, budget=room_for_one_call())
     await provider.generate_structured(verdict_request(agent_run_id=run_id))  # 0.000028 spent
     with pytest.raises(BudgetExceeded):
         await provider.generate_structured(verdict_request(agent_run_id=run_id))
@@ -109,7 +132,7 @@ async def test_budget_exceeded_blocks_the_call_before_it_is_made(db: AsyncEngine
 async def test_concurrent_calls_cannot_jointly_overshoot_the_budget(db: AsyncEngine):
     run_id = await make_run(db)
     wire = Wire(*[ok(json.dumps(GOOD)) for _ in range(5)])
-    provider = recorder(provider_for(wire), db, budget="0.000280")
+    provider = recorder(provider_for(wire), db, budget=room_for_one_call())
     outcomes = await asyncio.gather(
         *[provider.generate_structured(verdict_request(agent_run_id=run_id)) for _ in range(5)],
         return_exceptions=True,
@@ -165,9 +188,8 @@ async def test_two_processes_share_reservations_through_the_database(db: AsyncEn
     other_engine = create_engine(db.url.render_as_string(hide_password=False))
     try:
         wire_a, wire_b = Wire(ok(json.dumps(GOOD))), Wire(ok(json.dumps(GOOD)))
-        # room for exactly one worst-case call (about 0.000266)
-        a = recorder(provider_for(wire_a), db, budget="0.000280")
-        b = recorder(provider_for(wire_b), other_engine, budget="0.000280")
+        a = recorder(provider_for(wire_a), db, budget=room_for_one_call())
+        b = recorder(provider_for(wire_b), other_engine, budget=room_for_one_call())
         outcomes = await asyncio.gather(
             a.generate_structured(verdict_request(agent_run_id=run_id)),
             b.generate_structured(verdict_request(agent_run_id=run_id)),
@@ -371,3 +393,59 @@ def test_router_fails_fast_on_bad_config(
 ):
     with pytest.raises(ValueError, match=message):
         build_provider(Settings(app_env="test", **overrides), db)  # type: ignore[arg-type]
+
+
+async def test_the_worst_case_estimate_covers_cjk_and_emoji_input(db: AsyncEngine):
+    table = PricingTable.load()
+    cjk = "你好我想学习编程并找到一份新工作" * 50
+    emoji = "😀🚀" * 300
+    for text in (cjk, emoji):
+        size = len(text.encode())
+        # even at one token per UTF-8 byte (the real ratio is far lower) the estimate is above
+        # the cost of that many input tokens
+        floor = table.cost("claude-haiku-5-5", Usage(input_tokens=size, output_tokens=0)).usd
+        assert table.worst_case("claude-haiku-5-5", input_bytes=size, max_tokens=0) > floor
+    run_id = await make_run(db)
+    provider = recorder(provider_for(Wire(ok(json.dumps(GOOD)))), db, budget="0.0001")
+    with pytest.raises(BudgetExceeded):  # a big non-ASCII prompt is refused, not underestimated
+        await provider.generate_structured(verdict_request(cjk * 20, agent_run_id=run_id))
+
+
+async def test_timeouts_and_broken_connections_keep_the_worst_case_charged(db: AsyncEngine):
+    for failure, expect_worst in (
+        (LLMTimeout("slow"), True),
+        (LLMConnectionError("reset"), True),
+        (LLMProviderError("HTTP 400"), False),
+    ):
+        async with db.begin() as conn:
+            await conn.execute(sa.text("SET LOCAL app.allow_spend_reset = 'on'"))
+            await conn.execute(sa.text("DELETE FROM llm_spend"))
+        run_id = await make_run(db)
+        provider = recorder(FakeProviderAsAnthropic(script=[failure]), db)
+        with pytest.raises(type(failure)):
+            await provider.generate_structured(verdict_request(agent_run_id=run_id))
+        charged = await spend(db)
+        assert (charged > Decimal("0.0001")) is expect_worst, (failure, charged)
+
+
+async def test_the_call_cap_counts_failed_attempts_too(db: AsyncEngine):
+    run_id = await make_run(db)
+    provider = recorder(FakeProviderAsAnthropic(script=["x", "y", GOOD]), db, max_calls=2)
+    with pytest.raises(CallLimitExceeded):
+        await generate_validated(provider, verdict_request(agent_run_id=run_id))
+    assert [r.success for r in await rows(db)] == [False, False]
+
+
+async def test_settle_only_touches_reserved_rows_and_the_ledger_is_append_only(db: AsyncEngine):
+    run_id = await make_run(db)
+    provider = recorder(provider_for(Wire(ok(json.dumps(GOOD)))), db)
+    await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    async with db.connect() as conn:
+        spend_id = (await conn.execute(sa.text("SELECT id FROM llm_spend"))).scalar_one()
+    await provider._settle(spend_id, Decimal("99"))  # already settled: must not change
+    assert await spend(db) == Decimal("0.000028")
+    for statement in ("DELETE FROM llm_spend", "TRUNCATE llm_spend"):
+        with pytest.raises(sa.exc.DBAPIError, match="append-only"):
+            async with db.begin() as conn:
+                await conn.execute(sa.text(statement))
+    assert await spend(db) == Decimal("0.000028")

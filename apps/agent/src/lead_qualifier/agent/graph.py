@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Protocol, TypedDict
 from uuid import UUID
 
@@ -35,7 +36,7 @@ from lead_qualifier.agent.prompts import (
 )
 from lead_qualifier.domain.draft_guard import check_draft
 from lead_qualifier.domain.scoring import compute_score, tier_for
-from lead_qualifier.domain.workspace import WorkspaceConfig
+from lead_qualifier.domain.workspace import Tier, WorkspaceConfig
 from lead_qualifier.infrastructure.llm.structured import generate_validated
 from lead_qualifier.ports.llm import ChatMessage, LLMError, LLMProvider, StructuredRequest
 
@@ -74,8 +75,20 @@ class GraphDeps:
     send: SendGateway | None = None
 
 
+GENERIC_REASONS = {
+    "llm_timeout": "the AI provider did not answer in time",
+    "llm_provider_error": "the AI provider returned an error",
+    "llm_connection_error": "the connection to the AI provider failed",
+    "llm_output_invalid": "the AI output did not pass validation",
+    "budget_exceeded": "the AI spending limit was reached",
+    "call_limit_exceeded": "the per-run AI call limit was reached",
+}
+
+
 def _error(exc: LLMError) -> dict[str, str]:
-    return {"error": f"{exc.code}: {str(exc)[:240]}"}
+    """A code and a fixed sentence. The exception text can echo model output (and so lead text),
+    so it never reaches ``leads.error_reason``, events or the API; it stays in ``llm_calls``."""
+    return {"error": f"{exc.code}: {GENERIC_REASONS.get(exc.code, 'the AI call failed')}"}
 
 
 async def extract_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[str, Any]:
@@ -145,11 +158,15 @@ async def qualify_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict
     output = result.value
     judgments = {c.id: c.judgment for c in output.criteria}
     score = compute_score(config.qualification.criteria, judgments)
+    tier = tier_for(score, config.qualification.tiers)
+    # A prospect who tried to instruct the model never lands in the top tier automatically.
+    capped = state["profile"].injection_suspected and tier is Tier.HOT
     ordered = {c.id: c for c in output.criteria}
     return {
         "result": QualificationResult(
             score=score,
-            tier=tier_for(score, config.qualification.tiers),
+            tier=Tier.WARM if capped else tier,
+            tier_capped=capped,
             recommended_product=output.recommended_product,
             criteria=[ordered[c.id] for c in config.qualification.criteria],
             reasons=output.reasons,
@@ -252,6 +269,7 @@ def _after_node(next_node: str) -> Callable[[QualifyState], str]:
     return route
 
 
+@lru_cache(maxsize=8)
 def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> Any:
     graph = StateGraph(QualifyState, context_schema=GraphDeps)
     graph.add_node("extract", extract_node)
