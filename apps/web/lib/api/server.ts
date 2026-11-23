@@ -1,6 +1,6 @@
 import "server-only";
 import type { z } from "zod";
-import { problemItems, type ProblemItem } from "./problem";
+import { readProblem, type ProblemItem } from "./problem";
 
 /** Failure reported by the agent API (RFC 9457 problem details). */
 export class AgentError extends Error {
@@ -25,17 +25,8 @@ function adminToken(): string {
 }
 
 async function problem(res: Response): Promise<AgentError> {
-  try {
-    const body = (await res.json()) as { title?: string; detail?: string; errors?: unknown };
-    return new AgentError(
-      res.status,
-      body.title ?? "Request failed",
-      body.detail ?? res.statusText,
-      problemItems(body.errors),
-    );
-  } catch {
-    return new AgentError(res.status, "Request failed", res.statusText);
-  }
+  const p = await readProblem(res);
+  return new AgentError(p.status, p.title, p.detail, p.errors);
 }
 
 /** Call `/admin/*` with the server-side bearer token and validate the response. */
