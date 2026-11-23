@@ -128,6 +128,7 @@ class KnowledgeBaseService:
         self._embeddings = embeddings
         self._clock = clock
         self._running: set[str] = set()
+        self._threads: set[asyncio.Future[list[list[float]]]] = set()
 
     @property
     def chunking(self) -> str:
@@ -148,7 +149,13 @@ class KnowledgeBaseService:
         try:
             return await self._ingest(workspace_slug, kb_dir, force)
         finally:
-            self._running.discard(workspace_slug)
+            # A timeout cancels the await but not the thread running the model: the workspace stays
+            # "running" until that thread has really ended, so a retry cannot pile on a second one.
+            if self._threads:
+                done = asyncio.gather(*self._threads, return_exceptions=True)
+                done.add_done_callback(lambda _: self._running.discard(workspace_slug))
+            else:
+                self._running.discard(workspace_slug)
 
     async def _ingest(self, workspace_slug: str, kb_dir: Path, force: bool) -> IngestResult:
         model = self._embeddings.model_id
@@ -163,7 +170,7 @@ class KnowledgeBaseService:
             or row.content_sha256 != src.digest
             or row.foreign_model_chunks
         ]
-        on_disk = {s.path for s in sources} | set(skipped)
+        on_disk = {s.path for s in sources}  # a skipped file loses its chunks too
         added = updated = 0
         async with self._engine.begin() as conn:
             await conn.execute(
@@ -258,9 +265,12 @@ class KnowledgeBaseService:
     async def _embed(self, texts: list[str]) -> list[list[float]]:
         out: list[list[float]] = []
         for start in range(0, len(texts), EMBED_BATCH):
-            out.extend(
-                await asyncio.to_thread(self._embeddings.embed, texts[start : start + EMBED_BATCH])
+            thread: asyncio.Future[list[list[float]]] = asyncio.ensure_future(
+                asyncio.to_thread(self._embeddings.embed, texts[start : start + EMBED_BATCH])
             )
+            self._threads.add(thread)
+            thread.add_done_callback(self._threads.discard)
+            out.extend(await asyncio.shield(thread))
         return out
 
     async def retrieve(
