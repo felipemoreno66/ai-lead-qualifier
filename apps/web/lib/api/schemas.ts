@@ -2,6 +2,7 @@ import {
   agentRunsSchema,
   leadDetailSchema,
   leadListSchema,
+  metricsSchema,
   publicWorkspaceConfigSchema,
   retriggerResultSchema,
   reviewRequestSchema,
@@ -14,6 +15,7 @@ export {
   agentRunsSchema,
   leadDetailSchema,
   leadListSchema,
+  metricsSchema,
   publicWorkspaceConfigSchema,
   retriggerResultSchema,
   reviewRequestSchema,
@@ -26,4 +28,5 @@ export type WorkspaceSummary = import("contracts").WorkspaceSummariesSchema[numb
 export type Message = import("contracts").LeadDetailSchema["messages"][number];
 export type Breakdown = import("contracts").LeadDetailSchema["breakdown"][number];
 export type AgentRun = z.infer<typeof agentRunsSchema>[number];
+export type Metrics = z.infer<typeof metricsSchema>;
 export type ReviewInput = z.input<typeof reviewRequestSchema>;

@@ -50,6 +50,10 @@ heavy and their "AI" is a black box.
   original; a draft that fails the safety checks needs an explicit **Send anyway** (recorded in the
   timeline) and asks for confirmation first. Errors show a plain sentence, the reason code and a **Retry** button. All actions go through the Next.js BFF
   (server-side token, anti-CSRF header, Zod validation from the generated contracts).
+- **Metrics page** (`/dashboard/metrics`, `GET /admin/metrics`): leads by status, score distribution in
+  ten-point buckets coloured by tier, leads per day with average, median and p90 time to qualify, and
+  spend per lead against the budget. Each chart has a data-table alternative; with the fake provider
+  the page says the cost is zero because the provider is free, not because nothing ran.
 - **Qualification eval**: ten labelled fictional leads in [evals/qualification](evals/qualification/README.md),
   run in CI with the fake provider (`make eval`); a capped real-provider run is documented and opt-in. Fake-provider results verify the plumbing and the
   scoring code, not model accuracy: only a real-provider run measures that.
@@ -60,6 +64,10 @@ heavy and their "AI" is a black box.
 | Review a drafted reply (desktop) | Same lead on a phone |
 |---|---|
 | ![Lead detail with the draft reply, score explanation and run log](docs/screenshots/review-desktop.png) | ![Lead detail on a phone](docs/screenshots/review-mobile.png) |
+
+| Metrics | Metrics on a phone |
+|---|---|
+| ![Metrics page](docs/screenshots/metrics-desktop.png) | ![Metrics page on a phone](docs/screenshots/metrics-mobile.png) |
 
 | Draft that failed the safety checks | Public form (mobile) |
 |---|---|

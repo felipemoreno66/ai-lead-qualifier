@@ -8,6 +8,7 @@ for (const path of [
   `/w/${SLUG}/apply`,
   `/privacy/${SLUG}`,
   "/dashboard",
+  "/dashboard/metrics",
   "/dashboard?status=bogus&page=999&minScore=abc",
   "/dashboard/leads/00000000-0000-0000-0000-000000000000",
 ]) {

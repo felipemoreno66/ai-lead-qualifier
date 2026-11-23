@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, List } from "lucide-react";
+import { ChartColumn, FileText, List } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -8,12 +8,17 @@ type Props = { applyHref: string | null };
 
 export function AppHeader({ applyHref }: Props) {
   const pathname = usePathname();
-  const onLeads = pathname.startsWith("/dashboard");
+  const onMetrics = pathname.startsWith("/dashboard/metrics");
+  const onLeads = pathname.startsWith("/dashboard") && !onMetrics;
   const links = (
     <>
       <Link href="/dashboard" aria-current={onLeads ? "page" : undefined}>
         <List className="ic" strokeWidth={1.6} aria-hidden="true" />
         <span>Leads</span>
+      </Link>
+      <Link href="/dashboard/metrics" aria-current={onMetrics ? "page" : undefined}>
+        <ChartColumn className="ic" strokeWidth={1.6} aria-hidden="true" />
+        <span>Metrics</span>
       </Link>
       {applyHref && (
         <Link href={applyHref}>

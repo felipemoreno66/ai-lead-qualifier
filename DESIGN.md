@@ -222,6 +222,9 @@ White bordered panel (28px radius, 32px padding). Key-value grid `minmax(120px,2
 ### Review card (M2.5)
 Reuses the tokens above. Additions: **Field wash** (#FCFBFE) for read-only draft fields, **Deep Red/Amber Ink** (#3D0F0A, #3D2A00, #5E1810) for text on alert and warning washes, 16px radius for draft fields, 24px for the score summary and 20px for notices. The run-log summary is a bordered row with a chevron; destructive and override actions always sit behind a confirm dialog.
 
+### Metrics (M4.1)
+Four white cards (28px radius) on the stack, each led by a sentence that states the finding, a muted caption and a recharts chart (no animation under reduced motion; bars rounded 4-6px, value labels instead of gridlines, tier colours from the tokens above: terracotta hot, amber warm, info blue cold). Charts are `role="img"` with a screen-reader summary and a "View as a table" disclosure holding the same numbers. Info Blue is exposed as `--wq-info`.
+
 ### Motion
 Minimal: button background .2s and press scale (ease `cubic-bezier(.2,.8,.2,1)`), pill background .15s, skeleton shimmer. All motion is disabled under `prefers-reduced-motion`.
 
