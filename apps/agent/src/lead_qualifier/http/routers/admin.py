@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request, Response
 
 from lead_qualifier.domain.errors import NotFound, ValidationFailed
@@ -18,6 +19,8 @@ from lead_qualifier.http.schemas import (
     LeadListItem,
     OutboxEventOut,
     RetriggerResult,
+    ReviewRequest,
+    ReviewResult,
     WorkspaceSummary,
 )
 from lead_qualifier.http.views import interest_label, lead_detail
@@ -27,6 +30,7 @@ from lead_qualifier.infrastructure.db.repositories import (
     LeadRepository,
     OutboxRepository,
 )
+from lead_qualifier.infrastructure.db.tables import messages
 from lead_qualifier.services import retrigger as operator
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[require_admin])
@@ -110,8 +114,20 @@ async def get_lead(lead_id: uuid.UUID, registry: RegistryDep, engine: EngineDep)
             raise NotFound("Unknown lead.")
         events = await leads.events(lead_id)
         outbox = await OutboxRepository(conn).for_lead(lead_id)
+        drafts = [
+            dict(m)
+            for m in (
+                await conn.execute(
+                    sa.select(messages)
+                    .where(messages.c.lead_id == lead_id)
+                    .order_by(messages.c.version)
+                )
+            )
+            .mappings()
+            .all()
+        ]
     ws = registry.get(lead["workspace_slug"])
-    return lead_detail(lead, events, outbox, ws.config if ws else None)
+    return lead_detail(lead, events, outbox, ws.config if ws else None, drafts)
 
 
 @router.post("/leads/{lead_id}/retrigger", response_model=RetriggerResult, status_code=202)
@@ -123,8 +139,8 @@ async def retrigger_lead(
 
 
 @router.delete("/leads/{lead_id}", status_code=204)
-async def delete_lead(lead_id: uuid.UUID, engine: EngineDep) -> Response:
-    await operator.delete_lead(engine, lead_id)
+async def delete_lead(lead_id: uuid.UUID, engine: EngineDep, request: Request) -> Response:
+    await operator.delete_lead(engine, lead_id, request.app.state.checkpointer)
     return Response(status_code=204)
 
 
@@ -137,3 +153,17 @@ async def list_outbox(
     async with engine.connect() as conn:
         rows = await OutboxRepository(conn).list_by_status(status, limit)
     return [OutboxEventOut(**{k: r[k] for k in OutboxEventOut.model_fields}) for r in rows]
+
+
+@router.post("/leads/{lead_id}/review", response_model=ReviewResult)
+async def review_lead(lead_id: uuid.UUID, payload: ReviewRequest, request: Request) -> ReviewResult:
+    """Approve, edit, reject or regenerate the pending draft. 409 when the lead is not in review."""
+    outcome = await request.app.state.reviewer.review(
+        lead_id,
+        payload.action,
+        subject=payload.subject,
+        body=payload.body,
+        feedback=payload.feedback,
+        note=payload.note,
+    )
+    return ReviewResult(**vars(outcome))

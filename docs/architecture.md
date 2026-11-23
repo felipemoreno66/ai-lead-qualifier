@@ -112,8 +112,42 @@ flowchart LR
   a new run. In `inline` mode the outbox dispatcher calls the service for `lead.created`.
 - The fake provider's rule-based extract/qualify handlers (`infrastructure/llm/fake_handlers.py`) read
   the same rendered prompt, so the keyless demo produces explainable judgments.
-- Interim state: after a successful run the lead stays in `qualifying` (score stored). Drafting and
-  human review (M2.3) move it to `pending_review`; there is no checkpointer yet.
+
+### Drafting and human review (M2.3)
+
+```mermaid
+flowchart TD
+  Q[qualify] --> D[draft]
+  D --> V[validate_draft]
+  V -- "problems, first time" --> D
+  V --> H[[human_review: interrupt]]
+  H -- approve / edit --> R[request_send: outbox message.approved]
+  H -- regenerate + feedback --> D
+  H -- reject --> X([END])
+  R --> X
+```
+
+- `draft` writes in the lead's language (falls back to the workspace default when unsupported) using
+  the workspace tone, signature and call to action, and only the recommended product's facts. Its
+  output has `subject`, `body` and an optional plain-text `short_body` for a future WhatsApp channel.
+  `LLM_MODEL_DRAFT` selects a different model for this node.
+- `validate_draft` (`domain/draft_guard.py`, no LLM): word limit, links only on
+  `allowed_link_domains`, only the business's email addresses, no placeholders, every amount must be a
+  price fact from the config (product amounts and numbers in price notes), a language sanity check and
+  `short_body` rules. A failing draft is regenerated once with the problems as feedback; if it still
+  fails it goes to review with the problems shown as `guard_warnings`.
+- The graph runs with the Postgres checkpointer (schema `langgraph`, created on first use) and one
+  thread per run. `human_review` contains only `interrupt()`; the paused thread survives an agent
+  restart. The draft is stored in `messages` (status `draft`, `channel='email'`) and the lead becomes
+  `pending_review`.
+- `POST /admin/leads/{id}/review` with `approve`, `edit` (needs `body`), `reject` or `regenerate`
+  (optional `feedback`): 409 unless the lead is in `pending_review` with a draft, 422 on a bad payload.
+  Approve and edit resume the graph; `request_send` is one transaction that approves the message
+  (an edit keeps `original_body`), inserts the `message.approved` outbox event under the unique key
+  `message:<id>:send` and moves the lead to `approved`. A replay is a no-op. Regenerate marks the old
+  draft `rejected` with the feedback and creates version n+1.
+- Until the n8n email workflow (M2.4) the inline publisher only logs `message.approved`, so an
+  approved lead stays `approved`. Deleting a lead also deletes its checkpoints, which contain lead data.
 
 ## LLM provider layer
 

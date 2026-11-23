@@ -122,7 +122,7 @@ def make_settings(migrated_url: str):
 
 
 @pytest.fixture
-def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_settings):
+async def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_settings):
     """Build an httpx client bound to a fresh app over the clean test database."""
     import httpx
 
@@ -153,6 +153,10 @@ def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_settings):
         return client
 
     yield _make
+    for client in clients:
+        await client.app.state.checkpointer.aclose()  # type: ignore[attr-defined]
+    for client in clients:
+        await client.app.state.checkpointer.aclose()  # type: ignore[attr-defined]
 
 
 @pytest.fixture(autouse=True, scope="session")

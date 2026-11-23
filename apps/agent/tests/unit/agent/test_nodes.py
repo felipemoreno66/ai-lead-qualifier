@@ -122,7 +122,7 @@ async def test_invalid_judgments_are_repaired_then_accepted(registry: WorkspaceR
     )
     state = await run(make_lead(), cfg, provider)
     assert state["result"] == good
-    assert provider.calls == 4  # extract + two rejected answers + the repaired one
+    assert provider.calls == 5  # extract, three qualify attempts, draft
 
 
 async def test_persistently_invalid_output_ends_in_error(registry: WorkspaceRegistry):

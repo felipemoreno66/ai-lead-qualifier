@@ -64,3 +64,14 @@ class QualificationResult(BaseModel):
     criteria: list[CriterionJudgment]
     reasons: list[str]
     profile: LeadProfile
+
+
+class DraftOutput(BaseModel):
+    """Output of ``draft``: the follow-up message. ``short_body`` is the plain-text variant a
+    future WhatsApp channel would send (<= 1,000 characters, no markdown); email ignores it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    subject: str = Field(min_length=1, max_length=150)
+    body: str = Field(min_length=1, max_length=4000)
+    short_body: str | None = Field(default=None, max_length=1000)

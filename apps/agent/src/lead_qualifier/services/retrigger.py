@@ -5,11 +5,14 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.domain.errors import Conflict, NotFound
 from lead_qualifier.domain.lead import LeadStatus
+from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
 from lead_qualifier.infrastructure.db.repositories import LeadRepository, OutboxRepository
+from lead_qualifier.infrastructure.db.tables import agent_runs
 from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.clock import Clock
 
@@ -53,8 +56,21 @@ async def retrigger(engine: AsyncEngine, lead_id: uuid.UUID, clock: Clock) -> di
     return {"event_id": str(event_id), "attempt": attempt}
 
 
-async def delete_lead(engine: AsyncEngine, lead_id: uuid.UUID) -> None:
+async def delete_lead(
+    engine: AsyncEngine, lead_id: uuid.UUID, checkpointer: PostgresCheckpointer | None = None
+) -> None:
+    """Hard-delete a lead, its agent runs and its paused graph checkpoints (they hold lead data)."""
     async with engine.begin() as conn:
+        threads = (
+            await conn.execute(
+                sa.select(agent_runs.c.thread_id).where(agent_runs.c.lead_id == lead_id)
+            )
+        ).scalars()
+        thread_ids = list(threads)
         if not await LeadRepository(conn).delete(lead_id):
             raise NotFound("Unknown lead.")
+    if checkpointer is not None:
+        saver = await checkpointer.get()
+        for thread_id in thread_ids:
+            await saver.adelete_thread(thread_id)
     log.info("lead_deleted", lead_id=str(lead_id))

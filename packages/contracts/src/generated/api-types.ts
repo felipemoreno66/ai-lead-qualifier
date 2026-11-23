@@ -52,6 +52,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/admin/leads/{lead_id}/review": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Review Lead
+     * @description Approve, edit, reject or regenerate the pending draft. 409 when the lead is not in review.
+     */
+    post: operations["review_lead_admin_leads__lead_id__review_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/admin/outbox": {
     parameters: {
       query?: never;
@@ -289,6 +309,8 @@ export interface components {
       id: string;
       /** Locale */
       locale: string | null;
+      /** Messages */
+      messages: components["schemas"]["MessageOut"][];
       /** Name */
       name: string;
       /** Origin */
@@ -402,6 +424,47 @@ export interface components {
       tier: string | null;
       /** Workspace Slug */
       workspace_slug: string;
+    };
+    /** MessageOut */
+    MessageOut: {
+      /** Body */
+      body: string;
+      /** Channel */
+      channel: string;
+      /** Channel Recipient */
+      channel_recipient: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Edited By Operator */
+      edited_by_operator: boolean;
+      /** Guard Warnings */
+      guard_warnings: string[];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Language */
+      language: string;
+      /** Original Body */
+      original_body: string | null;
+      /** Review Note */
+      review_note: string | null;
+      /** Reviewed At */
+      reviewed_at: string | null;
+      /** Sent At */
+      sent_at: string | null;
+      /** Short Body */
+      short_body: string | null;
+      /** Status */
+      status: string;
+      /** Subject */
+      subject: string | null;
+      /** Version */
+      version: number;
     };
     /** OutboxEventOut */
     OutboxEventOut: {
@@ -526,6 +589,39 @@ export interface components {
        * Format: uuid
        */
       event_id: string;
+    };
+    /** ReviewRequest */
+    ReviewRequest: {
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: "approve" | "edit" | "reject" | "regenerate";
+      /** Body */
+      body?: string | null;
+      /** Feedback */
+      feedback?: string | null;
+      /** Note */
+      note?: string | null;
+      /** Subject */
+      subject?: string | null;
+    };
+    /** ReviewResult */
+    ReviewResult: {
+      /** Error Reason */
+      error_reason?: string | null;
+      /**
+       * Lead Id
+       * Format: uuid
+       */
+      lead_id: string;
+      /**
+       * Message Id
+       * Format: uuid
+       */
+      message_id: string;
+      /** Status */
+      status: string;
     };
     /** ValidationError */
     ValidationError: {
@@ -691,6 +787,43 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["RetriggerResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  review_lead_admin_leads__lead_id__review_post: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path: {
+        lead_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReviewResult"];
         };
       };
       /** @description Validation Error */

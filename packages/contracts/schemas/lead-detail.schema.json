@@ -101,6 +101,143 @@
       "title": "LeadEventOut",
       "type": "object"
     },
+    "MessageOut": {
+      "properties": {
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "channel": {
+          "title": "Channel",
+          "type": "string"
+        },
+        "channel_recipient": {
+          "title": "Channel Recipient",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "edited_by_operator": {
+          "title": "Edited By Operator",
+          "type": "boolean"
+        },
+        "guard_warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Guard Warnings",
+          "type": "array"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "original_body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Original Body"
+        },
+        "review_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Review Note"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reviewed At"
+        },
+        "sent_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sent At"
+        },
+        "short_body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Short Body"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Subject"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "language",
+        "channel",
+        "channel_recipient",
+        "subject",
+        "body",
+        "short_body",
+        "status",
+        "edited_by_operator",
+        "original_body",
+        "review_note",
+        "guard_warnings",
+        "created_at",
+        "reviewed_at",
+        "sent_at"
+      ],
+      "title": "MessageOut",
+      "type": "object"
+    },
     "OutboxEventOut": {
       "properties": {
         "attempts": {
@@ -263,6 +400,13 @@
       ],
       "title": "Locale"
     },
+    "messages": {
+      "items": {
+        "$ref": "#/$defs/MessageOut"
+      },
+      "title": "Messages",
+      "type": "array"
+    },
     "name": {
       "title": "Name",
       "type": "string"
@@ -418,7 +562,8 @@
     "sent_at",
     "answers",
     "events",
-    "outbox"
+    "outbox",
+    "messages"
   ],
   "title": "LeadDetail",
   "type": "object"

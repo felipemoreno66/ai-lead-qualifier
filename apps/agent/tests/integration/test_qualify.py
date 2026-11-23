@@ -43,7 +43,7 @@ async def test_qualify_persists_score_run_and_llm_calls(make_client, db: AsyncEn
         response = await qualify(client, lead_id)
     data = response.json()
     assert response.status_code == 200
-    assert data["status"] == "qualifying" and 0 <= data["score"] <= 100
+    assert data["status"] == "pending_review" and 0 <= data["score"] <= 100
     assert data["tier"] in {"hot", "warm", "cold"} and data["recommended_product"]
 
     lead = await one(db, "SELECT * FROM leads WHERE id = :i", i=lead_id)
@@ -56,9 +56,13 @@ async def test_qualify_persists_score_run_and_llm_calls(make_client, db: AsyncEn
     assert "score" not in lead.qualification  # stored once, in the column
 
     run = await one(db, "SELECT * FROM agent_runs WHERE lead_id = :i", i=lead_id)
-    assert run.status == "completed" and run.run_number == 1
+    assert run.status == "interrupted" and run.run_number == 1
     assert run.thread_id == f"lead:{lead_id}:run:1"
-    assert run.prompt_versions == {"extract": "extract@1", "qualify": "qualify@1"}
+    assert run.prompt_versions == {
+        "extract": "extract@1",
+        "qualify": "qualify@1",
+        "draft": "draft@1",
+    }
     assert run.total_cost_usd == 0 and run.duration_ms is not None
 
     async with db.connect() as conn:
@@ -70,6 +74,7 @@ async def test_qualify_persists_score_run_and_llm_calls(make_client, db: AsyncEn
     assert [(c.node, c.provider, c.success) for c in calls] == [
         ("extract", "fake", True),
         ("qualify", "fake", True),
+        ("draft", "fake", True),
     ]
 
 
@@ -101,9 +106,9 @@ async def test_llm_failure_marks_the_lead_error_and_retry_starts_a_new_run(make_
         assert lead.error_reason.startswith("llm_timeout")
 
         retried = (await qualify(client, lead_id)).json()
-    assert retried["status"] == "qualifying" and retried["score"] is not None
+    assert retried["status"] == "pending_review" and retried["score"] is not None
     lead = await one(db, "SELECT status, error_reason FROM leads WHERE id = :i", i=lead_id)
-    assert (lead.status, lead.error_reason) == ("qualifying", None)
+    assert (lead.status, lead.error_reason) == ("pending_review", None)
     async with db.connect() as conn:
         runs = (
             await conn.execute(
@@ -115,7 +120,7 @@ async def test_llm_failure_marks_the_lead_error_and_retry_starts_a_new_run(make_
                 sa.text("SELECT success, error_code FROM llm_calls WHERE NOT success")
             )
         ).one()
-    assert [(r.run_number, r.status) for r in runs] == [(1, "failed"), (2, "completed")]
+    assert [(r.run_number, r.status) for r in runs] == [(1, "failed"), (2, "interrupted")]
     assert runs[1].thread_id == f"lead:{lead_id}:run:2"
     assert (failed_call.success, failed_call.error_code) == (False, "llm_timeout")
 
@@ -136,6 +141,6 @@ async def test_inline_orchestrator_qualifies_on_dispatch(make_client, db):
         lead_id = await lead_id_for(client, "q5@")
         # the event is delivered, the lead was qualified, and a redelivery is a harmless no-op
     lead = await one(db, "SELECT status, score FROM leads WHERE id = :i", i=lead_id)
-    assert lead.status == "qualifying" and lead.score is not None
+    assert lead.status == "pending_review" and lead.score is not None
     event = await one(db, "SELECT status FROM outbox_events")
     assert event.status == "delivered"

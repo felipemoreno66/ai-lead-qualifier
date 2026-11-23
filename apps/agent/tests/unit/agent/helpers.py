@@ -4,7 +4,9 @@ import json
 from typing import Any
 from uuid import uuid4
 
-from lead_qualifier.agent.graph import GraphDeps, QualifyState, run_qualification
+from langgraph.checkpoint.memory import InMemorySaver
+
+from lead_qualifier.agent.graph import GraphDeps, run_qualification
 from lead_qualifier.agent.models import LeadInput
 from lead_qualifier.domain.workspace import WorkspaceConfig
 from lead_qualifier.infrastructure.llm.fake import FakeProvider
@@ -57,5 +59,7 @@ def deps(workspace: WorkspaceConfig, provider: FakeProvider | None = None) -> Gr
 
 async def run(
     lead: LeadInput, workspace: WorkspaceConfig, provider: FakeProvider | None = None
-) -> QualifyState:
-    return await run_qualification(lead, deps(workspace, provider))
+) -> dict[str, Any]:
+    return await run_qualification(
+        lead, deps(workspace, provider), checkpointer=InMemorySaver(), thread_id=str(uuid4())
+    )

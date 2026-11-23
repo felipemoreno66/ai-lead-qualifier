@@ -236,4 +236,61 @@ def qualify(req: StructuredRequest[Any]) -> dict[str, Any]:
     return {"criteria": criteria, "recommended_product": product["id"], "reasons": reasons}
 
 
-FAKE_HANDLERS: dict[str, Handler] = {"extract": extract, "qualify": qualify}
+_COPY: dict[str, dict[str, str]] = {
+    "en": {
+        "subject": "Your application to {business}",
+        "hello": "Hi {name},",
+        "intro": "Thank you for applying to {business}. Based on your application, the best fit"
+        " for you looks like the {product}: {summary}",
+        "price": "It costs USD {amount} ({note}).",
+        "price_plain": "It costs USD {amount}.",
+        "next_hot": "Spots fill quickly, so the best next step is to talk this week.",
+        "next_warm": "We would be glad to answer your questions and help you decide.",
+        "next_cold": "There is no rush: we can help you find the right starting point.",
+        "close": "{cta}.",
+    },
+    "es": {
+        "subject": "Tu solicitud a {business}",
+        "hello": "Hola {name},",
+        "intro": "Gracias por postularte a {business}. Según tu solicitud, la mejor opción para ti"
+        " parece ser {product}: {summary}",
+        "price": "Cuesta USD {amount} ({note}).",
+        "price_plain": "Cuesta USD {amount}.",
+        "next_hot": "Los cupos se llenan rápido, así que lo mejor es hablar esta semana.",
+        "next_warm": "Con gusto resolvemos tus dudas y te ayudamos a decidir.",
+        "next_cold": "No hay prisa: podemos ayudarte a encontrar el punto de partida adecuado.",
+        "close": "{cta}.",
+    },
+}
+
+
+def draft(req: StructuredRequest[Any]) -> dict[str, Any]:
+    """A short templated email in the lead's language. It never quotes free text from the lead."""
+    content = req.messages[0].content
+    lead = _tag(content, "lead_submission")
+    ctx = _tag(content, "draft_context")
+    copy = _COPY.get(ctx["language"], _COPY["en"])
+    first = re.sub(r"[^A-Za-zÀ-ÿ'-]", "", str(lead.get("name", "")).split(" ")[0])[:30]
+    product = ctx["product"]
+    price = product.get("price") or {}
+    parts = [copy["hello"].format(name=first.capitalize() or "there")]
+    parts.append(
+        copy["intro"].format(
+            business=ctx["business"], product=product["name"], summary=product["summary"]
+        )
+    )
+    if price.get("amount") is not None:
+        key = "price" if price.get("note") else "price_plain"
+        parts.append(copy[key].format(amount=price["amount"], note=price.get("note")))
+    parts.append(copy[f"next_{ctx['tier']}"])
+    parts.append(copy["close"].format(cta=ctx["call_to_action"].rstrip(".")))
+    parts.append(ctx["signature"])
+    body = "\n\n".join(parts)
+    return {
+        "subject": copy["subject"].format(business=ctx["business"]),
+        "body": body,
+        "short_body": " ".join(parts[:-1])[:1000],
+    }
+
+
+FAKE_HANDLERS: dict[str, Handler] = {"extract": extract, "qualify": qualify, "draft": draft}

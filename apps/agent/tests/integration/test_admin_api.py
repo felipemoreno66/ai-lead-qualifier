@@ -253,9 +253,11 @@ async def test_end_to_end_inline_delivery_after_intake(make_client):
     assert [e["type"] for e in detail["events"]] == [
         "submitted",
         "status_changed",
+        "status_changed",
         "outbox_delivered",
     ]
-    assert detail["status"] == "qualifying"  # graph ran inline; review comes in the next milestone
+    assert detail["status"] == "pending_review"  # graph ran inline and drafted a reply
+    assert detail["messages"][0]["status"] == "draft"
     assert detail["score"] is not None and detail["tier"] in {"hot", "warm", "cold"}
     assert detail["outbox"][0]["status"] == "delivered"
     assert datetime.fromisoformat(detail["created_at"]).tzinfo is not None
