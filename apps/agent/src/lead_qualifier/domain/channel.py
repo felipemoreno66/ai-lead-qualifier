@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from email.utils import parseaddr
 
 from lead_qualifier.domain.draft_guard import has_unsafe_chars
 from lead_qualifier.domain.workspace import EMAIL_RE
@@ -24,6 +25,15 @@ def sanitize_header(text: str) -> str:
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+def strip_invisible(text: str) -> str:
+    """Remove control, bidirectional and other invisible format characters, keeping line breaks."""
+    return "".join(
+        c
+        for c in text
+        if c in "\n\t" or not (has_unsafe_chars(c, allow_newlines=False) or c == "\r")
+    )
+
+
 class EmailChannel:
     name = "email"
 
@@ -32,7 +42,8 @@ class EmailChannel:
         self.message_id_domain = message_id_domain
 
     def validate_recipient(self, recipient: str) -> None:
-        if not EMAIL_RE.match(recipient):
+        # fullmatch: "$" would also accept a trailing newline; parseaddr must read it back unchanged
+        if not EMAIL_RE.fullmatch(recipient) or parseaddr(recipient)[1] != recipient:
             raise ValueError("the recipient is not a valid email address")
 
     def render(self, message: ChannelMessage) -> ChannelPayload:
