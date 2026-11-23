@@ -1,0 +1,11 @@
+{
+  "name": "contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generated JSON Schemas, OpenAPI document, Zod schemas and TypeScript types shared with the web app.",
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "test": "vitest run"
+  }
+}
