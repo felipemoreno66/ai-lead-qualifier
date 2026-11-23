@@ -65,7 +65,7 @@ legend{padding:0;float:left;width:100%;font:400 1.5rem var(--wq-serif);color:var
  .leads tr{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:16px 4px;border-top:1px solid var(--wq-line)}.leads th,.leads td{padding:0;border:0;font-size:.9375rem}.leads tbody th{font-size:1.1875rem}
  .leads td[data-label=Status]{grid-row:1;grid-column:2;justify-self:end}.leads td[data-label=Tier],.leads td[data-label=Country]{display:none}.leads td[data-label=Program]{grid-column:1;color:var(--wq-muted)}.leads td[data-label=Score]{grid-column:2;grid-row:2;justify-self:end}.leads td[data-label=Created]{grid-column:1;color:var(--wq-muted)}
  .errbox{flex-direction:column;padding:24px 20px} 
- fieldset{padding:22px 18px;border-radius:24px}.filters .segs{flex-wrap:wrap;gap:8px}.seg{white-space:nowrap}.verdict{flex-direction:column;align-items:flex-start;gap:8px}
+ .seg{min-height:44px}.leads tr{position:relative}.leads tbody th a::after{content:"";position:absolute;inset:0}.leads td[data-label=Score]:has(.dim){grid-row:1;grid-column:1}fieldset{padding:22px 18px;border-radius:24px}.filters .segs{flex-wrap:wrap;gap:8px}.seg{white-space:nowrap}.verdict{flex-direction:column;align-items:flex-start;gap:8px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 

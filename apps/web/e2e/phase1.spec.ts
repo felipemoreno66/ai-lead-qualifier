@@ -98,6 +98,10 @@ test.describe("Phase 1: apply and see the lead in the dashboard", () => {
     await page.getByRole("button", { name: "ES" }).click();
     await expect(page.getByLabel("Nombre completo")).toBeVisible();
     await expect(page.getByRole("button", { name: "Enviar solicitud" })).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("lang", "es");
+    await expect(page.locator(".apply")).toHaveAttribute("lang", "es");
+    const results = await new AxeBuilder({ page }).withRules(["html-has-lang", "html-lang-valid", "valid-lang"]).analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test("draft and unknown workspaces have no public form", async ({ page }) => {
@@ -128,6 +132,7 @@ test.describe("accessibility smoke (axe)", () => {
     await page.goto("/dashboard");
     await page.getByRole("link", { name: "Mateo Alvarez" }).click();
     await expect(page.getByRole("heading", { name: "Why this score" })).toBeVisible();
+    await expect(page).toHaveTitle("Mateo Alvarez · Leads");
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     const serious = results.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
     expect(serious.map((v) => `${v.id}: ${v.nodes[0]?.html}`)).toEqual([]);

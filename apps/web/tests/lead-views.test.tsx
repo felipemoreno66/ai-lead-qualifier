@@ -18,7 +18,7 @@ describe("view helpers", () => {
     expect(screen.getByText("Pending review")).toBeInTheDocument();
     expect(screen.getByText("Hot")).toBeInTheDocument();
     expect(screen.getByText("No tier")).toBeInTheDocument();
-    expect(screen.getByText("No score")).toBeInTheDocument();
+    expect(screen.getByText("Not scored")).toBeInTheDocument();
     expect(screen.getByTitle("Score 82 of 100")).toBeInTheDocument();
   });
 

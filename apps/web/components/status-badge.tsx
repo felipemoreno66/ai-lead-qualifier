@@ -10,12 +10,12 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 export function TierLabel({ tier }: { tier: string | null }) {
-  if (!tier) return <span className="tier t-none">No tier</span>;
+  if (!tier) return <span className="sr">No tier</span>;
   return <span className={`tier t-${tier}`}>{TIER_LABELS[tier] ?? tier}</span>;
 }
 
 export function ScoreCell({ score }: { score: number | null }) {
-  if (score === null) return <span className="score num dim">No score</span>;
+  if (score === null) return <span className="score num dim">Not scored</span>;
   return (
     <span className="score num" title={`Score ${score} of 100`}>
       <b>{score}</b>
