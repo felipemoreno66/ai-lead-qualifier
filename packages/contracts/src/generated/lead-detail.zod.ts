@@ -10,20 +10,18 @@ export const leadDetailSchema = z.object({
       value: z.union([z.string(), z.number().int(), z.number(), z.boolean()]),
     }),
   ),
-  breakdown: z
-    .array(
-      z
-        .object({
-          description: z.string(),
-          evidence: z.string(),
-          id: z.string(),
-          judgment: z.enum(["met", "partial", "unmet"]),
-          max_points: z.number(),
-          points: z.number(),
-        })
-        .describe("One scored criterion: what was judged, the points it earned and the evidence."),
-    )
-    .optional(),
+  breakdown: z.array(
+    z
+      .object({
+        description: z.string(),
+        evidence: z.string(),
+        id: z.string(),
+        judgment: z.enum(["met", "partial", "unmet"]),
+        max_points: z.number(),
+        points: z.number(),
+      })
+      .describe("One scored criterion: what was judged, the points it earned and the evidence."),
+  ),
   consent_at: z.string().datetime({ offset: true }),
   consent_notice_version: z.string(),
   country: z.union([z.string(), z.null()]),
@@ -82,7 +80,7 @@ export const leadDetailSchema = z.object({
   ),
   qualification: z.union([z.record(z.string(), z.any()), z.null()]),
   qualified_at: z.union([z.string().datetime({ offset: true }), z.null()]),
-  reasons: z.array(z.string()).optional(),
+  reasons: z.array(z.string()),
   recommended_product: z.union([z.string(), z.null()]),
   recommended_product_name: z.union([z.string(), z.null()]),
   reference: z.string(),

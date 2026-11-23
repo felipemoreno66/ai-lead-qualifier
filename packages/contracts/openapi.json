@@ -558,6 +558,8 @@
           "recommended_product",
           "recommended_product_name",
           "qualification",
+          "breakdown",
+          "reasons",
           "detected_language",
           "error_reason",
           "created_at",

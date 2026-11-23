@@ -105,8 +105,8 @@ class LeadDetail(BaseModel):
     recommended_product: str | None
     recommended_product_name: str | None
     qualification: dict[str, Any] | None
-    breakdown: list[CriterionBreakdown] = Field(default_factory=list)
-    reasons: list[str] = Field(default_factory=list)
+    breakdown: list[CriterionBreakdown]
+    reasons: list[str]
     tier_capped: bool = False
     injection_suspected: bool = False
     detected_language: str | None

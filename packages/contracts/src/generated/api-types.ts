@@ -414,7 +414,7 @@ export interface components {
       /** Answers */
       answers: components["schemas"]["AnswerOut"][];
       /** Breakdown */
-      breakdown?: components["schemas"]["CriterionBreakdown"][];
+      breakdown: components["schemas"]["CriterionBreakdown"][];
       /**
        * Consent At
        * Format: date-time
@@ -464,7 +464,7 @@ export interface components {
       /** Qualified At */
       qualified_at: string | null;
       /** Reasons */
-      reasons?: string[];
+      reasons: string[];
       /** Recommended Product */
       recommended_product: string | null;
       /** Recommended Product Name */
