@@ -86,3 +86,37 @@ dashboard, instead of being retried for hours.
 Public surface: `/api/*` and `/healthz`. Private: `/admin/*` (web server, admin token) and `/internal/*`
 (n8n, its own token); `EXPOSE_ADMIN_API=false` unmounts both. In production the dashboard requires HTTP Basic
 auth and fails closed (503) when credentials are not configured.
+
+## LLM provider layer
+
+`ports/llm.py` defines `LLMProvider` (`generate_structured`, `generate_text`) and the error types.
+Adapters live in `infrastructure/llm/` and stay dumb: they make one call and return typed output.
+
+```mermaid
+flowchart LR
+  G[Graph node] --> V[generate_validated: parse, domain check, up to 2 repairs]
+  V --> R[RecordingProvider: budget guard, llm_calls row, cost]
+  R --> A[Anthropic]
+  R --> B[Bedrock]
+  R --> O[OpenAI skeleton]
+  R --> F[Fake]
+```
+
+- **Anthropic** uses the official SDK with `output_config.format` (JSON schema from the pydantic model)
+  and `output_config.effort`; no `temperature`/`top_p`, no prefill. The SDK retries 429/5xx/connection
+  errors; 400s are never retried. Bedrock reuses it through `AsyncAnthropicBedrockMantle`
+  (`anthropic.`-prefixed model ids) and is not run in CI. OpenAI is a documented skeleton.
+- **Fake** is a pure function of task and input (sha256 seed). Without a handler it synthesises a valid
+  instance of the requested model from its JSON schema; `script=[...]` injects invalid JSON, timeouts
+  or fixed payloads for tests. Its calls cost 0 and never count against the budget.
+- **Repair loop** (`structured.py`): invalid output or a failed domain check is fed back as a user
+  message, at most 2 repairs, then `LLMOutputInvalid`. Each attempt is its own `llm_calls` row.
+- **Cost**: `pricing.yaml` (USD per MTok, `verified_on` date) feeds `PricingTable`; unknown models
+  cost 0 and are flagged `is_estimated`. `RecordingProvider` writes each call in its own transaction,
+  checks the `llm_budget` view against `LLM_BUDGET_USD` before every non-fake call
+  (`BudgetExceeded`) and caps calls per agent run at `LLM_MAX_CALLS_PER_LEAD` (`CallLimitExceeded`).
+- **Tables** (migration 0002): `agent_runs`, `llm_calls`, `messages` (channel-ready: `channel`,
+  `channel_recipient`, nullable `subject`) and the `llm_budget` view.
+
+Deviation from the plan: the call cap counts per agent run, not per lead across runs, because
+`llm_calls` references runs; a re-run gets a fresh allowance and the global budget still applies.
