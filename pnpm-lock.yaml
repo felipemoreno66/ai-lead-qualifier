@@ -207,9 +207,6 @@ importers:
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
-      shadcn:
-        specifier: 4.23.0
-        version: 4.23.0(supports-color@7.2.0)
       tailwind-merge:
         specifier: 3.7.1
         version: 3.7.1
@@ -262,6 +259,9 @@ importers:
       prettier:
         specifier: 3.10.1
         version: 3.10.1
+      shadcn:
+        specifier: 4.23.0
+        version: 4.23.0(supports-color@7.2.0)
       tailwindcss:
         specifier: 4.3.3
         version: 4.3.3
