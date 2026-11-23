@@ -41,7 +41,8 @@ heavy and their "AI" is a black box.
 - **Drafting and human review (API)**: the agent drafts a reply in the lead's language, a deterministic
   guard checks length, links, placeholders and prices, and the graph pauses (Postgres checkpointer,
   survives restarts) until `POST /admin/leads/{id}/review` approves, edits, rejects or regenerates it.
-  Sending the email and the dashboard UI come next.
+  Approved messages are sent by SMTP (Mailpit locally) either in-process or through n8n, and the lead
+  becomes `sent` (or `error`, retryable); the dashboard UI comes next.
 - **LLM provider layer**: one port with Anthropic, a deterministic fake
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
   cost, and `LLM_BUDGET_USD` blocks real providers once spent.

@@ -149,8 +149,42 @@ flowchart TD
   (an edit keeps `original_body`), inserts the `message.approved` outbox event under the unique key
   `message:<id>:send` and moves the lead to `approved`. A replay is a no-op. Regenerate marks the old
   draft `rejected` with the feedback and creates version n+1.
-- Until the n8n email workflow (M2.4) the inline publisher only logs `message.approved`, so an
-  approved lead stays `approved`. Deleting a lead also deletes its checkpoints, which contain lead data.
+- Deleting a lead also deletes its checkpoints, which contain lead data.
+
+### Sending (M2.4)
+
+```mermaid
+sequenceDiagram
+  participant D as Outbox dispatcher
+  participant I as Inline sender
+  participant N as n8n message-approved
+  participant A as Agent /internal
+  participant S as SMTP (Mailpit)
+  D->>D: message.approved event
+  alt ORCHESTRATOR=inline
+    D->>I: publish (in-process)
+    I->>S: send (stable Message-ID)
+    I->>A: mark sent / send_failed
+  else ORCHESTRATOR=n8n
+    D->>N: signed webhook (ids only)
+    N->>A: GET /internal/messages/{id}
+    N->>S: send (channel = email)
+    N->>A: POST sent or send-failed (bearer + HMAC + timestamp)
+    N->>A: POST /internal/events/{id}/ack
+  end
+```
+
+- `ports/channel.py` defines `MessageChannel` (`validate_recipient`, `render`) and `EmailSender`;
+  `domain/channel.py` has the only implementation, `EmailChannel`. A message whose channel has no
+  implementation (for example `whatsapp`) fails cleanly with `send_failed`.
+- `services/delivery.py` is idempotent: a message that is no longer `approved` is not sent again, so an
+  outbox event delivered twice sends one email. The email carries a `Message-ID` derived from the
+  stored message, so even a crash between sending and recording can be recognised downstream.
+- Success: message `sent`, lead `sent` with `sent_at`, timeline event `email_sent`. Failure: message
+  `failed`, lead `error` with reason `send_failed: the message could not be delivered`; only the error
+  type is kept because SMTP errors can contain the recipient's address. Retrying the lead
+  re-qualifies it and drafts a new message.
+- The webhook to n8n carries ids only; n8n fetches the content on the private authenticated API.
 
 ## LLM provider layer
 
