@@ -34,7 +34,11 @@ export function ApplyForm({ config, apiBase, initialLocale }: Props) {
     renderedAt.current = new Date().toISOString();
   }, []);
 
-  const countries = useMemo(() => countryOptions(locale), [locale]);
+  // Country names are localized with the browser's ICU data, which can differ from the server's,
+  // so the options are filled in after mount to keep hydration identical.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const countries = useMemo(() => (mounted ? countryOptions(locale) : []), [mounted, locale]);
   const sections = useMemo(() => {
     const groups: { title: string; fields: FormFieldDef[] }[] = [];
     for (const field of config.form.fields) {

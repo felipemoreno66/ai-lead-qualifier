@@ -1,0 +1,9 @@
+# CI overrides: inline orchestration, relaxed rate limits for the e2e suite. No API keys needed.
+services:
+  agent:
+    environment:
+      ORCHESTRATOR: inline
+      RATE_IP_PER_MINUTE: "1000"
+      RATE_IP_PER_HOUR: "10000"
+      RATE_WORKSPACE_PER_HOUR: "10000"
+      RATE_EMAIL_PER_DAY: "1000"
