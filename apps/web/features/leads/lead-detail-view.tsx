@@ -19,7 +19,7 @@ import {
 import { bffMutate } from "@/lib/api/client";
 import type { LeadDetail } from "@/lib/api/schemas";
 import { countryName, formatDateTime, formatDateTimeUtc } from "@/lib/format";
-import { deliveredMessage, earlierVersions, pendingDraft } from "@/lib/leads/review";
+import { deliveredMessage, earlierVersions, explainReason, pendingDraft } from "@/lib/leads/review";
 import { DraftReview, EarlierDrafts, MessageLetter } from "./draft-review";
 import { describeEvent } from "./event-text";
 import { QualificationCard } from "./qualification-card";
@@ -110,6 +110,7 @@ function Detail({ lead }: { lead: LeadDetail }) {
             <h2>Something went wrong with this lead</h2>
             <p>
               {lead.error_reason ? <code>{lead.error_reason}</code> : "No reason was recorded."}
+              {explainReason(lead.error_reason) && <> {explainReason(lead.error_reason)}</>}
             </p>
             <p>Nothing was sent to the applicant. Retry to queue the lead again.</p>
             <RetriggerButton pending={retrigger.isPending} onClick={() => retrigger.mutate()} primary />

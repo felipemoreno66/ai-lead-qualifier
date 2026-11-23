@@ -8,6 +8,7 @@ import {
   approveRequest,
   deliveredMessage,
   earlierVersions,
+  explainReason,
   formatCost,
   formatLatency,
   isEdited,
@@ -85,6 +86,15 @@ describe("number formatting", () => {
     const call = { input_tokens: 10, output_tokens: 5, latency_ms: 500, cost_usd: 0.001 };
     const run = { calls: [call, call] } as unknown as AgentRun;
     expect(runsSummary([run])).toBe("2 calls, 1.0 s, $0.0020");
+  });
+});
+
+describe("error reasons", () => {
+  it("explains known generic codes and stays silent on unknown ones", () => {
+    expect(explainReason("llm_timeout")).toContain("too long");
+    expect(explainReason("internal_error: ValueError")).toContain("unexpected");
+    expect(explainReason("mystery")).toBeNull();
+    expect(explainReason(null)).toBeNull();
   });
 });
 

@@ -92,3 +92,20 @@ export function runsSummary(runs: AgentRun[]): string {
   const cost = totals.reduce((n, t) => n + t.cost, 0);
   return `${calls} ${calls === 1 ? "call" : "calls"}, ${formatLatency(latency)}, ${formatCost(cost)}`;
 }
+
+const REASON_TEXT: Record<string, string> = {
+  llm_timeout: "The language model took too long to answer.",
+  llm_connection_error: "The language model could not be reached.",
+  llm_provider_error: "The language model provider reported an error.",
+  llm_output_invalid: "The model's answer did not match the expected format.",
+  budget_exceeded: "The spending limit for model calls was reached.",
+  send_failed: "The email could not be delivered.",
+  internal_error: "The agent hit an unexpected problem.",
+};
+
+/** Plain-language hint for a generic error reason code (the code itself is shown next to it). */
+export function explainReason(code: string | null): string | null {
+  if (!code) return null;
+  const known = REASON_TEXT[code.split(":")[0]];
+  return known ?? null;
+}
