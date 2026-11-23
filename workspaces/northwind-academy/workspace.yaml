@@ -1,0 +1,107 @@
+# Fictional demo business. Every name, price and address here is invented.
+schema_version: 1
+slug: northwind-academy
+profile:
+  name: Northwind Academy
+  tagline: Online programming programs for career changers
+  website: https://northwind-academy.example
+  contact_email: admissions@northwind-academy.example
+  timezone: America/Bogota
+  draft: false
+languages:
+  default: en
+  supported: [en, es]
+tone:
+  style: warm, concise, encouraging; never pushy
+  do: ["use the lead's first name", "reference their stated goal", "suggest one concrete next step"]
+  dont: ["promise job placement", "invent discounts", "mention competitors"]
+  signature: "— Admissions Team, Northwind Academy"
+products:
+  - id: fullstack-bootcamp
+    name: Full Stack Bootcamp
+    summary: 16-week live online bootcamp (JavaScript, TypeScript, React, Node.js, PostgreSQL).
+    price: { currency: USD, amount: 4900, note: "or 6 monthly payments of USD 890" }
+    duration: 16 weeks, ~20 h/week
+  - id: data-ai-course
+    name: Data & AI Course
+    summary: 10-week part-time course (Python, SQL, pandas, ML basics, LLM apps).
+    price: { currency: USD, amount: 2400, note: "or 3 monthly payments of USD 850" }
+    duration: 10 weeks, ~10 h/week
+  - id: mentorship-1on1
+    name: 1:1 Mentorship
+    summary: Personal mentor, weekly 60-min sessions, portfolio and interview prep.
+    price: { currency: USD, amount: 190, note: "per month; 3-month plan USD 520" }
+    duration: monthly, cancel anytime
+qualification:
+  criteria:
+    - id: goal_fit
+      description: Career goal matches one of our programs
+      weight: 30
+      guide: "met = clear tech career goal matching a program; partial = vague; unmet = unrelated"
+    - id: budget_fit
+      description: Budget covers the recommended program or a payment plan
+      weight: 25
+      guide: "compare stated budget to product prices including payment plans"
+    - id: availability_fit
+      description: Weekly availability matches program workload
+      weight: 20
+    - id: readiness
+      description: Signals of commitment (start date, prior learning, specific questions)
+      weight: 15
+    - id: reachable
+      description: Valid contact data and a country we serve (all countries except sanctioned)
+      weight: 10
+  tiers: { hot_min: 75, warm_min: 45 } # below warm_min = cold
+form:
+  submit_label: { en: Apply, es: Enviar solicitud }
+  fields:
+    - { id: name, role: name, type: text, required: true, max_length: 120, label: { en: Full name, es: Nombre completo } }
+    - { id: email, role: email, type: email, required: true, label: { en: Email, es: Correo } }
+    - { id: country, type: country, required: true, label: { en: Country, es: País } }
+    - id: program
+      type: select
+      required: true
+      label: { en: Program of interest, es: Programa de interés }
+      options:
+        - { value: fullstack-bootcamp, label: { en: Full Stack Bootcamp, es: Bootcamp Full Stack } }
+        - { value: data-ai-course, label: { en: Data & AI Course, es: Curso de Datos e IA } }
+        - { value: mentorship-1on1, label: { en: 1:1 Mentorship, es: Mentoría 1:1 } }
+        - { value: not-sure, label: { en: Not sure yet, es: Aún no lo sé } }
+    - { id: career_goal, type: textarea, required: true, max_length: 600, label: { en: Career goal, es: Meta profesional } }
+    - id: budget
+      type: select
+      required: true
+      label: { en: Budget, es: Presupuesto }
+      options:
+        - { value: lt-500, label: { en: Under USD 500, es: Menos de USD 500 } }
+        - { value: 500-2500, label: { en: "USD 500–2,500", es: "USD 500–2.500" } }
+        - { value: 2500-5000, label: { en: "USD 2,500–5,000", es: "USD 2.500–5.000" } }
+        - { value: gt-5000, label: { en: "Over USD 5,000", es: "Más de USD 5.000" } }
+    - id: availability
+      type: select
+      required: true
+      label: { en: Weekly availability, es: Disponibilidad semanal }
+      options:
+        - { value: lt-5h, label: { en: Less than 5 h, es: Menos de 5 h } }
+        - { value: 5-10h, label: { en: 5–10 h, es: 5–10 h } }
+        - { value: 10-20h, label: { en: 10–20 h, es: 10–20 h } }
+        - { value: gt-20h, label: { en: 20+ h, es: 20+ h } }
+    - { id: looking_for, role: free_text, type: textarea, required: false, max_length: 2000, label: { en: "What are you looking for?", es: "¿Qué estás buscando?" } }
+privacy:
+  version: "2026-11-01"
+  controller: Northwind Academy (fictional)
+  retention_days: 365
+  notice:
+    en: "We use your data only to evaluate your application and contact you about it. An AI system helps us prioritize and draft replies; a person reviews every message before it is sent."
+    es: "Usamos tus datos solo para evaluar tu solicitud y contactarte. Un sistema de IA nos ayuda a priorizar y redactar respuestas; una persona revisa cada mensaje antes de enviarlo."
+cors:
+  allowed_origins: ["https://northwind-academy.example"] # WEB_PUBLIC_ORIGIN is added automatically
+knowledge_base: { path: knowledge-base, enabled: true }
+notifications: { owner_email: admissions@northwind-academy.example, notify_tiers: [hot] }
+drafting:
+  max_words: 180
+  allowed_link_domains: [northwind-academy.example]
+  call_to_action: { en: "Book a 15-minute admissions call", es: "Agenda una llamada de admisiones de 15 minutos" }
+channels:
+  email: { enabled: true }
+  whatsapp: { enabled: false, provider: null, template_name: null }
