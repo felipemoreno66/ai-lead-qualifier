@@ -37,3 +37,4 @@ data/private/
 backups/
 workspaces/*/private/
 evals/results/raw/
+.impeccable/review/
