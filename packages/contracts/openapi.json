@@ -887,12 +887,30 @@
         "description": "An approved message as n8n needs it to send. Served on the private, authenticated API.",
         "properties": {
           "body": {
-            "title": "Body",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
           },
           "channel": {
-            "title": "Channel",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "deliverable": {
+            "title": "Deliverable",
+            "type": "boolean"
           },
           "from_address": {
             "anyOf": [
@@ -911,13 +929,27 @@
             "type": "string"
           },
           "language": {
-            "title": "Language",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           },
           "lead_id": {
-            "format": "uuid",
-            "title": "Lead Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Id"
           },
           "message_id_header": {
             "anyOf": [
@@ -931,7 +963,18 @@
             "title": "Message Id Header"
           },
           "recipient": {
-            "title": "Recipient",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient"
+          },
+          "status": {
+            "title": "Status",
             "type": "string"
           },
           "subject": {
@@ -948,14 +991,8 @@
         },
         "required": [
           "id",
-          "lead_id",
-          "channel",
-          "recipient",
-          "subject",
-          "body",
-          "language",
-          "from_address",
-          "message_id_header"
+          "deliverable",
+          "status"
         ],
         "title": "MessageContent",
         "type": "object"
@@ -2538,9 +2575,10 @@
         ]
       }
     },
-    "/internal/messages/{message_id}": {
-      "get": {
-        "operationId": "get_message_internal_messages__message_id__get",
+    "/internal/messages/{message_id}/claim": {
+      "post": {
+        "description": "Hand an approved message to n8n for sending and mark it ``sending`` so it is sent once.",
+        "operationId": "claim_message_internal_messages__message_id__claim_post",
         "parameters": [
           {
             "in": "path",
@@ -2591,7 +2629,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Message",
+        "summary": "Claim Message",
         "tags": [
           "internal"
         ]

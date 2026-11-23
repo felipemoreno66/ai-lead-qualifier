@@ -42,7 +42,7 @@ LEAD_EVENT_TYPES = (
 OUTBOX_STATUSES = ("pending", "processing", "delivered", "dead")
 OUTBOX_EVENT_TYPES = ("lead.created", "message.approved")
 AGENT_RUN_STATUSES = ("running", "interrupted", "completed", "failed")
-MESSAGE_STATUSES = ("draft", "approved", "rejected", "sent", "failed")
+MESSAGE_STATUSES = ("draft", "approved", "sending", "rejected", "sent", "failed")
 MESSAGE_CHANNELS = ("email", "whatsapp")
 
 
@@ -227,6 +227,8 @@ messages = Table(
     Column("sent_at", DateTime(timezone=True)),
     Column("provider_message_id", Text),
     Column("short_body", Text),
+    Column("send_started_at", DateTime(timezone=True)),
+    Column("send_attempts", Integer, nullable=False, server_default="0"),
     Column("guard_warnings", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
     UniqueConstraint("lead_id", "version", name="uq_messages_lead_version"),
     CheckConstraint(_in("status", MESSAGE_STATUSES), name="ck_messages_status"),

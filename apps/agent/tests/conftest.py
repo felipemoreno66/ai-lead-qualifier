@@ -199,10 +199,13 @@ class SmtpInbox:
         from aiosmtpd.controller import Controller
 
         self.messages: list[Any] = []
+        self.replies: list[str] = []  # scripted SMTP answers, consumed one per message
         inbox = self
 
         class Handler:
             async def handle_DATA(self, server: Any, session: Any, envelope: Any) -> str:
+                if inbox.replies:
+                    return inbox.replies.pop(0)
                 inbox.messages.append(envelope)
                 return "250 OK"
 

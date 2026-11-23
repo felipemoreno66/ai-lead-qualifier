@@ -17,7 +17,7 @@ n8n is then on http://127.0.0.1:5678 (create the owner account on first visit). 
 | File | Trigger | What it does |
 |---|---|---|
 | `lead-created.json` | `POST /webhook/lead-created` (signed by the agent) | Verifies the HMAC signature, calls `POST /internal/leads/{id}/qualify` (synchronous: extract, qualify, draft, then paused for review), emails the owner **only for hot leads** (reference and dashboard link, no personal data), then calls `POST /internal/events/{event_id}/ack` |
-| `message-approved.json` | `POST /webhook/message-approved` (signed by the agent) | Verifies the signature, fetches the approved message (`GET /internal/messages/{id}`), sends it by SMTP when `channel` is `email` (any other channel reports a failure), then reports `POST /internal/messages/{id}/sent` or `/send-failed` and acknowledges the event |
+| `message-approved.json` | `POST /webhook/message-approved` (signed by the agent) | Verifies the signature, claims the approved message (`POST /internal/messages/{id}/claim`, which marks it `sending` so it is sent once), sends it by SMTP (three tries) when `channel` is `email` (any other channel reports a failure), then reports `POST /internal/messages/{id}/sent` or `/send-failed` and acknowledges the event |
 
 The callbacks to `/sent` and `/send-failed` carry the bearer token **and** `X-Timestamp` /
 `X-Signature` (`sha256=HMAC(timestamp + "." + "POST " + path + "." + body)` with `N8N_WEBHOOK_SECRET`); the agent rejects
@@ -43,3 +43,14 @@ only when n8n really processed it; any failure (bad signature, SMTP down) is ret
   This is acceptable for a local, single-user instance; use n8n credentials for shared setups.
 - The n8n database lives in the same Postgres server (`n8n` database, created on first start of a
   fresh volume).
+
+## Production notes
+
+- Set your own `N8N_ENCRYPTION_KEY` (the compose default is for local use only) and drop
+  `N8N_SECURE_COOKIE=false`; run n8n behind HTTPS.
+- The signature covers the request path, so a reverse proxy must pass `/webhook/*` and
+  `/internal/*` through **unchanged** (no prefix stripping or rewriting).
+- Routing in `message-approved`: a claim answered 409 or 422 reports a failure; any other error
+  (agent down, 5xx, 401) fails the run so the outbox retries the event. If the `sent` report cannot be
+  delivered the event is still acknowledged, because the email already went out; the message then
+  stays `sending` and is flagged for a manual check instead of being resent.

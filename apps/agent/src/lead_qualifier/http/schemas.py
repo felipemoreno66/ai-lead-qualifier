@@ -219,14 +219,16 @@ class MessageContent(BaseModel):
     """An approved message as n8n needs it to send. Served on the private, authenticated API."""
 
     id: uuid.UUID
-    lead_id: uuid.UUID
-    channel: str
-    recipient: str
-    subject: str | None
-    body: str
-    language: str
-    from_address: str | None
-    message_id_header: str | None
+    deliverable: bool
+    status: str
+    lead_id: uuid.UUID | None = None
+    channel: str | None = None
+    recipient: str | None = None
+    subject: str | None = None
+    body: str | None = None
+    language: str | None = None
+    from_address: str | None = None
+    message_id_header: str | None = None
 
 
 class SentCallback(BaseModel):

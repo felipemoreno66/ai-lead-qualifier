@@ -73,7 +73,7 @@
     },
     {
       "id": "c1d3b2e1-0003-4000-8000-000000000103",
-      "name": "Fetch message",
+      "name": "Claim message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -81,8 +81,8 @@
         -80
       ],
       "parameters": {
-        "method": "GET",
-        "url": "={{ $env.AGENT_INTERNAL_URL }}/internal/messages/{{ $json.message.id }}",
+        "method": "POST",
+        "url": "={{ $env.AGENT_INTERNAL_URL }}/internal/messages/{{ $json.message.id }}/claim",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -96,6 +96,7 @@
           "timeout": 10000,
           "response": {
             "response": {
+              "fullResponse": true,
               "neverError": true
             }
           }
@@ -103,8 +104,8 @@
       }
     },
     {
-      "id": "c1d3b2e1-0004-4000-8000-000000000104",
-      "name": "Channel is email?",
+      "id": "c1d3b2e1-0014-4000-8000-000000000114",
+      "name": "Claimed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
@@ -122,7 +123,122 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.channel }}",
+              "leftValue": "={{ $json.statusCode === 200 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c1d3b2e1-0015-4000-8000-000000000115",
+      "name": "Deliverable?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        -160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.body.deliverable === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c1d3b2e1-0016-4000-8000-000000000116",
+      "name": "Client error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        40
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ [409, 422].includes($json.statusCode) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c1d3b2e1-0017-4000-8000-000000000117",
+      "name": "Agent unavailable",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        200
+      ],
+      "parameters": {
+        "errorMessage": "The agent could not claim the message; the event will be retried."
+      }
+    },
+    {
+      "id": "c1d3b2e1-0004-4000-8000-000000000104",
+      "name": "Channel is email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        -200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.body.channel }}",
               "rightValue": "email",
               "operator": {
                 "type": "string",
@@ -141,20 +257,23 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1200,
-        -160
+        1680,
+        -280
       ],
       "parameters": {
-        "fromEmail": "={{ $json.from_address }}",
-        "toEmail": "={{ $json.recipient }}",
-        "subject": "={{ $json.subject }}",
+        "fromEmail": "={{ $json.body.from_address }}",
+        "toEmail": "={{ $json.body.recipient }}",
+        "subject": "={{ $json.body.subject }}",
         "emailFormat": "text",
-        "text": "={{ $json.body }}",
+        "text": "={{ $json.body.body }}",
         "options": {
           "appendAttribution": false
         }
       },
-      "onError": "continueErrorOutput"
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "id": "c1d3b2e1-0006-4000-8000-000000000106",
@@ -162,8 +281,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        -160
+        1920,
+        -280
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -177,8 +296,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        80
+        1680,
+        0
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -192,8 +311,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1680,
-        -160
+        2160,
+        -280
       ],
       "parameters": {
         "method": "POST",
@@ -226,7 +345,11 @@
         "options": {
           "timeout": 10000
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
     },
     {
       "id": "c1d3b2e1-0013-4000-8000-000000000113",
@@ -234,8 +357,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1680,
-        80
+        1920,
+        0
       ],
       "parameters": {
         "method": "POST",
@@ -268,7 +391,10 @@
         "options": {
           "timeout": 10000
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "id": "c1d3b2e1-0008-4000-8000-000000000108",
@@ -276,8 +402,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1920,
-        -40
+        2400,
+        -140
       ],
       "parameters": {
         "method": "POST",
@@ -302,8 +428,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        2160,
-        -40
+        2640,
+        -140
       ],
       "parameters": {
         "respondWith": "json",
@@ -358,7 +484,7 @@
       "main": [
         [
           {
-            "node": "Fetch message",
+            "node": "Claim message",
             "type": "main",
             "index": 0
           }
@@ -366,17 +492,6 @@
         [
           {
             "node": "Respond 401",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Fetch message": {
-      "main": [
-        [
-          {
-            "node": "Channel is email?",
             "type": "main",
             "index": 0
           }
@@ -468,6 +583,71 @@
         [
           {
             "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim message": {
+      "main": [
+        [
+          {
+            "node": "Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Deliverable?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Client error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deliverable?": {
+      "main": [
+        [
+          {
+            "node": "Channel is email?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acknowledge event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Client error?": {
+      "main": [
+        [
+          {
+            "node": "Sign failed callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agent unavailable",
             "type": "main",
             "index": 0
           }

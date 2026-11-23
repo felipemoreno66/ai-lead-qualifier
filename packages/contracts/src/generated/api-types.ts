@@ -214,17 +214,20 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/internal/messages/{message_id}": {
+  "/internal/messages/{message_id}/claim": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** Get Message */
-    get: operations["get_message_internal_messages__message_id__get"];
+    get?: never;
     put?: never;
-    post?: never;
+    /**
+     * Claim Message
+     * @description Hand an approved message to n8n for sending and mark it ``sending`` so it is sent once.
+     */
+    post: operations["claim_message_internal_messages__message_id__claim_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -613,29 +616,30 @@ export interface components {
      */
     MessageContent: {
       /** Body */
-      body: string;
+      body?: string | null;
       /** Channel */
-      channel: string;
+      channel?: string | null;
+      /** Deliverable */
+      deliverable: boolean;
       /** From Address */
-      from_address: string | null;
+      from_address?: string | null;
       /**
        * Id
        * Format: uuid
        */
       id: string;
       /** Language */
-      language: string;
-      /**
-       * Lead Id
-       * Format: uuid
-       */
-      lead_id: string;
+      language?: string | null;
+      /** Lead Id */
+      lead_id?: string | null;
       /** Message Id Header */
-      message_id_header: string | null;
+      message_id_header?: string | null;
       /** Recipient */
-      recipient: string;
+      recipient?: string | null;
+      /** Status */
+      status: string;
       /** Subject */
-      subject: string | null;
+      subject?: string | null;
     };
     /** MessageOut */
     MessageOut: {
@@ -1322,7 +1326,7 @@ export interface operations {
       };
     };
   };
-  get_message_internal_messages__message_id__get: {
+  claim_message_internal_messages__message_id__claim_post: {
     parameters: {
       query?: never;
       header?: {

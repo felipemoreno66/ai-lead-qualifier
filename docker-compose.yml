@@ -116,6 +116,9 @@ services:
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      SMTP_SSL: ${SMTP_SSL:-false}
+      SEND_MAX_ATTEMPTS: ${SEND_MAX_ATTEMPTS:-3}
+      SEND_STALE_MINUTES: ${SEND_STALE_MINUTES:-15}
       # Secret: from .env only, no default.
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       # Secrets: forwarded from .env only, deliberately without a default value.

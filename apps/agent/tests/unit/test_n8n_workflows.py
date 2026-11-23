@@ -85,16 +85,38 @@ def test_message_approved_has_its_own_signed_webhook_and_an_email_only_branch():
     verify = _node(workflow, "Verify signature")["parameters"]["jsCode"]
     assert "timingSafeEqual" in verify and ".POST /webhook/message-approved." in verify
     channel = _node(workflow, "Channel is email?")["parameters"]["conditions"]["conditions"][0]
-    assert channel["leftValue"] == "={{ $json.channel }}" and channel["rightValue"] == "email"
+    assert channel["leftValue"] == "={{ $json.body.channel }}" and channel["rightValue"] == "email"
+    connections = workflow["connections"]
     # the non-email branch and a failing SMTP send both report a failure; success reports sent
-    assert (
-        workflow["connections"]["Channel is email?"]["main"][1][0]["node"] == "Sign failed callback"
-    )
+    assert connections["Channel is email?"]["main"][1][0]["node"] == "Sign failed callback"
     send = _node(workflow, "Send email")
-    assert send["onError"] == "continueErrorOutput"
-    assert workflow["connections"]["Send email"]["main"][0][0]["node"] == "Sign sent callback"
-    assert workflow["connections"]["Send email"]["main"][1][0]["node"] == "Sign failed callback"
+    assert send["onError"] == "continueErrorOutput" and send["retryOnFail"] is True
+    assert connections["Send email"]["main"][0][0]["node"] == "Sign sent callback"
+    assert connections["Send email"]["main"][1][0]["node"] == "Sign failed callback"
     assert "credentials" not in send
+
+
+def test_message_approved_claims_before_sending_and_routes_on_the_http_status():
+    workflow = _workflow("message-approved")
+    connections = workflow["connections"]
+    claim = _node(workflow, "Claim message")["parameters"]
+    assert claim["method"] == "POST" and claim["url"].endswith("/claim")
+    assert claim["options"]["response"]["response"]["fullResponse"] is True
+    assert connections["Signature valid?"]["main"][0][0]["node"] == "Claim message"
+    # 200 -> deliverable? -> send; already sending/sent/failed -> just acknowledge
+    assert connections["Claimed?"]["main"][0][0]["node"] == "Deliverable?"
+    assert connections["Deliverable?"]["main"][0][0]["node"] == "Channel is email?"
+    assert connections["Deliverable?"]["main"][1][0]["node"] == "Acknowledge event"
+    # only 409 and 422 become a failure callback; anything else fails the run so the event retries
+    client_error = _node(workflow, "Client error?")["parameters"]["conditions"]["conditions"][0]
+    assert "409, 422" in client_error["leftValue"]
+    assert connections["Client error?"]["main"][0][0]["node"] == "Sign failed callback"
+    assert connections["Client error?"]["main"][1][0]["node"] == "Agent unavailable"
+    assert _node(workflow, "Agent unavailable")["type"] == "n8n-nodes-base.stopAndError"
+    # a lost "sent" report must still acknowledge the event (the email went out)
+    report = _node(workflow, "Report sent")
+    assert report["onError"] == "continueRegularOutput" and report["retryOnFail"] is True
+    assert connections["Report sent"]["main"][0][0]["node"] == "Acknowledge event"
 
 
 def test_lead_created_qualifies_first_and_notifies_only_hot_leads_without_personal_data():

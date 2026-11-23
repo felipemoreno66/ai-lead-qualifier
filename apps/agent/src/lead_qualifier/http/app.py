@@ -77,7 +77,9 @@ def create_app(
             username=settings.smtp_username,
             password=settings.smtp_password.get_secret_value(),
             starttls=settings.smtp_starttls,
+            use_ssl=settings.smtp_ssl,
         ),
+        max_attempts=settings.send_max_attempts,
     )
     qualifier.attach_send_gateway(reviewer)
     n8n_publisher: N8nPublisher | None = None

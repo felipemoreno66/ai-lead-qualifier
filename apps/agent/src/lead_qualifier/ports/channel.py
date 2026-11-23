@@ -52,4 +52,11 @@ class EmailSender(Protocol):
 
 
 class EmailSendError(Exception):
-    """The email could not be delivered. Carries no recipient data."""
+    """The email could not be delivered. Carries no recipient data.
+
+    ``transient`` marks failures worth retrying later (SMTP 4xx, timeouts, connection errors);
+    permanent ones (SMTP 5xx, rejected credentials, a refused insecure login) are not."""
+
+    def __init__(self, message: str, *, transient: bool = False) -> None:
+        super().__init__(message)
+        self.transient = transient

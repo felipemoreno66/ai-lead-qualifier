@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.domain.lead import LeadStatus, LeadTrigger, next_status
 from lead_qualifier.infrastructure.db.repositories import LeadRepository, StatusConflict
-from lead_qualifier.infrastructure.db.tables import agent_runs, leads
+from lead_qualifier.infrastructure.db.tables import agent_runs, leads, messages
 from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.clock import Clock
 
@@ -18,8 +18,13 @@ REASON = "interrupted: the qualification run did not finish"
 
 
 async def reap_stale_runs(engine: AsyncEngine, clock: Clock, max_age: timedelta) -> int:
-    """Mark ``running`` runs older than ``max_age`` as failed and their ``qualifying`` lead as
-    ``error`` (retryable). Runs paused for a human (``interrupted``) are never touched."""
+    """Mark ``running`` runs whose ``qualifying`` lead has not been touched for ``max_age`` as
+    failed and the lead as ``error`` (retryable).
+
+    Staleness is the lead's ``updated_at``, which every claim (start of a run, operator
+    regenerate) refreshes, so a long-lived run that is regenerating right now is not reaped, while
+    a crash right after a regenerate claim is. Runs paused for a human (``interrupted``) are
+    never touched."""
     now = clock.now()
     reaped = 0
     async with engine.connect() as conn:
@@ -29,7 +34,7 @@ async def reap_stale_runs(engine: AsyncEngine, clock: Clock, max_age: timedelta)
                 .join(leads, leads.c.id == agent_runs.c.lead_id)
                 .where(
                     agent_runs.c.status == "running",
-                    agent_runs.c.started_at < now - max_age,
+                    leads.c.updated_at < now - max_age,
                     leads.c.status == LeadStatus.QUALIFYING.value,
                 )
             )
@@ -64,3 +69,27 @@ async def reap_stale_runs(engine: AsyncEngine, clock: Clock, max_age: timedelta)
     if reaped:
         log.warning("stale_runs_reaped", count=reaped)
     return reaped
+
+
+async def report_stale_sending(engine: AsyncEngine, clock: Clock, max_age: timedelta) -> int:
+    """Log messages stuck in ``sending`` (a crash between the SMTP call and its report).
+
+    They are deliberately NOT resent: the email may have gone out. An operator checks the mailbox
+    or the provider and then settles the message (``POST /internal/messages/{id}/sent`` or
+    ``/send-failed``, or an UPDATE of the row)."""
+    async with engine.connect() as conn:
+        stuck = (
+            (
+                await conn.execute(
+                    sa.select(messages.c.id).where(
+                        messages.c.status == "sending",
+                        messages.c.send_started_at < clock.now() - max_age,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    if stuck:
+        log.error("stale_sending_messages", count=len(stuck), message_ids=[str(i) for i in stuck])
+    return len(stuck)

@@ -10,12 +10,14 @@ import asyncio
 from datetime import datetime, timedelta
 
 import sqlalchemy as sa
+import structlog
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+log = structlog.get_logger(__name__)
 SCHEMA = "langgraph"
 
 
@@ -91,10 +93,18 @@ class PostgresCheckpointer:
             )
         ]
         if stale:
+            # The run row is committed in QualifyService._start before the graph writes its first
+            # checkpoint, so a thread without a run row is a real orphan, never an in-flight run.
             saver = await self.get()
+            deleted = 0
             for thread_id in stale:
-                await saver.adelete_thread(thread_id)
-        return len(stale)
+                try:
+                    await saver.adelete_thread(thread_id)
+                    deleted += 1
+                except Exception as exc:  # one bad thread must not stop the sweep
+                    log.error("thread_purge_failed", error_type=type(exc).__name__)
+            return deleted
+        return 0
 
     async def aclose(self) -> None:
         async with self._lock:

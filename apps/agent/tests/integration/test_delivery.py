@@ -121,9 +121,12 @@ async def test_redelivery_of_the_event_does_not_send_twice(make_client, db, smtp
     assert (await rows(db, "SELECT status FROM leads"))[0].status == "sent"
 
 
-async def test_smtp_failure_makes_the_lead_error_and_it_can_be_retried(make_client, db):
-    dead = SmtpSender("127.0.0.1", 1, timeout=1)  # nothing listens here
-    async with make_client(llm_provider=llm(db), email_sender=dead) as client:
+async def test_smtp_failure_makes_the_lead_error_and_it_can_be_retried(
+    make_client, db, smtp_inbox: SmtpInbox
+):
+    smtp_inbox.replies = ["550 5.1.1 no such mailbox"]  # a permanent rejection fails at once
+    sender = SmtpSender("127.0.0.1", smtp_inbox.port)
+    async with make_client(llm_provider=llm(db), email_sender=sender) as client:
         lead_id = await approved(client, "s4@example.com")
         await deliver_pending(client)
         detail = (await client.get(f"/admin/leads/{lead_id}", headers=AUTH)).json()
@@ -156,9 +159,14 @@ async def test_n8n_fetches_the_message_and_reports_success(make_client, db):
         lead_id = await approved(client, "n1@example.com")
         message_id = str((await rows(db, "SELECT id FROM messages"))[0].id)
         url = f"/internal/messages/{message_id}"
-        assert (await client.get(url)).status_code == 401
-        assert (await client.get(url, headers=AUTH)).status_code == 403
-        content = (await client.get(url, headers=N8N_AUTH)).json()
+        assert (await client.post(f"{url}/claim")).status_code == 401
+        assert (await client.post(f"{url}/claim", headers=AUTH)).status_code == 403
+        content = (await client.post(f"{url}/claim", headers=N8N_AUTH)).json()
+        assert content["deliverable"] is True and content["status"] == "sending"
+        again = (await client.post(f"{url}/claim", headers=N8N_AUTH)).json()
+        assert (
+            again["deliverable"] is False and again["status"] == "sending"
+        )  # not handed out twice
         assert content["channel"] == "email" and content["recipient"] == "n1@example.com"
         assert content["from_address"] == "admissions@northwind-academy.example"
         assert content["subject"] and content["body"] and content["message_id_header"]
@@ -174,8 +182,9 @@ async def test_n8n_fetches_the_message_and_reports_success(make_client, db):
         late = await client.post(f"{url}/send-failed", content=raw, headers=headers)
         assert late.json()["status"] == "sent" and late.json()["changed"] is False
         detail = (await client.get(f"/admin/leads/{lead_id}", headers=AUTH)).json()
-        gone = await client.get(url, headers=N8N_AUTH)
-    assert detail["status"] == "sent" and gone.status_code == 409  # no longer waiting to be sent
+        gone = await client.post(f"{url}/claim", headers=N8N_AUTH)
+    assert detail["status"] == "sent"
+    assert gone.json()["deliverable"] is False and gone.json()["status"] == "sent"
     assert (await rows(db, "SELECT provider_message_id FROM messages"))[0].provider_message_id == (
         "<abc@smtp>"
     )
@@ -256,29 +265,35 @@ async def test_the_body_must_name_the_message_in_the_path(make_client, db):
     assert mismatch.status_code == 400 and missing.status_code == 422
 
 
-async def test_content_is_served_only_from_the_validated_payload(make_client, db):
+async def test_the_claim_serves_only_the_validated_payload(make_client, db):
     async with make_client(llm_provider=llm(db), orchestrator="n8n") as client:
         await approved(client, "n7@example.com")
         message_id = str((await rows(db, "SELECT id FROM messages"))[0].id)
-        url = f"/internal/messages/{message_id}"
-        async with db.begin() as conn:
-            await conn.execute(
-                sa.text("UPDATE messages SET subject = E'Hi\\r\\nBcc: boss@evil.test'")
-            )
-        content = (await client.get(url, headers=N8N_AUTH)).json()
-        assert "\r" not in content["subject"] and "\n" not in content["subject"]
+        url = f"/internal/messages/{message_id}/claim"
         async with db.begin() as conn:
             await conn.execute(sa.text("UPDATE messages SET channel_recipient = 'not an email'"))
-        invalid = await client.get(url, headers=N8N_AUTH)
+        invalid = await client.post(url, headers=N8N_AUTH)
         async with db.begin() as conn:
             await conn.execute(
                 sa.text(
-                    "UPDATE messages SET channel_recipient = 'ok@example.com', channel='whatsapp'"
+                    "UPDATE messages SET channel_recipient = 'ok@example.com', channel = 'whatsapp'"
                 )
             )
-        unsupported = await client.get(url, headers=N8N_AUTH)
-    assert invalid.status_code == 409 and unsupported.status_code == 409
+        unsupported = await client.post(url, headers=N8N_AUTH)
+        async with db.begin() as conn:
+            await conn.execute(
+                sa.text(
+                    "UPDATE messages SET channel = 'email',"
+                    " subject = E'Hi\\r\\nBcc: boss@evil.test\\u200b'"
+                )
+            )
+        content = (await client.post(url, headers=N8N_AUTH)).json()
+    assert invalid.status_code == 422 and unsupported.status_code == 422
     assert "not an email" not in invalid.text
+    assert content["deliverable"] is True and content["recipient"] == "ok@example.com"
+    assert not any(c in content["subject"] for c in "\r\n\u200b")  # served from the payload
+    # the failed validations claimed nothing: only the valid attempt moved it to sending
+    assert (await rows(db, "SELECT status FROM messages"))[0].status == "sending"
 
 
 async def test_unknown_message_is_404(make_client, db):
@@ -293,3 +308,216 @@ async def test_unknown_message_is_404(make_client, db):
         ).status_code == 404
         sent = await client.post(f"/internal/messages/{missing}/sent", content=raw, headers=headers)
         assert sent.status_code == 404
+
+
+async def test_concurrent_deliveries_send_once(make_client, db, smtp_inbox: SmtpInbox):
+    import asyncio
+
+    sender = SmtpSender("127.0.0.1", smtp_inbox.port)
+    async with make_client(llm_provider=llm(db), email_sender=sender) as client:
+        await approved(client, "d1@example.com")
+        message_id = uuid.UUID(str((await rows(db, "SELECT id FROM messages"))[0].id))
+        results = await asyncio.gather(
+            *[client.app.state.delivery.deliver(message_id) for _ in range(4)]
+        )
+    assert len(smtp_inbox.messages) == 1
+    assert sorted(r.changed for r in results) == [False, False, False, True]
+    assert (await rows(db, "SELECT status FROM messages"))[0].status == "sent"
+
+
+async def test_a_claimed_message_is_not_sent_again_and_stale_claims_are_only_reported(
+    make_client, db, smtp_inbox: SmtpInbox
+):
+    from datetime import timedelta
+
+    from lead_qualifier.ports.clock import SystemClock
+    from lead_qualifier.services.reaper import report_stale_sending
+
+    sender = SmtpSender("127.0.0.1", smtp_inbox.port)
+    async with make_client(llm_provider=llm(db), email_sender=sender) as client:
+        await approved(client, "d2@example.com")
+        message_id = uuid.UUID(str((await rows(db, "SELECT id FROM messages"))[0].id))
+        await client.post(f"/internal/messages/{message_id}/claim", headers=N8N_AUTH)  # n8n took it
+        await deliver_pending(client)  # the inline event is delivered meanwhile: no second send
+        assert smtp_inbox.messages == []
+        assert await report_stale_sending(db, SystemClock(), timedelta(minutes=15)) == 0
+        async with db.begin() as conn:
+            await conn.execute(
+                sa.text("UPDATE messages SET send_started_at = now() - interval '1 hour'")
+            )
+        assert await report_stale_sending(db, SystemClock(), timedelta(minutes=15)) == 1
+        await client.app.state.delivery.deliver(message_id)  # still not resent automatically
+    assert smtp_inbox.messages == []
+    assert (await rows(db, "SELECT status FROM messages"))[0].status == "sending"
+
+
+async def test_a_late_sent_report_after_send_failed_wins(make_client, db):
+    async with make_client(llm_provider=llm(db), orchestrator="n8n") as client:
+        lead_id = await approved(client, "d3@example.com")
+        message_id = uuid.UUID(str((await rows(db, "SELECT id FROM messages"))[0].id))
+        delivery = client.app.state.delivery
+        await delivery.mark_send_failed(message_id, "timeout")
+        assert (await rows(db, "SELECT status FROM leads"))[0].status == "error"
+        result = await delivery.mark_sent(message_id, "<late@smtp>")
+        detail = (await client.get(f"/admin/leads/{lead_id}", headers=AUTH)).json()
+        again = await delivery.mark_sent(message_id, "<late@smtp>")
+    assert (result.status, result.changed, again.changed) == ("sent", True, False)
+    assert detail["status"] == "sent" and detail["error_reason"] is None
+    event = next(e for e in detail["events"] if e["type"] == "email_sent")
+    assert event["payload"]["late_report"] is True and event["to_status"] == "sent"
+
+
+async def test_a_late_sent_report_leaves_a_lead_that_moved_on_alone(make_client, db):
+    async with make_client(llm_provider=llm(db), orchestrator="n8n") as client:
+        await approved(client, "d4@example.com")
+        message_id = uuid.UUID(str((await rows(db, "SELECT id FROM messages"))[0].id))
+        delivery = client.app.state.delivery
+        await delivery.mark_send_failed(message_id, "timeout")
+        async with db.begin() as conn:  # an operator already retried the lead
+            await conn.execute(
+                sa.text("UPDATE leads SET status = 'qualifying', error_reason = NULL")
+            )
+        await delivery.mark_sent(message_id, "<late@smtp>")
+    assert (await rows(db, "SELECT status FROM leads"))[0].status == "qualifying"
+    assert (await rows(db, "SELECT status FROM messages"))[0].status == "sent"
+
+
+async def test_transient_smtp_failures_retry_then_fail_and_permanent_ones_fail_at_once(
+    make_client, db, smtp_inbox: SmtpInbox
+):
+    from lead_qualifier.ports.events import PublishError
+
+    sender = SmtpSender("127.0.0.1", smtp_inbox.port)
+    async with make_client(llm_provider=llm(db), email_sender=sender) as client:
+        await approved(client, "t1@example.com")
+        message_id = uuid.UUID(str((await rows(db, "SELECT id FROM messages"))[0].id))
+        delivery = client.app.state.delivery
+        smtp_inbox.replies = ["451 4.3.0 try again later"] * 3
+        for attempt in (1, 2):
+            with pytest.raises(PublishError):
+                await delivery.deliver(message_id)  # the outbox would retry this event
+            row = (await rows(db, "SELECT status, send_attempts FROM messages"))[0]
+            assert (row.status, row.send_attempts) == ("approved", attempt)
+        failed = await delivery.deliver(message_id)  # third transient failure: give up
+        assert failed.status == "failed" and smtp_inbox.messages == []
+        assert (await rows(db, "SELECT status FROM leads"))[0].status == "error"
+
+
+async def test_a_transient_failure_that_recovers_sends_on_the_retry(
+    make_client, db, smtp_inbox: SmtpInbox
+):
+    from lead_qualifier.ports.events import PublishError
+
+    sender = SmtpSender("127.0.0.1", smtp_inbox.port)
+    async with make_client(llm_provider=llm(db), email_sender=sender) as client:
+        await approved(client, "t2@example.com")
+        message_id = uuid.UUID(str((await rows(db, "SELECT id FROM messages"))[0].id))
+        smtp_inbox.replies = ["421 4.7.0 busy"]
+        with pytest.raises(PublishError):
+            await client.app.state.delivery.deliver(message_id)
+        result = await client.app.state.delivery.deliver(message_id)
+    assert result.status == "sent" and len(smtp_inbox.messages) == 1
+
+
+async def test_a_permanent_smtp_rejection_fails_immediately(make_client, db, smtp_inbox: SmtpInbox):
+    sender = SmtpSender("127.0.0.1", smtp_inbox.port)
+    async with make_client(llm_provider=llm(db), email_sender=sender) as client:
+        await approved(client, "t3@example.com")
+        message_id = uuid.UUID(str((await rows(db, "SELECT id FROM messages"))[0].id))
+        smtp_inbox.replies = ["550 5.1.1 no such mailbox"]
+        result = await client.app.state.delivery.deliver(message_id)
+    assert result.status == "failed"
+    assert (await rows(db, "SELECT send_attempts FROM messages"))[0].send_attempts == 0
+
+
+async def test_the_dispatcher_keeps_the_event_pending_while_smtp_is_flaky(
+    make_client, db, smtp_inbox: SmtpInbox
+):
+    sender = SmtpSender("127.0.0.1", smtp_inbox.port)
+    async with make_client(llm_provider=llm(db), email_sender=sender) as client:
+        await approved(client, "t4@example.com")
+        smtp_inbox.replies = ["451 4.3.0 later"]
+        await deliver_pending(client)
+        event = (
+            await rows(
+                db,
+                "SELECT status, attempts FROM outbox_events WHERE event_type = 'message.approved'",
+            )
+        )[0]
+        assert (event.status, event.attempts) == (
+            "pending",
+            1,
+        )  # not delivered, retried with backoff
+        async with db.begin() as conn:
+            await conn.execute(sa.text("UPDATE outbox_events SET next_attempt_at = now()"))
+        await deliver_pending(client)
+    assert len(smtp_inbox.messages) == 1
+    assert (await rows(db, "SELECT status FROM leads"))[0].status == "sent"
+
+
+def test_smtp_credentials_are_never_sent_in_clear_text():
+    from lead_qualifier.config import Settings
+
+    with pytest.raises(ValueError, match="STARTTLS or SSL"):
+        SmtpSender("smtp.example.com", 587, username="u", password="p")
+    SmtpSender("smtp.example.com", 587, username="u", password="p", starttls=True)
+    SmtpSender("smtp.example.com", 465, username="u", password="p", use_ssl=True)
+    SmtpSender("localhost", 1025)  # Mailpit: no credentials, no TLS
+    with pytest.raises(ValueError, match="SMTP_USERNAME"):
+        Settings(app_env="production", smtp_username="u", **_PROD)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="SMTP_USERNAME"):
+        Settings(app_env="test", smtp_username="u")
+    assert Settings(app_env="test", smtp_username="u", smtp_starttls=True).smtp_starttls
+
+
+_PROD = {
+    "admin_api_token": "a" * 20,
+    "n8n_api_token": "b" * 20,
+    "n8n_webhook_secret": "c" * 20,
+    "ip_hash_secret": "d" * 20,
+}
+
+
+async def test_sent_mail_has_a_date_and_no_invisible_text(smtp_inbox: SmtpInbox):
+    from lead_qualifier.domain.channel import EmailChannel
+    from lead_qualifier.ports.channel import ChannelMessage
+
+    payload = EmailChannel("admissions@northwind-academy.example").render(
+        ChannelMessage(
+            id="m-1",
+            channel="email",
+            recipient="ana@example.com",
+            subject="Hi​ there",
+            body="Visit us‮ now​\nsecond line",
+            short_body=None,
+            language="en",
+        )
+    )
+    await SmtpSender("127.0.0.1", smtp_inbox.port).send(payload)
+    text = smtp_inbox.messages[0].content.decode()
+    assert "Date: " in text and "Subject: Hi there" in text
+    assert "​" not in text and "‮" not in text and "second line" in text
+
+
+@pytest.mark.parametrize(
+    "recipient", ["ana@example.com\n", "ana@example.com\nBcc: x@evil.test", "A <ana@example.com>"]
+)
+def test_recipients_must_match_exactly(recipient: str):
+    from lead_qualifier.domain.channel import EmailChannel
+
+    with pytest.raises(ValueError, match="valid email"):
+        EmailChannel("x@example.com").validate_recipient(recipient)
+
+
+async def test_a_non_ascii_digit_timestamp_is_a_401_not_a_500(make_client, db):
+    async with make_client(llm_provider=llm(db), orchestrator="n8n") as client:
+        await approved(client, "ts@example.com")
+        message_id = str((await rows(db, "SELECT id FROM messages"))[0].id)
+        path = f"/internal/messages/{message_id}/sent"
+        raw, headers = signed(path, {"message_id": message_id})
+        raw_headers = [
+            (k.lower().encode(), ("\u00b2\u00b3" if k == "X-Timestamp" else v).encode("latin-1"))
+            for k, v in headers.items()  # superscripts: str.isdigit() is true, int() fails
+        ]
+        response = await client.post(path, content=raw, headers=raw_headers)
+    assert response.status_code == 401
