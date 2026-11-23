@@ -1,4 +1,9 @@
-"""Redact obvious personal identifiers (emails, phone numbers) from stored LLM payloads."""
+"""Redact obvious personal identifiers (emails, phone numbers) from stored LLM payloads.
+
+Limits, on purpose: only ASCII e-mail addresses and phone-like numbers of at least nine digits are
+masked. Names, addresses and free text are NOT masked, so stored payloads still contain personal
+data; the retention purge (``LLM_CALLS_RETENTION_DAYS``) and cascade deletion are the real controls.
+"""
 
 from __future__ import annotations
 
