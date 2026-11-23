@@ -17,8 +17,10 @@ import { ApiError } from "@/lib/api/client";
 import type { LeadDetail, Message, ReviewInput } from "@/lib/api/schemas";
 import { formatDateTimeUtc } from "@/lib/format";
 import {
+  MESSAGE_BADGE,
   MESSAGE_STATUS_LABEL,
   approveRequest,
+  describeProblem,
   editsOf,
   isEdited,
   regenerateRequest,
@@ -89,13 +91,14 @@ export function DraftReview({
         <label className="draft-l" htmlFor={ids.subject}>
           Subject
         </label>
-        <input
+        <textarea
           id={ids.subject}
           className="draft-subj"
+          rows={2}
           value={editing ? edits.subject : (message.subject ?? "")}
           readOnly={!editing}
           maxLength={150}
-          onChange={(e) => setEdits({ ...edits, subject: e.target.value })}
+          onChange={(e) => setEdits({ ...edits, subject: e.target.value.replace(/[\r\n]+/g, " ") })}
         />
         <label className="draft-l" htmlFor={ids.body}>
           Message
@@ -119,18 +122,41 @@ export function DraftReview({
           <AlertTriangle className="ic" aria-hidden="true" />
           <div>
             <p>
-              <b>This message did not pass the safety checks.</b> Fix it, or send it anyway if you
-              have checked it yourself. Sending anyway is recorded in the timeline.
+              <b>This message did not pass the safety checks.</b> Fix it, or send it anyway after
+              checking it yourself.
             </p>
             <ul>
               {problems.map((p) => (
-                <li key={`${p.code}-${p.message}`}>{p.message}</li>
+                <li key={`${p.code}-${p.message}`}>{describeProblem(p)}</li>
               ))}
             </ul>
-            <button className="btn" type="button" disabled={busy} onClick={() => approve(true)}>
-              <Send className="ic" aria-hidden="true" />
-              Send anyway
-            </button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="btn" type="button" disabled={busy}>
+                  <Send className="ic" aria-hidden="true" />
+                  Send anyway
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogTitle>Send this message anyway?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  It will be emailed to <b>{message.channel_recipient}</b> even though the checks
+                  flagged the problems below. This is recorded in the timeline.
+                </AlertDialogDescription>
+                <ul className="problems">
+                  {problems.map((p) => (
+                    <li key={`${p.code}-${p.message}`}>
+                      <b>{describeProblem(p)}</b>
+                      {describeProblem(p) !== p.message && <span className="muted"> {p.message}</span>}
+                    </li>
+                  ))}
+                </ul>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Go back and fix it</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => approve(true)}>Yes, send anyway</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       )}
@@ -156,7 +182,7 @@ export function DraftReview({
             }}
           >
             <Undo2 className="ic" aria-hidden="true" />
-            Discard edits
+            Discard
           </button>
         ) : (
           <button className="btn" type="button" disabled={busy} onClick={() => setEditing(true)}>
@@ -254,8 +280,7 @@ function Meta({ message, words }: { message: Message; words: number }) {
 
 /** A message that is no longer a draft: read-only letter, delivery status and the edit trail. */
 export function MessageLetter({ lead, message }: { lead: LeadDetail; message: Message }) {
-  const badge =
-    message.status === "sent" ? "sent" : message.status === "failed" ? "error" : message.status === "rejected" ? "rejected" : "approved";
+  const badge = MESSAGE_BADGE[message.status] ?? "approved";
   return (
     <section className="review letter" aria-labelledby="msg-h">
       <header className="dh">

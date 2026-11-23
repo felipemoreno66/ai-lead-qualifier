@@ -7,7 +7,11 @@ import { describeEvent } from "@/features/leads/event-text";
 import {
   approveRequest,
   deliveredMessage,
+  describeProblem,
   earlierVersions,
+  errorSummary,
+  MESSAGE_BADGE,
+  profileSummary,
   explainReason,
   formatCost,
   formatLatency,
@@ -142,5 +146,25 @@ describe("QualificationCard", () => {
   it("renders nothing for a lead that is not scored", () => {
     const { container } = render(<QualificationCard lead={{ ...lead, score: null }} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("error and problem wording", () => {
+  it("gives generic headlines and never echoes provider details", () => {
+    expect(errorSummary("llm_timeout").headline).toBe("The agent could not finish this lead");
+    expect(errorSummary("send_failed: the message could not be delivered").headline).toContain("delivered");
+    expect(errorSummary(null).sentence).toContain("Something went wrong");
+    expect(describeProblem({ code: "disallowed_link", message: "x" })).toContain("domain");
+    expect(describeProblem({ code: "new_code", message: "raw text" })).toBe("raw text");
+    expect(MESSAGE_BADGE.failed).toBe("error");
+  });
+
+  it("reads the extracted goal and questions defensively", () => {
+    expect(profileSummary({ profile: { goal_summary: " Be a dev ", questions: ["Plan?", 3, "When?"] } })).toEqual({
+      goal: "Be a dev",
+      questions: ["Plan?", "When?"],
+    });
+    expect(profileSummary({ profile: {} })).toBeNull();
+    expect(profileSummary(null)).toBeNull();
   });
 });
