@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from typing import Annotated
 
 import sqlalchemy as sa
@@ -12,17 +13,19 @@ from lead_qualifier.domain.errors import NotFound, ValidationFailed
 from lead_qualifier.domain.lead import LeadStatus
 from lead_qualifier.domain.workspace import Tier
 from lead_qualifier.http.auth import require_admin
-from lead_qualifier.http.deps import EngineDep, RegistryDep
+from lead_qualifier.http.deps import EngineDep, RegistryDep, SettingsDep
 from lead_qualifier.http.schemas import (
     AgentRunOut,
     LeadDetail,
     LeadList,
     LeadListItem,
     LlmCallOut,
+    MetricsOut,
     OutboxEventOut,
     RetriggerResult,
     ReviewRequest,
     ReviewResult,
+    TierThresholds,
     WorkspaceSummary,
 )
 from lead_qualifier.http.views import interest_label, lead_detail
@@ -34,6 +37,7 @@ from lead_qualifier.infrastructure.db.repositories import (
 )
 from lead_qualifier.infrastructure.db.tables import messages
 from lead_qualifier.services import retrigger as operator
+from lead_qualifier.services.metrics import MetricsWindow, compute_metrics
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[require_admin])
 
@@ -193,3 +197,29 @@ async def review_lead(lead_id: uuid.UUID, payload: ReviewRequest, request: Reque
         override=getattr(payload, "override", False),
     )
     return ReviewResult(**vars(outcome))
+
+
+@router.get("/metrics", response_model=MetricsOut)
+async def metrics(
+    registry: RegistryDep,
+    engine: EngineDep,
+    settings: SettingsDep,
+    request: Request,
+    workspace: str | None = None,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+) -> MetricsOut:
+    """Counts, score distribution, time to qualify, spend and leads per day for a UTC day range
+    (default: the last 30 days)."""
+    ws = registry.get(workspace) if workspace else None
+    if workspace and ws is None:
+        raise ValidationFailed("Unknown workspace.")
+    today = request.app.state.clock.now().date()
+    window = MetricsWindow.resolve(from_, to, today)
+    result = await compute_metrics(
+        engine, window, workspace=workspace, budget_usd=settings.llm_budget_usd
+    )
+    if ws is not None:
+        tiers = ws.config.qualification.tiers
+        result.tier_thresholds = TierThresholds(hot_min=tiers.hot_min, warm_min=tiers.warm_min)
+    return result

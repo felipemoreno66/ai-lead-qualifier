@@ -1,0 +1,295 @@
+{
+  "$defs": {
+    "CostMetrics": {
+      "properties": {
+        "avg_per_lead_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Per Lead Usd"
+        },
+        "budget_usd": {
+          "title": "Budget Usd",
+          "type": "number"
+        },
+        "leads_with_runs": {
+          "title": "Leads With Runs",
+          "type": "integer"
+        },
+        "lifetime_spent_usd": {
+          "title": "Lifetime Spent Usd",
+          "type": "number"
+        },
+        "llm_calls": {
+          "title": "Llm Calls",
+          "type": "integer"
+        },
+        "providers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Providers",
+          "type": "array"
+        },
+        "total_usd": {
+          "title": "Total Usd",
+          "type": "number"
+        }
+      },
+      "required": [
+        "total_usd",
+        "avg_per_lead_usd",
+        "leads_with_runs",
+        "llm_calls",
+        "providers",
+        "lifetime_spent_usd",
+        "budget_usd"
+      ],
+      "title": "CostMetrics",
+      "type": "object"
+    },
+    "DayCount": {
+      "properties": {
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "day": {
+          "format": "date",
+          "title": "Day",
+          "type": "string"
+        }
+      },
+      "required": [
+        "day",
+        "count"
+      ],
+      "title": "DayCount",
+      "type": "object"
+    },
+    "ScoreBucket": {
+      "properties": {
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "max_score": {
+          "title": "Max Score",
+          "type": "integer"
+        },
+        "min_score": {
+          "title": "Min Score",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min_score",
+        "max_score",
+        "count"
+      ],
+      "title": "ScoreBucket",
+      "type": "object"
+    },
+    "StatusCount": {
+      "properties": {
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "count"
+      ],
+      "title": "StatusCount",
+      "type": "object"
+    },
+    "TierCount": {
+      "properties": {
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "tier": {
+          "enum": [
+            "hot",
+            "warm",
+            "cold",
+            "unscored"
+          ],
+          "title": "Tier",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tier",
+        "count"
+      ],
+      "title": "TierCount",
+      "type": "object"
+    },
+    "TierThresholds": {
+      "properties": {
+        "hot_min": {
+          "title": "Hot Min",
+          "type": "integer"
+        },
+        "warm_min": {
+          "title": "Warm Min",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hot_min",
+        "warm_min"
+      ],
+      "title": "TierThresholds",
+      "type": "object"
+    },
+    "TimeToQualify": {
+      "description": "Seconds from application to the first qualification (``qualified_at - created_at``).",
+      "properties": {
+        "avg_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Seconds"
+        },
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "p50_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "P50 Seconds"
+        },
+        "p90_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "P90 Seconds"
+        }
+      },
+      "required": [
+        "count",
+        "avg_seconds",
+        "p50_seconds",
+        "p90_seconds"
+      ],
+      "title": "TimeToQualify",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "by_status": {
+      "items": {
+        "$ref": "#/$defs/StatusCount"
+      },
+      "title": "By Status",
+      "type": "array"
+    },
+    "cost": {
+      "$ref": "#/$defs/CostMetrics"
+    },
+    "first_day": {
+      "format": "date",
+      "title": "First Day",
+      "type": "string"
+    },
+    "last_day": {
+      "format": "date",
+      "title": "Last Day",
+      "type": "string"
+    },
+    "leads_per_day": {
+      "items": {
+        "$ref": "#/$defs/DayCount"
+      },
+      "title": "Leads Per Day",
+      "type": "array"
+    },
+    "score_histogram": {
+      "items": {
+        "$ref": "#/$defs/ScoreBucket"
+      },
+      "title": "Score Histogram",
+      "type": "array"
+    },
+    "tier_split": {
+      "items": {
+        "$ref": "#/$defs/TierCount"
+      },
+      "title": "Tier Split",
+      "type": "array"
+    },
+    "tier_thresholds": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TierThresholds"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "time_to_qualify": {
+      "$ref": "#/$defs/TimeToQualify"
+    },
+    "total_leads": {
+      "title": "Total Leads",
+      "type": "integer"
+    },
+    "workspace": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Workspace"
+    }
+  },
+  "required": [
+    "workspace",
+    "first_day",
+    "last_day",
+    "total_leads",
+    "by_status",
+    "score_histogram",
+    "tier_split",
+    "time_to_qualify",
+    "leads_per_day",
+    "cost"
+  ],
+  "title": "MetricsOut",
+  "type": "object"
+}

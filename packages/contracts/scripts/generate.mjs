@@ -33,6 +33,7 @@ const targets = [
   ["review-request.schema.json", "review-request.zod.ts", "reviewRequestSchema"],
   ["review-result.schema.json", "review-result.zod.ts", "reviewResultSchema"],
   ["agent-runs.schema.json", "agent-runs.zod.ts", "agentRunsSchema"],
+  ["metrics.schema.json", "metrics.zod.ts", "metricsSchema"],
 ];
 
 for (const [input, output, name] of targets) {

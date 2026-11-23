@@ -9,4 +9,5 @@ export * from "./workspace-summaries.zod";
 export * from "./review-request.zod";
 export * from "./review-result.zod";
 export * from "./agent-runs.zod";
+export * from "./metrics.zod";
 export type { components, paths } from "./api-types";
