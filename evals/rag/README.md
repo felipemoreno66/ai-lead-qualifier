@@ -5,7 +5,7 @@ cites the right document, and refuses what the documentation does not cover.
 
 | File | What it is |
 |---|---|
-| `northwind.yaml` | 15 questions: 10 answerable in English, 2 answerable in Spanish, 3 the documentation does not cover (job guarantee, visa sponsorship, team discounts) |
+| `northwind.yaml` | 15 questions: 10 answerable in English, 2 answerable in Spanish, 3 the documentation does not cover (job guarantee, visa sponsorship, invoices or purchase orders for companies) |
 | `run.py` | Indexes the knowledge base in memory, runs the answer node per question and prints a results table |
 
 ## Metrics
@@ -15,6 +15,9 @@ cites the right document, and refuses what the documentation does not cover.
 - **Expected source cited**: at least one citation points to a document the case lists in `sources`.
 - **Citation precision**: citations to an expected source divided by all citations on answerable questions.
 - **Refusal correctness**: unanswerable questions answered with `covered=false`.
+- **Refusal correctness is two things at once**: a question with no chunk above the minimum similarity
+  (`--min-similarity`, default 0.3) is refused without calling the model, so a high score can come from the
+  threshold rather than from the model's judgement. The table prints the threshold used.
 - **False refusals**: answerable questions that were refused (a count, lower is better).
 
 ## Run it offline (fake provider and fake embeddings, what CI runs)

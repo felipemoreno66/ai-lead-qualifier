@@ -76,6 +76,7 @@ class InMemoryRetriever:
         self._top_k = top_k
         self._min_similarity = min_similarity
         self._chunks: list[tuple[RetrievedChunk, list[float]]] = []
+        self._cache: dict[str, list[RetrievedChunk]] = {}
 
     def load(self, kb_dir: Path) -> int:
         paths, _ = list_documents(kb_dir)
@@ -98,6 +99,12 @@ class InMemoryRetriever:
         return len(self._chunks)
 
     async def retrieve(self, question: str) -> list[RetrievedChunk]:
+        """Cached per question: the eval retrieves once, and the answer node reuses the result."""
+        if question not in self._cache:
+            self._cache[question] = self._search(question)
+        return self._cache[question]
+
+    def _search(self, question: str) -> list[RetrievedChunk]:
         (query,) = self._embeddings.embed([question])
         scored = sorted(
             ((_cosine(query, vector), chunk) for chunk, vector in self._chunks),
@@ -218,6 +225,12 @@ def markdown(
             "not answer quality.",
             "",
         ]
+    lines += [
+        f"Retrieval: top {summary['top_k']}, minimum similarity {summary['min_similarity']}. "
+        "Refusal correctness partly measures that threshold: a question with nothing above it "
+        "is refused without asking the model.",
+        "",
+    ]
     rows = [
         (
             "Answer accuracy (rubric keywords, answerable questions)",
@@ -316,7 +329,7 @@ async def main(args: argparse.Namespace) -> int:
         except qual.EvalBudgetExceeded as exc:
             stopped = str(exc)
             break
-    summary = summarize(results)
+    summary = summarize(results) | {"top_k": args.top_k, "min_similarity": args.min_similarity}
     report = markdown(results, summary, provider=args.provider, embeddings=args.embeddings)
     print(f"{chunks} chunks indexed.\n")
     print(report)
