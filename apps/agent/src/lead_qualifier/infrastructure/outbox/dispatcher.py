@@ -1,0 +1,118 @@
+"""Transactional-outbox dispatcher: claims due events and delivers them with backoff."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import timedelta
+from typing import Any
+
+import structlog
+from sqlalchemy.ext.asyncio import AsyncEngine
+
+from lead_qualifier.config import Settings
+from lead_qualifier.infrastructure.db.repositories import (
+    LeadRepository,
+    OutboxRepository,
+    RateLimitRepository,
+)
+from lead_qualifier.ports.clock import Clock
+from lead_qualifier.ports.events import EventPublisher
+from lead_qualifier.services.outbox import envelope
+
+log = structlog.get_logger("dispatcher")
+PURGE_EVERY = timedelta(hours=1)
+RATE_LIMIT_RETENTION = timedelta(days=2)
+
+
+class OutboxDispatcher:
+    def __init__(
+        self, engine: AsyncEngine, publisher: EventPublisher, clock: Clock, settings: Settings
+    ) -> None:
+        self.engine = engine
+        self.publisher = publisher
+        self.clock = clock
+        self.settings = settings
+        self._last_purge = clock.now()
+
+    async def run_once(self) -> int:
+        """Claim and deliver one batch. Returns how many events were handled."""
+        now = self.clock.now()
+        async with self.engine.begin() as conn:
+            claimed = await OutboxRepository(conn).claim_due(
+                now, self.settings.outbox_batch_size, self.settings.outbox_lock_seconds
+            )
+        for row in claimed:
+            await self._deliver(row)
+        return len(claimed)
+
+    async def _deliver(self, row: dict[str, Any]) -> None:
+        try:
+            await self.publisher.publish(envelope(row))
+        except Exception as exc:  # any publisher failure is retried; never crash the loop
+            await self._record_failure(row, f"{type(exc).__name__}: {exc}")
+            return
+        now = self.clock.now()
+        async with self.engine.begin() as conn:
+            changed = await OutboxRepository(conn).mark_delivered(row["id"], now)
+            if changed and row["lead_id"]:
+                await LeadRepository(conn).add_event(
+                    row["lead_id"],
+                    "outbox_delivered",
+                    payload={"attempts": row["attempts"] + 1},
+                    at=now,
+                )
+        log.info("outbox_delivered", event_id=str(row["id"]), event_type=row["event_type"])
+
+    async def _record_failure(self, row: dict[str, Any], error: str) -> None:
+        now = self.clock.now()
+        attempt = row["attempts"] + 1
+        dead = attempt >= self.settings.outbox_max_attempts
+        schedule = self.settings.backoff_schedule
+        delay = schedule[min(attempt - 1, len(schedule) - 1)]
+        next_attempt = None if dead else now + timedelta(seconds=delay)
+        async with self.engine.begin() as conn:
+            updated = await OutboxRepository(conn).mark_failed(
+                row["id"], error=error, next_attempt_at=next_attempt
+            )
+            if updated and row["lead_id"]:
+                await LeadRepository(conn).add_event(
+                    row["lead_id"],
+                    "outbox_failed",
+                    payload={
+                        "attempt": attempt,
+                        "error": error[:300],
+                        "dead": dead,
+                        "next_attempt_at": next_attempt.isoformat() if next_attempt else None,
+                    },
+                    at=now,
+                )
+        log.warning(
+            "outbox_failed",
+            event_id=str(row["id"]),
+            attempt=attempt,
+            dead=dead,
+            error_type=error.split(":", 1)[0],
+        )
+
+    async def purge_rate_limits(self) -> None:
+        now = self.clock.now()
+        if now - self._last_purge < PURGE_EVERY:
+            return
+        self._last_purge = now
+        async with self.engine.begin() as conn:
+            removed = await RateLimitRepository(conn).purge_before(now - RATE_LIMIT_RETENTION)
+        log.info("rate_limits_purged", removed=removed)
+
+    async def run_forever(self) -> None:
+        log.info("dispatcher_started", poll_seconds=self.settings.outbox_poll_seconds)
+        while True:
+            try:
+                handled = await self.run_once()
+                await self.purge_rate_limits()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                handled = 0
+                log.error("dispatcher_error", error_type=type(exc).__name__)
+            if not handled:
+                await asyncio.sleep(self.settings.outbox_poll_seconds)
