@@ -55,6 +55,7 @@ def test_lead_created_workflow_verifies_signature_before_anything_else():
     )
     code = next(n for n in workflow["nodes"] if n["name"] == "Verify signature")
     assert "timingSafeEqual" in code["parameters"]["jsCode"]
+    assert ".POST /webhook/lead-created." in code["parameters"]["jsCode"]
 
 
 def _workflow(name: str) -> dict:  # type: ignore[type-arg]
@@ -81,7 +82,8 @@ def test_message_approved_has_its_own_signed_webhook_and_an_email_only_branch():
     order = [n["name"] for n in workflow["nodes"]]
     assert order[:2] == ["Message approved webhook", "Verify signature"]
     assert _node(workflow, order[0])["parameters"]["path"] == WEBHOOK_PATHS["message.approved"]
-    assert "timingSafeEqual" in _node(workflow, "Verify signature")["parameters"]["jsCode"]
+    verify = _node(workflow, "Verify signature")["parameters"]["jsCode"]
+    assert "timingSafeEqual" in verify and ".POST /webhook/message-approved." in verify
     channel = _node(workflow, "Channel is email?")["parameters"]["conditions"]["conditions"][0]
     assert channel["leftValue"] == "={{ $json.channel }}" and channel["rightValue"] == "email"
     # the non-email branch and a failing SMTP send both report a failure; success reports sent
@@ -144,5 +146,10 @@ def test_the_callback_signature_computed_in_n8n_is_accepted_by_the_agent(tmp_pat
         )
         assert out["url"] == f"http://agent:8000/internal/messages/m-1{expected_path}"
         assert out["signature"] == sign(
-            out["body"].encode(), "s3cret-for-the-test", out["timestamp"]
+            out["body"].encode(),
+            "s3cret-for-the-test",
+            out["timestamp"],
+            method="POST",
+            path=f"/internal/messages/m-1{expected_path}",
         )
+        assert json.loads(out["body"])["message_id"] == "m-1"

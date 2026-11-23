@@ -57,14 +57,16 @@ async def deliver_pending(client) -> None:  # type: ignore[no-untyped-def]
     await client.app.state.dispatcher.run_once()
 
 
-def signed(body: dict[str, object], *, secret: str = SECRET, age: int = 0) -> tuple[bytes, dict]:
+def signed(
+    path: str, body: dict[str, object], *, secret: str = SECRET, age: int = 0
+) -> tuple[bytes, dict]:
     raw = json.dumps(body).encode()
     ts = str(int(time.time()) - age)
     return raw, {
         **N8N_AUTH,
         "Content-Type": "application/json",
         "X-Timestamp": ts,
-        "X-Signature": sign(raw, secret, ts),
+        "X-Signature": sign(raw, secret, ts, method="POST", path=path),
     }
 
 
@@ -161,12 +163,14 @@ async def test_n8n_fetches_the_message_and_reports_success(make_client, db):
         assert content["from_address"] == "admissions@northwind-academy.example"
         assert content["subject"] and content["body"] and content["message_id_header"]
 
-        raw, headers = signed({"provider_message_id": "<abc@smtp>"})
+        raw, headers = signed(
+            f"{url}/sent", {"message_id": message_id, "provider_message_id": "<abc@smtp>"}
+        )
         first = await client.post(f"{url}/sent", content=raw, headers=headers)
         again = await client.post(f"{url}/sent", content=raw, headers=headers)
         assert first.json() == {"message_id": message_id, "status": "sent", "changed": True}
         assert again.json()["changed"] is False  # idempotent
-        raw, headers = signed({"error": "boom"})
+        raw, headers = signed(f"{url}/send-failed", {"message_id": message_id, "error": "boom"})
         late = await client.post(f"{url}/send-failed", content=raw, headers=headers)
         assert late.json()["status"] == "sent" and late.json()["changed"] is False
         detail = (await client.get(f"/admin/leads/{lead_id}", headers=AUTH)).json()
@@ -181,7 +185,10 @@ async def test_n8n_failure_callback_marks_the_lead_error(make_client, db):
     async with make_client(llm_provider=llm(db), orchestrator="n8n") as client:
         lead_id = await approved(client, "n2@example.com")
         message_id = str((await rows(db, "SELECT id FROM messages"))[0].id)
-        raw, headers = signed({"error": "smtp down for n2@example.com"})
+        path = f"/internal/messages/{message_id}/send-failed"
+        raw, headers = signed(
+            path, {"message_id": message_id, "error": "smtp down for n2@example.com"}
+        )
         response = await client.post(
             f"/internal/messages/{message_id}/send-failed", content=raw, headers=headers
         )
@@ -191,39 +198,96 @@ async def test_n8n_failure_callback_marks_the_lead_error(make_client, db):
     assert "smtp down" not in str(detail)
 
 
-@pytest.mark.parametrize(
-    ("kind", "status"),
-    [("missing", 401), ("bad_signature", 401), ("stale", 401), ("wrong_secret", 401)],
-)
-async def test_callbacks_need_a_fresh_valid_signature(make_client, db, kind: str, status: int):
+@pytest.mark.parametrize("kind", ["missing", "bad_signature", "stale", "wrong_secret"])
+async def test_callbacks_need_a_fresh_valid_signature(make_client, db, kind: str):
     async with make_client(llm_provider=llm(db), orchestrator="n8n") as client:
         await approved(client, "n3@example.com")
         message_id = str((await rows(db, "SELECT id FROM messages"))[0].id)
-        raw, headers = signed({"provider_message_id": "x"})
+        path = f"/internal/messages/{message_id}/sent"
+        body = {"message_id": message_id, "provider_message_id": "x"}
+        raw, headers = signed(path, body)
         if kind == "missing":
             headers = N8N_AUTH | {"Content-Type": "application/json"}
         elif kind == "bad_signature":
             headers["X-Signature"] = "sha256=" + "0" * 64
         elif kind == "stale":
-            raw, headers = signed({"provider_message_id": "x"}, age=3600)
+            raw, headers = signed(path, body, age=3600)
         elif kind == "wrong_secret":
-            raw, headers = signed({"provider_message_id": "x"}, secret="another-secret-value")
-        response = await client.post(
-            f"/internal/messages/{message_id}/sent", content=raw, headers=headers
-        )
+            raw, headers = signed(path, body, secret="another-secret-value")
+        response = await client.post(path, content=raw, headers=headers)
         tampered = await client.post(
-            f"/internal/messages/{message_id}/sent",
-            content=raw.replace(b"x", b"y"),
-            headers=signed({"provider_message_id": "x"})[1],
+            path, content=raw.replace(b'"x"', b'"y"'), headers=signed(path, body)[1]
         )
-    assert response.status_code == status and tampered.status_code == 401
+    assert response.status_code == 401 and tampered.status_code == 401
     assert (await rows(db, "SELECT status FROM leads"))[0].status == "approved"
+
+
+async def test_a_signed_callback_cannot_be_replayed_elsewhere(make_client, db):
+    async with make_client(llm_provider=llm(db), orchestrator="n8n") as client:
+        await approved(client, "n4@example.com")
+        await approved(client, "n5@example.com")
+        first, second = [
+            str(r.id) for r in await rows(db, "SELECT id FROM messages ORDER BY version, id")
+        ]
+        sent_path = f"/internal/messages/{first}/sent"
+        raw, headers = signed(sent_path, {"message_id": first, "provider_message_id": "x"})
+        # same signature against the failure endpoint of the same message
+        other_endpoint = await client.post(
+            f"/internal/messages/{first}/send-failed", content=raw, headers=headers
+        )
+        # same signature against another message's endpoint
+        other_message = await client.post(
+            f"/internal/messages/{second}/sent", content=raw, headers=headers
+        )
+        statuses = [r.status for r in await rows(db, "SELECT status FROM leads")]
+    assert other_endpoint.status_code == 401 and other_message.status_code == 401
+    assert statuses == ["approved", "approved"]
+
+
+async def test_the_body_must_name_the_message_in_the_path(make_client, db):
+    async with make_client(llm_provider=llm(db), orchestrator="n8n") as client:
+        await approved(client, "n6@example.com")
+        message_id = str((await rows(db, "SELECT id FROM messages"))[0].id)
+        path = f"/internal/messages/{message_id}/sent"
+        raw, headers = signed(path, {"message_id": str(uuid.uuid4()), "provider_message_id": "x"})
+        mismatch = await client.post(path, content=raw, headers=headers)
+        raw, headers = signed(path, {"provider_message_id": "x"})
+        missing = await client.post(path, content=raw, headers=headers)
+    assert mismatch.status_code == 400 and missing.status_code == 422
+
+
+async def test_content_is_served_only_from_the_validated_payload(make_client, db):
+    async with make_client(llm_provider=llm(db), orchestrator="n8n") as client:
+        await approved(client, "n7@example.com")
+        message_id = str((await rows(db, "SELECT id FROM messages"))[0].id)
+        url = f"/internal/messages/{message_id}"
+        async with db.begin() as conn:
+            await conn.execute(
+                sa.text("UPDATE messages SET subject = E'Hi\\r\\nBcc: boss@evil.test'")
+            )
+        content = (await client.get(url, headers=N8N_AUTH)).json()
+        assert "\r" not in content["subject"] and "\n" not in content["subject"]
+        async with db.begin() as conn:
+            await conn.execute(sa.text("UPDATE messages SET channel_recipient = 'not an email'"))
+        invalid = await client.get(url, headers=N8N_AUTH)
+        async with db.begin() as conn:
+            await conn.execute(
+                sa.text(
+                    "UPDATE messages SET channel_recipient = 'ok@example.com', channel='whatsapp'"
+                )
+            )
+        unsupported = await client.get(url, headers=N8N_AUTH)
+    assert invalid.status_code == 409 and unsupported.status_code == 409
+    assert "not an email" not in invalid.text
 
 
 async def test_unknown_message_is_404(make_client, db):
     async with make_client(llm_provider=llm(db)) as client:
-        raw, headers = signed({"provider_message_id": "x"})
         missing = str(uuid.uuid4())
+        raw, headers = signed(
+            f"/internal/messages/{missing}/sent",
+            {"message_id": missing, "provider_message_id": "x"},
+        )
         assert (
             await client.get(f"/internal/messages/{missing}", headers=N8N_AUTH)
         ).status_code == 404

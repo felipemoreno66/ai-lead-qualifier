@@ -105,7 +105,11 @@ async def test_success_marks_delivered_signs_the_body_and_sends_no_pii(db, make_
     assert handled == 1 and route.call_count == 1
     request = route.calls.last.request
     assert request.headers["x-signature"] == sign(
-        request.content, SECRET, request.headers["x-timestamp"]
+        request.content,
+        SECRET,
+        request.headers["x-timestamp"],
+        method="POST",
+        path="/webhook/lead-created",
     )
     assert abs(int(request.headers["x-timestamp"]) - time.time()) < 60
     assert request.headers["x-event-id"] == str(event_id)
@@ -316,6 +320,10 @@ async def test_message_approved_goes_to_its_own_webhook_with_ids_only(db, make_s
     sent = json.loads(request.content)
     assert sent["event_type"] == "message.approved" and sent["message"]["channel"] == "email"
     assert request.headers["x-signature"] == sign(
-        request.content, SECRET, request.headers["x-timestamp"]
+        request.content,
+        SECRET,
+        request.headers["x-timestamp"],
+        method="POST",
+        path="/webhook/message-approved",
     )
     assert "a7@example.com" not in request.content.decode()
