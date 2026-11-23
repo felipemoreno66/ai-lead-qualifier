@@ -83,6 +83,9 @@ def lead_detail(
                 "sent_at",
             )
         },
+        injection_suspected=bool(
+            ((lead["qualification"] or {}).get("profile") or {}).get("injection_suspected")
+        ),
         workspace_name=config.profile.name if config else lead["workspace_slug"],
         recommended_product_name=product_name,
         answers=answers_view(config, lead["answers"]),
