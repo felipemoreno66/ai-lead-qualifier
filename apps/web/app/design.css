@@ -93,3 +93,39 @@ input[aria-invalid=true],select[aria-invalid=true],textarea[aria-invalid=true]{b
 .status-line{min-height:1.5em;font-weight:600}
 .status-line.ok{color:var(--wq-sage)}
 @media (max-width:760px){.kv{grid-template-columns:1fr;gap:2px}.kv dd{margin-bottom:12px}.timeline li{grid-template-columns:1fr}.panel{padding:22px 18px;border-radius:24px}}
+
+/* M2.5: draft letter card, review actions, notices and the agent run log (from designs/option-c) */
+.review{background:var(--wq-card);border-radius:28px;padding:40px;box-shadow:0 2px 4px rgba(58,35,64,.06),0 24px 48px -24px rgba(58,35,64,.28);border:1px solid var(--wq-line);margin-bottom:8px}
+.review>p{margin:6px 0 24px}.review .dh{margin-bottom:4px}
+.draft-meta{display:flex;gap:6px 28px;flex-wrap:wrap;margin:0 0 20px;font-size:.9375rem}.draft-meta div{display:flex;gap:8px}.draft-meta dt{color:var(--wq-muted)}.draft-meta dd{margin:0;font-weight:500}
+.draft-l{font-size:.875rem;font-weight:400;color:var(--wq-muted);margin:16px 0 6px}
+.draft-subj{font-family:var(--wq-serif);font-weight:400;font-size:1.125rem}
+.draft-body{font-size:1.125rem;line-height:1.7;min-height:320px;border-radius:16px;resize:vertical;padding:20px 24px;field-sizing:content}
+.draft-body[readonly],.draft-subj[readonly]{background:#FCFBFE;border-color:var(--wq-line)}
+.draft-src{font-size:.9375rem;color:var(--wq-muted);margin:16px 0 0}
+.letter-subj{font:400 1.125rem/1.4 var(--wq-serif);margin:0 0 8px}.letter-body{white-space:pre-wrap;margin:0;font-size:1.0625rem;line-height:1.7;max-width:62ch;overflow-wrap:anywhere}
+.orig{margin-top:20px}.orig summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}.orig .letter-body{margin-top:8px;color:var(--wq-muted)}
+.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}.actions .primary{flex:2 1 260px}.actions .btn:not(.primary){flex:1 1 120px}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.regen{margin-top:20px;display:grid;gap:12px;max-width:560px}.regen label{margin:0}
+.notice{display:flex;gap:14px;padding:16px 20px;background:var(--wq-amber-bg);color:#3D2A00;border-radius:20px;margin:0 0 20px;max-width:720px}
+.notice>.ic{color:var(--wq-amber);margin-top:3px}.notice p{margin:0}.notice ul{margin:8px 0 14px;padding-left:20px}.notice .btn{background:#fff}
+.notice.bad{background:var(--wq-bad-bg);color:#3D0F0A;margin-top:20px}.notice.bad>.ic{color:var(--wq-bad)}
+.crit-p{font-weight:700}.crit-p small{font-weight:400}
+.why h3.sub{font:400 1.25rem var(--wq-serif);color:var(--wq-plum);margin:32px 0 8px}.reasons{margin:0;padding-left:20px;max-width:62ch}.reasons li{margin-bottom:6px}
+.versions{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:20px}.versions p{margin:0 0 6px}
+.log{margin-top:48px;border-top:1px solid var(--wq-line);padding-top:16px}
+.log summary{cursor:pointer;font:400 1.25rem var(--wq-serif);color:var(--wq-plum);padding:8px 0;min-height:44px;display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+.log summary .muted{font:400 .9375rem var(--wq-ui)}
+.runlog{margin-top:12px}.runlog th,.runlog td{padding:10px 12px;text-align:left;font-size:.9375rem;border-top:1px solid var(--wq-line)}
+.runlog thead th{font-size:.8125rem;color:var(--wq-muted);font-weight:600;border-top:0}.runlog tbody th{font-weight:500}
+.runlog tfoot th,.runlog tfoot td{font-weight:700;border-top:2px solid var(--wq-plum)}
+.r{text-align:right!important}
+.dialog textarea{margin-bottom:20px}
+.status-line.ok:empty{display:none}
+@media (max-width:760px){
+  .review{padding:22px 18px;border-radius:24px}.draft-body{min-height:300px;font-size:1.0625rem;padding:16px}
+  .runlog thead{position:absolute;left:-9999px}.runlog,.runlog tbody,.runlog tfoot,.runlog tr,.runlog th,.runlog td{display:block}
+  .runlog tr{display:flex;flex-wrap:wrap;gap:2px 14px;padding:10px 4px;border-top:1px solid var(--wq-line)}.runlog tr>:first-child{flex-basis:100%}
+  .runlog td,.runlog th{border:0;padding:0;text-align:left!important}.runlog td::before{content:attr(data-label) " ";color:var(--wq-muted)}.runlog tr>:first-child::before{content:""}
+}

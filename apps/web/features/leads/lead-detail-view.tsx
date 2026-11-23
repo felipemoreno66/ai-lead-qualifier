@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, RotateCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { z } from "zod";
-import { StatusBadge, TierLabel } from "@/components/status-badge";
+import { useState } from "react";
+import { StatusBadge } from "@/components/status-badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,24 +19,22 @@ import {
 import { bffMutate } from "@/lib/api/client";
 import type { LeadDetail } from "@/lib/api/schemas";
 import { countryName, formatDateTime, formatDateTimeUtc } from "@/lib/format";
-import { describeEvent, humanize } from "./event-text";
+import { deliveredMessage, earlierVersions, pendingDraft } from "@/lib/leads/review";
+import { DraftReview, EarlierDrafts, MessageLetter } from "./draft-review";
+import { describeEvent } from "./event-text";
+import { QualificationCard } from "./qualification-card";
+import { RunsLog } from "./runs-log";
 import { fetchLead, leadKey } from "./queries";
 
-const qualificationSchema = z.object({
-  criteria: z.array(
-    z.object({ id: z.string(), judgment: z.string(), evidence: z.string() }),
-  ),
-});
-
-const JUDGMENT: Record<string, string> = {
-  met: "Met",
-  partial: "Partial",
-  unmet: "Not met",
-  unknown: "Unknown",
-};
+const IN_FLIGHT = new Set(["new", "qualifying", "approved"]);
 
 export function LeadDetailView({ id }: { id: string }) {
-  const query = useQuery({ queryKey: leadKey(id), queryFn: () => fetchLead(id) });
+  const query = useQuery({
+    queryKey: leadKey(id),
+    queryFn: () => fetchLead(id),
+    // The agent works in the background: follow the lead until it settles on a status that waits for a person.
+    refetchInterval: (q) => (q.state.data && IN_FLIGHT.has(q.state.data.status) ? 2000 : false),
+  });
   if (query.isError)
     return (
       <section className="errbox" role="alert">
@@ -83,7 +81,10 @@ function Detail({ lead }: { lead: LeadDetail }) {
   const lastOutbox = lead.outbox.at(-1);
   const orchestrationDead = lead.status === "new" && lastOutbox?.status === "dead";
   const canRetrigger = lead.status === "new" || lead.status === "error";
-  const parsedQualification = qualificationSchema.safeParse(lead.qualification);
+  const [notice, setNotice] = useState("");
+  const draft = lead.status === "pending_review" ? pendingDraft(lead.messages) : undefined;
+  const letter = draft ? undefined : deliveredMessage(lead.messages);
+  const earlier = earlierVersions(lead.messages, draft ?? letter);
 
   return (
     <>
@@ -133,7 +134,13 @@ function Detail({ lead }: { lead: LeadDetail }) {
         </section>
       )}
 
-      <section className="section" aria-labelledby="app-h" style={{ marginTop: 0 }}>
+      <p className="status-line ok" role="status" aria-live="polite">
+        {notice}
+      </p>
+      {draft && <DraftReview key={draft.id} lead={lead} message={draft} announce={setNotice} />}
+      {letter && <MessageLetter lead={lead} message={letter} />}
+
+      <section className="section" aria-labelledby="app-h">
         <h2 id="app-h">Application</h2>
         <div className="panel">
           <dl className="kv">
@@ -147,36 +154,9 @@ function Detail({ lead }: { lead: LeadDetail }) {
         </div>
       </section>
 
-      {lead.score !== null && (
-        <section className="why" aria-labelledby="why-h">
-          <h2 id="why-h">Why this score</h2>
-          <div className="verdict">
-            <p className="bignum num">{lead.score}</p>
-            <p>
-              out of 100. <TierLabel tier={lead.tier} />.
-              {lead.recommended_product_name && (
-                <>
-                  {" "}
-                  The assistant recommends the <b>{lead.recommended_product_name}</b>.
-                </>
-              )}
-            </p>
-          </div>
-          {parsedQualification.success && (
-            <ol className="criteria">
-              {parsedQualification.data.criteria.map((c) => (
-                <li className={`crit c-${c.judgment}`} key={c.id}>
-                  <div className="crit-h">
-                    <span className="crit-n">{humanize(c.id)}</span>
-                    <span className="crit-l">{JUDGMENT[c.judgment] ?? c.judgment}</span>
-                  </div>
-                  <p>{c.evidence}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-      )}
+      <QualificationCard lead={lead} />
+      <EarlierDrafts messages={earlier} />
+      <RunsLog leadId={lead.id} />
 
       <section className="section" aria-labelledby="timeline-h">
         <h2 id="timeline-h">Timeline</h2>
