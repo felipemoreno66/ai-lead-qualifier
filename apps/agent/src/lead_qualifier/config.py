@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://leadq:leadq@localhost:5432/leadq"
 
     workspaces_dir: Path = Path("../../workspaces")
+    migrations_dir: Path = Path("migrations")
     enabled_workspaces: str = "northwind-academy"
     allow_draft_workspaces: bool = False
 

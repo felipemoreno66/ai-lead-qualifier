@@ -120,6 +120,9 @@ export const workspaceConfigSchema = z
         contact_email: z.string(),
         draft: z.boolean().default(false),
         name: z.string().min(1).max(120),
+        reference_prefix: z
+          .union([z.string().regex(new RegExp("^[A-Z]{2,4}$")), z.null()])
+          .default(null),
         tagline: z.string().min(1).max(200),
         timezone: z.string().min(1),
         website: z.string(),

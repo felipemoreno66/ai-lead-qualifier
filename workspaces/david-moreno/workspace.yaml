@@ -9,6 +9,7 @@ profile:
   website: "TODO(david): https URL of the services page"
   contact_email: "TODO(david): contact email"
   timezone: "TODO(david): IANA timezone, for example Area/City"
+  reference_prefix: DM
   draft: true
 languages:
   default: en

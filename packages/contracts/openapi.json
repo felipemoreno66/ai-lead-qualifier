@@ -60,6 +60,24 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "LeadAccepted": {
+        "properties": {
+          "received": {
+            "default": true,
+            "title": "Received",
+            "type": "boolean"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference"
+        ],
+        "title": "LeadAccepted",
+        "type": "object"
+      },
       "PublicForm": {
         "additionalProperties": false,
         "properties": {
@@ -270,6 +288,48 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/leads/{slug}": {
+      "post": {
+        "operationId": "submit_lead_api_leads__slug__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Lead",
+        "tags": [
+          "public"
+        ]
+      }
+    },
     "/api/workspaces/{slug}/public-config": {
       "get": {
         "operationId": "public_config_api_workspaces__slug__public_config_get",

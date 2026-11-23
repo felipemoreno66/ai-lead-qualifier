@@ -473,6 +473,19 @@
           "title": "Name",
           "type": "string"
         },
+        "reference_prefix": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2,4}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Prefix"
+        },
         "tagline": {
           "maxLength": 200,
           "minLength": 1,

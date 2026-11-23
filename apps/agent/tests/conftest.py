@@ -105,6 +105,7 @@ def make_settings(migrated_url: str):
             "app_env": "test",
             "database_url": migrated_url,
             "workspaces_dir": WORKSPACES_DIR,
+            "migrations_dir": AGENT_DIR / "migrations",
             "enabled_workspaces": "northwind-academy",
             "dispatcher_enabled": False,
             "min_fill_seconds": 0,
@@ -117,3 +118,29 @@ def make_settings(migrated_url: str):
         return Settings(**values)  # type: ignore[arg-type]
 
     return _make
+
+
+@pytest.fixture
+def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_settings):
+    """Build an httpx client bound to a fresh app over the clean test database."""
+    import httpx
+
+    from lead_qualifier.http.app import create_app
+
+    clients: list[httpx.AsyncClient] = []
+
+    def _make(clock: object | None = None, **overrides: object) -> httpx.AsyncClient:
+        settings = make_settings(**overrides)
+        enabled = frozenset(settings.enabled_workspace_slugs)
+        reg = load_workspaces(WORKSPACES_DIR, app_env="test", enabled=enabled)
+        app = create_app(settings, engine=db, registry=reg, clock=clock)  # type: ignore[arg-type]
+        client = httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://test",
+            timeout=10,
+        )
+        client.app = app  # type: ignore[attr-defined]
+        clients.append(client)
+        return client
+
+    yield _make
