@@ -20,7 +20,7 @@ from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.clock import Clock
 from lead_qualifier.ports.events import EventPublisher, PermanentPublishError
 from lead_qualifier.services.outbox import envelope
-from lead_qualifier.services.reaper import reap_stale_runs
+from lead_qualifier.services.reaper import reap_stale_runs, report_stale_sending
 
 log = get_logger("dispatcher")
 PURGE_EVERY = timedelta(hours=1)
@@ -118,6 +118,9 @@ class OutboxDispatcher:
         self._last_reap = now
         await reap_stale_runs(
             self.engine, self.clock, timedelta(minutes=self.settings.agent_run_timeout_minutes)
+        )
+        await report_stale_sending(
+            self.engine, self.clock, timedelta(minutes=self.settings.send_stale_minutes)
         )
 
     async def purge_rate_limits(self) -> None:

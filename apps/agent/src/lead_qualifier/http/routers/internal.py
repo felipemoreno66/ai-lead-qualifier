@@ -37,7 +37,11 @@ async def verify_callback_signature(
     timestamp at most 5 minutes old, so a captured callback can be replayed neither later nor
     against another endpoint or message."""
     timestamp = x_timestamp or ""
-    fresh = timestamp.isdigit() and abs(time.time() - int(timestamp)) <= MAX_CALLBACK_AGE_SECONDS
+    fresh = (
+        timestamp.isascii()
+        and timestamp.isdigit()
+        and abs(time.time() - int(timestamp)) <= MAX_CALLBACK_AGE_SECONDS
+    )
     expected = sign(
         await request.body(),
         settings.n8n_webhook_secret,
@@ -73,9 +77,10 @@ async def qualify_lead(lead_id: uuid.UUID, request: Request) -> QualifyResult:
     return QualifyResult(**vars(outcome))
 
 
-@router.get("/messages/{message_id}", response_model=MessageContent)
-async def get_message(message_id: uuid.UUID, request: Request) -> MessageContent:
-    return MessageContent(**await request.app.state.delivery.content(message_id))
+@router.post("/messages/{message_id}/claim", response_model=MessageContent)
+async def claim_message(message_id: uuid.UUID, request: Request) -> MessageContent:
+    """Hand an approved message to n8n for sending and mark it ``sending`` so it is sent once."""
+    return MessageContent(**await request.app.state.delivery.claim(message_id))
 
 
 @router.post("/messages/{message_id}/sent", response_model=DeliveryOut, dependencies=[Signed])
