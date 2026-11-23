@@ -39,7 +39,6 @@ test.describe("Phase 1: apply and see the lead in the dashboard", () => {
     await expect(page).toHaveURL(/q=eve/);
     const row = page.getByRole("link", { name: NAME });
     await expect(row).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Not scored yet" })).toBeVisible();
 
     await row.click();
     await expect(page.getByRole("heading", { level: 1, name: NAME })).toBeVisible();
@@ -56,7 +55,16 @@ test.describe("Phase 1: apply and see the lead in the dashboard", () => {
       )
       .toBeGreaterThan(0);
     await expect(page.getByText("Delivered at")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Why this score" })).toHaveCount(0);
+    // Inline orchestration qualifies the lead within a second or two of delivery.
+    await expect
+      .poll(
+        async () => {
+          await page.reload();
+          return page.getByRole("heading", { name: "Why this score" }).count();
+        },
+        { timeout: 30_000, intervals: [1000, 2000, 3000] },
+      )
+      .toBeGreaterThan(0);
 
     await page.getByRole("button", { name: "Delete this lead" }).click();
     await page.getByRole("button", { name: "Delete permanently" }).click();

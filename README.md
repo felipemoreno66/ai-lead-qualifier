@@ -40,7 +40,7 @@ heavy and their "AI" is a black box.
   in `error` with a reason and can be retried. Drafting and human review come next.
 - **LLM provider layer**: one port with Anthropic, a deterministic fake
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
-  cost, and `LLM_BUDGET_USD` blocks real providers once spent. The qualification graph comes next.
+  cost, and `LLM_BUDGET_USD` blocks real providers once spent.
 
 | Lead detail | Public form (mobile) |
 |---|---|
