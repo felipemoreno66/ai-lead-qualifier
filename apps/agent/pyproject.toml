@@ -71,7 +71,10 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
-markers = ["integration: needs a Postgres container or TEST_DATABASE_URL"]
+markers = [
+    "integration: needs a Postgres container or TEST_DATABASE_URL",
+    "slow: needs the real fastembed model files (set EMBEDDINGS_CACHE_DIR); skipped without them",
+]
 
 [tool.coverage.run]
 source = ["lead_qualifier"]

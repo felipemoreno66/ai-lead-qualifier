@@ -73,6 +73,9 @@ def test_the_cap_of_the_default_models_stays_below_what_they_read():
 def test_token_count_is_pessimistic_and_title_is_found():
     assert count_tokens("Hello, world") == 3
     assert count_tokens("internationalization") == 4
+    assert count_tokens("4900") == 2  # digits split into short pieces
+    assert count_tokens("see https://northwind-academy.example/apply") >= 14  # URLs cost len/3
+    assert count_tokens("admissions@northwind-academy.example") >= 12
     assert document_title(DOC, "fallback") == "Pricing"
     assert document_title("no heading", "fallback") == "fallback"
 
