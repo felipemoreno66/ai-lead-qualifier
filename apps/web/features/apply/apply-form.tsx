@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { countryOptions } from "@/lib/forms/countries";
 import type { FormFieldDef } from "@/lib/forms/build-lead-schema";
 import type { PublicWorkspaceConfig } from "@/lib/api/types";
@@ -36,8 +36,11 @@ export function ApplyForm({ config, apiBase, initialLocale }: Props) {
 
   // Country names are localized with the browser's ICU data, which can differ from the server's,
   // so the options are filled in after mount to keep hydration identical.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const countries = useMemo(() => (mounted ? countryOptions(locale) : []), [mounted, locale]);
   const sections = useMemo(() => {
     const groups: { title: string; fields: FormFieldDef[] }[] = [];

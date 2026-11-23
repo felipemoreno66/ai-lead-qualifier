@@ -85,6 +85,19 @@ describe("state-changing BFF routes", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("accept the browser's origin when it matches the Host header", async () => {
+    const { DELETE } = await import("@/app/bff/leads/[id]/route");
+    mockAgent(() => new Response(null, { status: 204 }));
+    const response = await DELETE(
+      new Request(`http://0.0.0.0:3000/bff/leads/${id}`, {
+        method: "DELETE",
+        headers: { "x-requested-with": "lead-qualifier", origin: "http://localhost:3000", host: "localhost:3000" },
+      }),
+      ctx,
+    );
+    expect(response.status).toBe(204);
+  });
+
   it("delete the lead when the request is legitimate", async () => {
     const { DELETE } = await import("@/app/bff/leads/[id]/route");
     let method = "";

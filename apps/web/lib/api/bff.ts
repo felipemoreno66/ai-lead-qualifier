@@ -34,8 +34,12 @@ export function assertSameOrigin(request: Request): Response | null {
   if (request.headers.get(MUTATION_HEADER) !== MUTATION_HEADER_VALUE) {
     return errorResponse("Forbidden", "Missing request header.", 403);
   }
+  // Compare with the Host the browser used: behind Docker, `request.url` carries the container's
+  // bind address (0.0.0.0), not the public one.
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) {
+  const host =
+    request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? new URL(request.url).host;
+  if (origin && new URL(origin).host !== host) {
     return errorResponse("Forbidden", "Cross-origin requests are not allowed.", 403);
   }
   return null;
