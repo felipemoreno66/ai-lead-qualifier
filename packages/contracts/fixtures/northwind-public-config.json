@@ -1,0 +1,242 @@
+{
+  "default_language": "en",
+  "form": {
+    "fields": [
+      {
+        "id": "name",
+        "label": {
+          "en": "Full name",
+          "es": "Nombre completo"
+        },
+        "max_length": 120,
+        "options": [],
+        "required": true,
+        "role": "name",
+        "section": {
+          "en": "About you",
+          "es": "Sobre ti"
+        },
+        "type": "text"
+      },
+      {
+        "id": "email",
+        "label": {
+          "en": "Email",
+          "es": "Correo"
+        },
+        "max_length": null,
+        "options": [],
+        "required": true,
+        "role": "email",
+        "section": {
+          "en": "About you",
+          "es": "Sobre ti"
+        },
+        "type": "email"
+      },
+      {
+        "id": "country",
+        "label": {
+          "en": "Country",
+          "es": "País"
+        },
+        "max_length": null,
+        "options": [],
+        "required": true,
+        "role": null,
+        "section": {
+          "en": "About you",
+          "es": "Sobre ti"
+        },
+        "type": "country"
+      },
+      {
+        "id": "program",
+        "label": {
+          "en": "Program of interest",
+          "es": "Programa de interés"
+        },
+        "max_length": null,
+        "options": [
+          {
+            "label": {
+              "en": "Full Stack Bootcamp",
+              "es": "Bootcamp Full Stack"
+            },
+            "value": "fullstack-bootcamp"
+          },
+          {
+            "label": {
+              "en": "Data & AI Course",
+              "es": "Curso de Datos e IA"
+            },
+            "value": "data-ai-course"
+          },
+          {
+            "label": {
+              "en": "1:1 Mentorship",
+              "es": "Mentoría 1:1"
+            },
+            "value": "mentorship-1on1"
+          },
+          {
+            "label": {
+              "en": "Not sure yet",
+              "es": "Aún no lo sé"
+            },
+            "value": "not-sure"
+          }
+        ],
+        "required": true,
+        "role": null,
+        "section": {
+          "en": "What you are aiming for",
+          "es": "Lo que buscas"
+        },
+        "type": "select"
+      },
+      {
+        "id": "career_goal",
+        "label": {
+          "en": "Career goal",
+          "es": "Meta profesional"
+        },
+        "max_length": 600,
+        "options": [],
+        "required": true,
+        "role": null,
+        "section": {
+          "en": "What you are aiming for",
+          "es": "Lo que buscas"
+        },
+        "type": "textarea"
+      },
+      {
+        "id": "looking_for",
+        "label": {
+          "en": "What are you looking for?",
+          "es": "¿Qué estás buscando?"
+        },
+        "max_length": 2000,
+        "options": [],
+        "required": false,
+        "role": "free_text",
+        "section": {
+          "en": "What you are aiming for",
+          "es": "Lo que buscas"
+        },
+        "type": "textarea"
+      },
+      {
+        "id": "budget",
+        "label": {
+          "en": "Budget",
+          "es": "Presupuesto"
+        },
+        "max_length": null,
+        "options": [
+          {
+            "label": {
+              "en": "Under USD 500",
+              "es": "Menos de USD 500"
+            },
+            "value": "lt-500"
+          },
+          {
+            "label": {
+              "en": "USD 500–2,500",
+              "es": "USD 500–2.500"
+            },
+            "value": "500-2500"
+          },
+          {
+            "label": {
+              "en": "USD 2,500–5,000",
+              "es": "USD 2.500–5.000"
+            },
+            "value": "2500-5000"
+          },
+          {
+            "label": {
+              "en": "Over USD 5,000",
+              "es": "Más de USD 5.000"
+            },
+            "value": "gt-5000"
+          }
+        ],
+        "required": true,
+        "role": null,
+        "section": {
+          "en": "Fit and timing",
+          "es": "Ajuste y tiempos"
+        },
+        "type": "select"
+      },
+      {
+        "id": "availability",
+        "label": {
+          "en": "Weekly availability",
+          "es": "Disponibilidad semanal"
+        },
+        "max_length": null,
+        "options": [
+          {
+            "label": {
+              "en": "Less than 5 h",
+              "es": "Menos de 5 h"
+            },
+            "value": "lt-5h"
+          },
+          {
+            "label": {
+              "en": "5–10 h",
+              "es": "5–10 h"
+            },
+            "value": "5-10h"
+          },
+          {
+            "label": {
+              "en": "10–20 h",
+              "es": "10–20 h"
+            },
+            "value": "10-20h"
+          },
+          {
+            "label": {
+              "en": "20+ h",
+              "es": "20+ h"
+            },
+            "value": "gt-20h"
+          }
+        ],
+        "required": true,
+        "role": null,
+        "section": {
+          "en": "Fit and timing",
+          "es": "Ajuste y tiempos"
+        },
+        "type": "select"
+      }
+    ],
+    "submit_label": {
+      "en": "Apply",
+      "es": "Enviar solicitud"
+    }
+  },
+  "languages": [
+    "en",
+    "es"
+  ],
+  "name": "Northwind Academy",
+  "privacy": {
+    "controller": "Northwind Academy (fictional)",
+    "notice": {
+      "en": "We use your data only to evaluate your application and contact you about it. An AI system helps us prioritize and draft replies; a person reviews every message before it is sent.",
+      "es": "Usamos tus datos solo para evaluar tu solicitud y contactarte. Un sistema de IA nos ayuda a priorizar y redactar respuestas; una persona revisa cada mensaje antes de enviarlo."
+    },
+    "retention_days": 365,
+    "version": "2026-11-01"
+  },
+  "slug": "northwind-academy",
+  "tagline": "Online programming programs for career changers"
+}

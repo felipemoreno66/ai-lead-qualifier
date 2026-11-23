@@ -1,0 +1,142 @@
+# Full local stack. Every published port is bound to 127.0.0.1 only.
+# The "local-dev-*" default secrets are development placeholders; override them in .env.
+name: ai-lead-qualifier
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-leadq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leadq}
+      POSTGRES_DB: ${POSTGRES_DB:-leadq}
+    command: ["postgres", "-c", "shared_buffers=128MB"]
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  mailpit:
+    image: axllent/mailpit:v1.29
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  n8n:
+    image: n8nio/n8n:2.48.7
+    profiles: ["n8n"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/opt/leadq/entrypoint.sh"]
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: ${POSTGRES_USER:-leadq}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-leadq}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-local-dev-n8n-encryption-key-change-me}
+      N8N_SECURE_COOKIE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto
+      EXECUTIONS_DATA_SAVE_ON_SUCCESS: none
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+      GENERIC_TIMEZONE: UTC
+      NODE_OPTIONS: --max-old-space-size=640
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:-local-dev-webhook-secret-change-me}
+      N8N_API_TOKEN: ${N8N_API_TOKEN:-local-dev-n8n-token-change-me}
+      AGENT_INTERNAL_URL: http://agent:8000
+      DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL:-http://localhost:3000}
+      N8N_NOTIFY_FROM: leads@northwind-academy.example
+      N8N_NOTIFY_TO: admissions@northwind-academy.example
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - ./n8n:/opt/leadq:ro
+    mem_limit: 1024m
+
+  agent:
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leadq}:${POSTGRES_PASSWORD:-leadq}@postgres:5432/${POSTGRES_DB:-leadq}
+      WORKSPACES_DIR: /app/workspaces
+      ENABLED_WORKSPACES: ${ENABLED_WORKSPACES:-northwind-academy}
+      WEB_PUBLIC_ORIGIN: ${WEB_PUBLIC_ORIGIN:-http://localhost:3000,http://127.0.0.1:3000}
+      DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL:-http://localhost:3000}
+      ORCHESTRATOR: ${ORCHESTRATOR:-inline}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-local-dev-admin-token-change-me}
+      N8N_API_TOKEN: ${N8N_API_TOKEN:-local-dev-n8n-token-change-me}
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:-local-dev-webhook-secret-change-me}
+      N8N_WEBHOOK_BASE_URL: http://n8n:5678
+      IP_HASH_SECRET: ${IP_HASH_SECRET:-local-dev-ip-hash-secret-change-me}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      EXPOSE_ADMIN_API: ${EXPOSE_ADMIN_API:-true}
+      RATE_IP_PER_MINUTE: ${RATE_IP_PER_MINUTE:-5}
+      RATE_IP_PER_HOUR: ${RATE_IP_PER_HOUR:-30}
+      RATE_WORKSPACE_PER_HOUR: ${RATE_WORKSPACE_PER_HOUR:-300}
+      RATE_EMAIL_PER_DAY: ${RATE_EMAIL_PER_DAY:-3}
+    ports:
+      - "127.0.0.1:8000:8000"
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      agent:
+        condition: service_healthy
+    environment:
+      AGENT_INTERNAL_URL: http://agent:8000
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8000}
+      APP_ENV: ${APP_ENV:-local}
+      DASHBOARD_USER: ${DASHBOARD_USER:-}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-local-dev-admin-token-change-me}
+    ports:
+      - "127.0.0.1:3000:3000"
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  pgdata:

@@ -1,0 +1,59 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "consent": {
+      "title": "Consent",
+      "type": "boolean"
+    },
+    "consent_notice_version": {
+      "maxLength": 40,
+      "minLength": 1,
+      "title": "Consent Notice Version",
+      "type": "string"
+    },
+    "fields": {
+      "additionalProperties": true,
+      "title": "Fields",
+      "type": "object"
+    },
+    "form_rendered_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Form Rendered At"
+    },
+    "hp_company_website": {
+      "default": "",
+      "maxLength": 500,
+      "title": "Hp Company Website",
+      "type": "string"
+    },
+    "locale": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Locale"
+    }
+  },
+  "required": [
+    "fields",
+    "consent",
+    "consent_notice_version"
+  ],
+  "title": "LeadSubmission",
+  "type": "object"
+}

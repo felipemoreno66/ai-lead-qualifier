@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "attempt": {
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_id",
+    "attempt"
+  ],
+  "title": "RetriggerResult",
+  "type": "object"
+}

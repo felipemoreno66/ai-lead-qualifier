@@ -1,0 +1,20 @@
+{
+  "description": "country must be an upper-case ISO code",
+  "workspace": "northwind-academy",
+  "fields": {
+    "name": "Ana Torres",
+    "email": "ana@example.com",
+    "country": "co",
+    "program": "data-ai-course",
+    "career_goal": "I want to move from accounting into data work.",
+    "budget": "500-2500",
+    "availability": "5-10h",
+    "looking_for": "Is there a payment plan?"
+  },
+  "expect": {
+    "valid": false,
+    "error_fields": [
+      "country"
+    ]
+  }
+}

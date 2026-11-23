@@ -1,0 +1,18 @@
+{
+  "description": "email is trimmed and lowercased before checking",
+  "workspace": "northwind-academy",
+  "fields": {
+    "name": "Ana Torres",
+    "email": "  Ana.Torres@Example.COM ",
+    "country": "CO",
+    "program": "data-ai-course",
+    "career_goal": "I want to move from accounting into data work.",
+    "budget": "500-2500",
+    "availability": "5-10h",
+    "looking_for": "Is there a payment plan?"
+  },
+  "expect": {
+    "valid": true,
+    "error_fields": []
+  }
+}

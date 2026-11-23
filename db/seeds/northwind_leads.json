@@ -1,0 +1,619 @@
+{
+  "workspace": "northwind-academy",
+  "note": "Fictional demo leads. Pre-qualified entries carry static qualification data used only to populate filters before the agent exists.",
+  "leads": [
+    {
+      "reference": "NW-SEED01",
+      "name": "Mateo Alvarez",
+      "email": "mateo.alvarez@example.com",
+      "country": "CO",
+      "locale": "es",
+      "answers": {
+        "name": "Mateo Alvarez",
+        "email": "mateo.alvarez@example.com",
+        "country": "CO",
+        "program": "fullstack-bootcamp",
+        "career_goal": "Quiero cambiar de carrera de ventas a desarrollo web y conseguir mi primer empleo como desarrollador.",
+        "budget": "2500-5000",
+        "availability": "10-20h",
+        "looking_for": "¿Hay plan de pagos y cuándo empieza la próxima cohorte?"
+      },
+      "hours_ago": 3,
+      "status": "pending_review",
+      "free_text": "¿Hay plan de pagos y cuándo empieza la próxima cohorte?",
+      "score": 92,
+      "tier": "hot",
+      "recommended_product": "fullstack-bootcamp",
+      "detected_language": "es",
+      "qualification": {
+        "criteria": [
+          {
+            "id": "goal_fit",
+            "judgment": "met",
+            "evidence": "Clear tech career goal that matches Full Stack Bootcamp."
+          },
+          {
+            "id": "budget_fit",
+            "judgment": "met",
+            "evidence": "Stated budget covers Full Stack Bootcamp or its payment plan."
+          },
+          {
+            "id": "availability_fit",
+            "judgment": "met",
+            "evidence": "Weekly time matches the workload of Full Stack Bootcamp."
+          },
+          {
+            "id": "readiness",
+            "judgment": "partial",
+            "evidence": "Some signs of commitment, no start date."
+          },
+          {
+            "id": "reachable",
+            "judgment": "met",
+            "evidence": "Valid email and a supported country."
+          }
+        ],
+        "reasons": [
+          "Clear tech career goal that matches Full Stack Bootcamp.",
+          "Stated budget covers Full Stack Bootcamp or its payment plan.",
+          "Weekly time matches the workload of Full Stack Bootcamp."
+        ]
+      }
+    },
+    {
+      "reference": "NW-SEED02",
+      "name": "Sofia Lindqvist",
+      "email": "sofia.lindqvist@example.org",
+      "country": "SE",
+      "locale": "en",
+      "answers": {
+        "name": "Sofia Lindqvist",
+        "email": "sofia.lindqvist@example.org",
+        "country": "SE",
+        "program": "data-ai-course",
+        "career_goal": "I am a biostatistician and want to add Python and LLM application skills to my toolkit.",
+        "budget": "2500-5000",
+        "availability": "5-10h",
+        "looking_for": "Does the course cover building retrieval apps?"
+      },
+      "hours_ago": 6,
+      "status": "pending_review",
+      "free_text": "Does the course cover building retrieval apps?",
+      "score": 90,
+      "tier": "hot",
+      "recommended_product": "data-ai-course",
+      "detected_language": "en",
+      "qualification": {
+        "criteria": [
+          {
+            "id": "goal_fit",
+            "judgment": "met",
+            "evidence": "Clear tech career goal that matches Data & AI Course."
+          },
+          {
+            "id": "budget_fit",
+            "judgment": "met",
+            "evidence": "Stated budget covers Data & AI Course or its payment plan."
+          },
+          {
+            "id": "availability_fit",
+            "judgment": "partial",
+            "evidence": "Weekly time is a little below the usual workload."
+          },
+          {
+            "id": "readiness",
+            "judgment": "met",
+            "evidence": "Specific questions and a clear timeline show commitment."
+          },
+          {
+            "id": "reachable",
+            "judgment": "met",
+            "evidence": "Valid email and a supported country."
+          }
+        ],
+        "reasons": [
+          "Clear tech career goal that matches Data & AI Course.",
+          "Stated budget covers Data & AI Course or its payment plan.",
+          "Weekly time is a little below the usual workload."
+        ]
+      }
+    },
+    {
+      "reference": "NW-SEED03",
+      "name": "Amara Okafor",
+      "email": "amara.okafor@example.com",
+      "country": "NG",
+      "locale": "en",
+      "answers": {
+        "name": "Amara Okafor",
+        "email": "amara.okafor@example.com",
+        "country": "NG",
+        "program": "fullstack-bootcamp",
+        "career_goal": "I teach secondary-school maths and want to build web apps for my students.",
+        "budget": "500-2500",
+        "availability": "5-10h",
+        "looking_for": "Is there a scholarship or a smaller payment plan?"
+      },
+      "hours_ago": 18,
+      "status": "pending_review",
+      "free_text": "Is there a scholarship or a smaller payment plan?",
+      "score": 70,
+      "tier": "warm",
+      "recommended_product": "fullstack-bootcamp",
+      "detected_language": "en",
+      "qualification": {
+        "criteria": [
+          {
+            "id": "goal_fit",
+            "judgment": "met",
+            "evidence": "Clear tech career goal that matches Full Stack Bootcamp."
+          },
+          {
+            "id": "budget_fit",
+            "judgment": "partial",
+            "evidence": "Budget is below the full price; a payment plan or smaller option may fit."
+          },
+          {
+            "id": "availability_fit",
+            "judgment": "partial",
+            "evidence": "Weekly time is a little below the usual workload."
+          },
+          {
+            "id": "readiness",
+            "judgment": "partial",
+            "evidence": "Some signs of commitment, no start date."
+          },
+          {
+            "id": "reachable",
+            "judgment": "met",
+            "evidence": "Valid email and a supported country."
+          }
+        ],
+        "reasons": [
+          "Clear tech career goal that matches Full Stack Bootcamp.",
+          "Budget is below the full price; a payment plan or smaller option may fit.",
+          "Weekly time is a little below the usual workload."
+        ]
+      }
+    },
+    {
+      "reference": "NW-SEED04",
+      "name": "Lucas Ferreira",
+      "email": "lucas.ferreira@example.net",
+      "country": "BR",
+      "locale": "en",
+      "answers": {
+        "name": "Lucas Ferreira",
+        "email": "lucas.ferreira@example.net",
+        "country": "BR",
+        "program": "mentorship-1on1",
+        "career_goal": "Sou desenvolvedor júnior e quero um mentor para montar portfólio e treinar entrevistas.",
+        "budget": "500-2500",
+        "availability": "lt-5h",
+        "looking_for": "Can sessions be at night, Brasília time?"
+      },
+      "hours_ago": 26,
+      "status": "sent",
+      "free_text": "Can sessions be at night, Brasília time?",
+      "score": 90,
+      "tier": "hot",
+      "recommended_product": "mentorship-1on1",
+      "detected_language": "pt",
+      "qualification": {
+        "criteria": [
+          {
+            "id": "goal_fit",
+            "judgment": "met",
+            "evidence": "Clear tech career goal that matches 1:1 Mentorship."
+          },
+          {
+            "id": "budget_fit",
+            "judgment": "met",
+            "evidence": "Stated budget covers 1:1 Mentorship or its payment plan."
+          },
+          {
+            "id": "availability_fit",
+            "judgment": "partial",
+            "evidence": "Weekly time is a little below the usual workload."
+          },
+          {
+            "id": "readiness",
+            "judgment": "met",
+            "evidence": "Specific questions and a clear timeline show commitment."
+          },
+          {
+            "id": "reachable",
+            "judgment": "met",
+            "evidence": "Valid email and a supported country."
+          }
+        ],
+        "reasons": [
+          "Clear tech career goal that matches 1:1 Mentorship.",
+          "Stated budget covers 1:1 Mentorship or its payment plan.",
+          "Weekly time is a little below the usual workload."
+        ]
+      }
+    },
+    {
+      "reference": "NW-SEED05",
+      "name": "Kenji Watanabe",
+      "email": "kenji.watanabe@example.org",
+      "country": "JP",
+      "locale": "en",
+      "answers": {
+        "name": "Kenji Watanabe",
+        "email": "kenji.watanabe@example.org",
+        "country": "JP",
+        "program": "data-ai-course",
+        "career_goal": "I work in logistics and want to automate reports with Python and SQL.",
+        "budget": "500-2500",
+        "availability": "5-10h"
+      },
+      "hours_ago": 50,
+      "status": "sent",
+      "score": 65,
+      "tier": "warm",
+      "recommended_product": "data-ai-course",
+      "detected_language": "en",
+      "qualification": {
+        "criteria": [
+          {
+            "id": "goal_fit",
+            "judgment": "partial",
+            "evidence": "Goal is related to tech but not tied to a specific program."
+          },
+          {
+            "id": "budget_fit",
+            "judgment": "partial",
+            "evidence": "Budget is below the full price; a payment plan or smaller option may fit."
+          },
+          {
+            "id": "availability_fit",
+            "judgment": "met",
+            "evidence": "Weekly time matches the workload of Data & AI Course."
+          },
+          {
+            "id": "readiness",
+            "judgment": "partial",
+            "evidence": "Some signs of commitment, no start date."
+          },
+          {
+            "id": "reachable",
+            "judgment": "met",
+            "evidence": "Valid email and a supported country."
+          }
+        ],
+        "reasons": [
+          "Goal is related to tech but not tied to a specific program.",
+          "Budget is below the full price; a payment plan or smaller option may fit.",
+          "Weekly time matches the workload of Data & AI Course."
+        ]
+      }
+    },
+    {
+      "reference": "NW-SEED06",
+      "name": "Elena Petrova",
+      "email": "elena.petrova@example.com",
+      "country": "BG",
+      "locale": "en",
+      "answers": {
+        "name": "Elena Petrova",
+        "email": "elena.petrova@example.com",
+        "country": "BG",
+        "program": "data-ai-course",
+        "career_goal": "Just curious what the course covers.",
+        "budget": "lt-500",
+        "availability": "lt-5h"
+      },
+      "hours_ago": 62,
+      "status": "rejected",
+      "score": 10,
+      "tier": "cold",
+      "recommended_product": "data-ai-course",
+      "detected_language": "en",
+      "qualification": {
+        "criteria": [
+          {
+            "id": "goal_fit",
+            "judgment": "unmet",
+            "evidence": "No concrete career goal stated."
+          },
+          {
+            "id": "budget_fit",
+            "judgment": "unmet",
+            "evidence": "Stated budget is far below the price of any program."
+          },
+          {
+            "id": "availability_fit",
+            "judgment": "unmet",
+            "evidence": "Available time is too low for this program."
+          },
+          {
+            "id": "readiness",
+            "judgment": "unmet",
+            "evidence": "Exploratory interest only."
+          },
+          {
+            "id": "reachable",
+            "judgment": "met",
+            "evidence": "Valid email and a supported country."
+          }
+        ],
+        "reasons": [
+          "Valid email and a supported country."
+        ]
+      }
+    },
+    {
+      "reference": "NW-SEED07",
+      "name": "Priya Nair",
+      "email": "priya.nair@example.org",
+      "country": "IN",
+      "locale": "en",
+      "answers": {
+        "name": "Priya Nair",
+        "email": "priya.nair@example.org",
+        "country": "IN",
+        "program": "data-ai-course",
+        "career_goal": "I want to move from QA testing into machine learning engineering.",
+        "budget": "500-2500",
+        "availability": "5-10h",
+        "looking_for": "How much maths do I need before starting?"
+      },
+      "hours_ago": 5,
+      "status": "error",
+      "free_text": "How much maths do I need before starting?",
+      "error_reason": "llm_timeout: the model did not answer within 30 seconds"
+    },
+    {
+      "reference": "NW-SEED08",
+      "name": "Tomas Herrera",
+      "email": "tomas.herrera@example.com",
+      "country": "AR",
+      "locale": "es",
+      "answers": {
+        "name": "Tomas Herrera",
+        "email": "tomas.herrera@example.com",
+        "country": "AR",
+        "program": "mentorship-1on1",
+        "career_goal": "Estoy armando mi portfolio y necesito feedback semanal de un mentor.",
+        "budget": "500-2500",
+        "availability": "lt-5h"
+      },
+      "hours_ago": 2,
+      "status": "new"
+    },
+    {
+      "reference": "NW-SEED09",
+      "name": "Diego Morales",
+      "email": "diego.morales@example.net",
+      "country": "MX",
+      "locale": "es",
+      "answers": {
+        "name": "Diego Morales",
+        "email": "diego.morales@example.net",
+        "country": "MX",
+        "program": "not-sure",
+        "career_goal": "No sé si empezar con web o con datos, me gustaría orientación.",
+        "budget": "lt-500",
+        "availability": "5-10h",
+        "looking_for": "¿Qué programa me recomiendan si trabajo de día?"
+      },
+      "hours_ago": 1,
+      "status": "new",
+      "free_text": "¿Qué programa me recomiendan si trabajo de día?"
+    },
+    {
+      "reference": "NW-SEED10",
+      "name": "Carla Mendoza",
+      "email": "carla.mendoza@example.com",
+      "country": "PE",
+      "locale": "es",
+      "answers": {
+        "name": "Carla Mendoza",
+        "email": "carla.mendoza@example.com",
+        "country": "PE",
+        "program": "fullstack-bootcamp",
+        "career_goal": "Quiero dejar mi trabajo en contabilidad y entrar a tecnología este año.",
+        "budget": "2500-5000",
+        "availability": "10-20h",
+        "looking_for": "¿Aceptan pagos mensuales?"
+      },
+      "hours_ago": 4,
+      "status": "new",
+      "free_text": "¿Aceptan pagos mensuales?"
+    },
+    {
+      "reference": "NW-SEED11",
+      "name": "Joaquín Rojas",
+      "email": "joaquin.rojas@example.org",
+      "country": "CL",
+      "locale": "es",
+      "answers": {
+        "name": "Joaquín Rojas",
+        "email": "joaquin.rojas@example.org",
+        "country": "CL",
+        "program": "data-ai-course",
+        "career_goal": "Quiero aprender Python para análisis de datos en mi empresa de logística.",
+        "budget": "500-2500",
+        "availability": "5-10h"
+      },
+      "hours_ago": 8,
+      "status": "new"
+    },
+    {
+      "reference": "NW-SEED12",
+      "name": "Lucía Navarro",
+      "email": "lucia.navarro@example.com",
+      "country": "ES",
+      "locale": "es",
+      "answers": {
+        "name": "Lucía Navarro",
+        "email": "lucia.navarro@example.com",
+        "country": "ES",
+        "program": "fullstack-bootcamp",
+        "career_goal": "Soy diseñadora y quiero programar mis propios proyectos web.",
+        "budget": "2500-5000",
+        "availability": "gt-20h",
+        "looking_for": "¿Hay horarios de tarde en horario de Madrid?"
+      },
+      "hours_ago": 10,
+      "status": "new",
+      "free_text": "¿Hay horarios de tarde en horario de Madrid?"
+    },
+    {
+      "reference": "NW-SEED13",
+      "name": "Grace Miller",
+      "email": "grace.miller@example.com",
+      "country": "US",
+      "locale": "en",
+      "answers": {
+        "name": "Grace Miller",
+        "email": "grace.miller@example.com",
+        "country": "US",
+        "program": "fullstack-bootcamp",
+        "career_goal": "Career change from retail management to software engineering within a year.",
+        "budget": "gt-5000",
+        "availability": "gt-20h",
+        "looking_for": "Can I pay in full up front?"
+      },
+      "hours_ago": 12,
+      "status": "new",
+      "free_text": "Can I pay in full up front?"
+    },
+    {
+      "reference": "NW-SEED14",
+      "name": "Rafael Costa",
+      "email": "rafael.costa@example.org",
+      "country": "BR",
+      "locale": "en",
+      "answers": {
+        "name": "Rafael Costa",
+        "email": "rafael.costa@example.org",
+        "country": "BR",
+        "program": "data-ai-course",
+        "career_goal": "Quero trabalhar com ciência de dados e aprender a construir aplicações com modelos de linguagem.",
+        "budget": "500-2500",
+        "availability": "5-10h",
+        "looking_for": "Os conteúdos são em inglês?"
+      },
+      "hours_ago": 14,
+      "status": "new",
+      "free_text": "Os conteúdos são em inglês?"
+    },
+    {
+      "reference": "NW-SEED15",
+      "name": "Jasmine Reyes",
+      "email": "jasmine.reyes@example.net",
+      "country": "PH",
+      "locale": "en",
+      "answers": {
+        "name": "Jasmine Reyes",
+        "email": "jasmine.reyes@example.net",
+        "country": "PH",
+        "program": "mentorship-1on1",
+        "career_goal": "I am self-taught and need help preparing for technical interviews.",
+        "budget": "lt-500",
+        "availability": "lt-5h",
+        "looking_for": "Is there a free trial session?"
+      },
+      "hours_ago": 20,
+      "status": "new",
+      "free_text": "Is there a free trial session?"
+    },
+    {
+      "reference": "NW-SEED16",
+      "name": "Oliver Bennett",
+      "email": "oliver.bennett@example.com",
+      "country": "GB",
+      "locale": "en",
+      "answers": {
+        "name": "Oliver Bennett",
+        "email": "oliver.bennett@example.com",
+        "country": "GB",
+        "program": "fullstack-bootcamp",
+        "career_goal": "I would like to build a SaaS side project and learn React properly.",
+        "budget": "2500-5000",
+        "availability": "5-10h"
+      },
+      "hours_ago": 30,
+      "status": "new"
+    },
+    {
+      "reference": "NW-SEED17",
+      "name": "Wanjiru Kamau",
+      "email": "wanjiru.kamau@example.org",
+      "country": "KE",
+      "locale": "en",
+      "answers": {
+        "name": "Wanjiru Kamau",
+        "email": "wanjiru.kamau@example.org",
+        "country": "KE",
+        "program": "data-ai-course",
+        "career_goal": "I analyse survey data for an NGO and want to add machine learning.",
+        "budget": "lt-500",
+        "availability": "5-10h",
+        "looking_for": "Do you offer regional pricing?"
+      },
+      "hours_ago": 36,
+      "status": "new",
+      "free_text": "Do you offer regional pricing?"
+    },
+    {
+      "reference": "NW-SEED18",
+      "name": "Aiko Tanaka",
+      "email": "aiko.tanaka@example.com",
+      "country": "JP",
+      "locale": "en",
+      "answers": {
+        "name": "Aiko Tanaka",
+        "email": "aiko.tanaka@example.com",
+        "country": "JP",
+        "program": "not-sure",
+        "career_goal": "I want to understand which tech path suits a former teacher.",
+        "budget": "500-2500",
+        "availability": "10-20h"
+      },
+      "hours_ago": 44,
+      "status": "new"
+    },
+    {
+      "reference": "NW-SEED19",
+      "name": "Mariana Suárez",
+      "email": "mariana.suarez@example.net",
+      "country": "CO",
+      "locale": "es",
+      "answers": {
+        "name": "Mariana Suárez",
+        "email": "mariana.suarez@example.net",
+        "country": "CO",
+        "program": "data-ai-course",
+        "career_goal": "Soy ingeniera industrial y quiero pasar a ciencia de datos.",
+        "budget": "500-2500",
+        "availability": "10-20h",
+        "looking_for": "¿Incluye certificado?"
+      },
+      "hours_ago": 52,
+      "status": "new",
+      "free_text": "¿Incluye certificado?"
+    },
+    {
+      "reference": "NW-SEED20",
+      "name": "Pablo Ortega",
+      "email": "pablo.ortega@example.org",
+      "country": "MX",
+      "locale": "es",
+      "answers": {
+        "name": "Pablo Ortega",
+        "email": "pablo.ortega@example.org",
+        "country": "MX",
+        "program": "mentorship-1on1",
+        "career_goal": "Llevo seis meses aprendiendo JavaScript y me atoré con React.",
+        "budget": "500-2500",
+        "availability": "5-10h"
+      },
+      "hours_ago": 70,
+      "status": "new"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "$defs": {
+    "WorkspaceSummary": {
+      "properties": {
+        "by_status": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "By Status",
+          "type": "object"
+        },
+        "draft": {
+          "title": "Draft",
+          "type": "boolean"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "lead_count": {
+          "title": "Lead Count",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "slug": {
+          "title": "Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "enabled",
+        "draft",
+        "lead_count",
+        "by_status"
+      ],
+      "title": "WorkspaceSummary",
+      "type": "object"
+    }
+  },
+  "items": {
+    "$ref": "#/$defs/WorkspaceSummary"
+  },
+  "type": "array"
+}

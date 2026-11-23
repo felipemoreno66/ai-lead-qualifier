@@ -1,0 +1,84 @@
+# DRAFT workspace. Only the three service names are filled in. Every other business value is
+# an explicit TODO(david) placeholder; the validator accepts placeholders only while
+# `profile.draft` is true, and the public form and intake stay disabled for drafts.
+schema_version: 1
+slug: david-moreno
+profile:
+  name: David Moreno
+  tagline: "TODO(david): one-line description of the services"
+  website: "TODO(david): https URL of the services page"
+  contact_email: "TODO(david): contact email"
+  timezone: "TODO(david): IANA timezone, for example Area/City"
+  reference_prefix: DM
+  draft: true
+languages:
+  default: en
+  supported: [en, es]
+tone:
+  style: "TODO(david): how replies should sound"
+  do: []
+  dont: []
+  signature: "TODO(david): email signature"
+products:
+  - id: sales-automation-n8n
+    name: Sales automation with n8n
+    summary: "TODO(david): what this service includes"
+    price: { currency: USD, amount: null, note: "TODO(david): pricing" }
+    duration: "TODO(david): typical duration"
+  - id: ai-agents-integrations
+    name: AI agents and integrations
+    summary: "TODO(david): what this service includes"
+    price: { currency: USD, amount: null, note: "TODO(david): pricing" }
+    duration: "TODO(david): typical duration"
+  - id: nextjs-web-interfaces
+    name: Next.js web interfaces and dashboards
+    summary: "TODO(david): what this service includes"
+    price: { currency: USD, amount: null, note: "TODO(david): pricing" }
+    duration: "TODO(david): typical duration"
+qualification:
+  criteria:
+    - id: service_fit
+      description: "TODO(david): how to judge whether the request matches a service"
+      weight: 40
+    - id: budget_fit
+      description: "TODO(david): how to judge budget fit"
+      weight: 30
+    - id: timeline_fit
+      description: "TODO(david): how to judge availability and timeline"
+      weight: 20
+    - id: clarity
+      description: "TODO(david): how to judge how clear the request is"
+      weight: 10
+  tiers: { hot_min: 75, warm_min: 45 }
+form:
+  submit_label: { en: Send, es: Enviar }
+  fields:
+    - { id: name, role: name, type: text, required: true, max_length: 120, label: { en: Full name, es: Nombre completo } }
+    - { id: email, role: email, type: email, required: true, label: { en: Email, es: Correo } }
+    - id: service
+      type: select
+      required: true
+      label: { en: Service of interest, es: Servicio de interés }
+      options:
+        - { value: sales-automation-n8n, label: { en: Sales automation with n8n, es: Automatización de ventas con n8n } }
+        - { value: ai-agents-integrations, label: { en: AI agents and integrations, es: Agentes de IA e integraciones } }
+        - { value: nextjs-web-interfaces, label: { en: Next.js web interfaces and dashboards, es: Interfaces web y dashboards con Next.js } }
+    - { id: message, role: free_text, type: textarea, required: true, max_length: 2000, label: { en: Tell me about your project, es: Cuéntame sobre tu proyecto } }
+privacy:
+  version: "draft"
+  controller: "TODO(david): legal or trade name of the data controller"
+  retention_days: 365
+  notice:
+    en: "TODO(david): privacy notice in English"
+    es: "TODO(david): aviso de privacidad en español"
+cors:
+  allowed_origins: []
+knowledge_base: { path: knowledge-base, enabled: true }
+notifications: { owner_email: "TODO(david): where to send owner notifications", notify_tiers: [hot] }
+drafting:
+  max_words: 180
+  allowed_link_domains: []
+  call_to_action: { en: "TODO(david): call to action", es: "TODO(david): llamada a la acción" }
+channels:
+  email: { enabled: true }
+  whatsapp: { enabled: false, provider: null, template_name: null }

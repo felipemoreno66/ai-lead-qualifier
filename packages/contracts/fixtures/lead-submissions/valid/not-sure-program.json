@@ -1,0 +1,18 @@
+{
+  "description": "the not-sure option is valid",
+  "workspace": "northwind-academy",
+  "fields": {
+    "name": "Ana Torres",
+    "email": "ana@example.com",
+    "country": "CO",
+    "program": "not-sure",
+    "career_goal": "I want to move from accounting into data work.",
+    "budget": "500-2500",
+    "availability": "5-10h",
+    "looking_for": "Is there a payment plan?"
+  },
+  "expect": {
+    "valid": true,
+    "error_fields": []
+  }
+}
