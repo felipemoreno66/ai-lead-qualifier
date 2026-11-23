@@ -40,7 +40,7 @@ heavy and their "AI" is a black box.
   in `error` with a reason and can be retried.
 - **Drafting and human review (API)**: the agent drafts a reply in the lead's language, a deterministic
   guard checks length, links, placeholders and prices, and the graph pauses (Postgres checkpointer,
-  survives restarts) until `POST /admin/leads/{id}/review` approves, edits, rejects or regenerates it.
+  survives restarts; the checks run again on the approved or edited text) until `POST /admin/leads/{id}/review` approves, edits, rejects or regenerates it.
   Sending the email and the dashboard UI come next.
 - **LLM provider layer**: one port with Anthropic, a deterministic fake
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
