@@ -15,6 +15,7 @@ from tests.unit.agent.helpers import deps, make_lead
 
 NW = "northwind-academy"
 PRICING_ID = UUID("00000000-0000-0000-0000-000000000001")
+QUESTION = "How much does the Data & AI Course cost?"
 
 
 def chunk(content: str, chunk_id: UUID = PRICING_ID) -> RetrievedChunk:
@@ -111,7 +112,7 @@ def answer_payload(chunk_id: str, quote: str, *, covered: bool = True) -> dict[s
     return {
         "answers": [
             {
-                "question": "q",
+                "question": QUESTION,
                 "answer": "USD 2,400.",
                 "covered": covered,
                 "citations": [{"chunk_id": chunk_id, "quote": quote}],
@@ -125,6 +126,7 @@ def answer_payload(chunk_id: str, quote: str, *, covered: bool = True) -> dict[s
     [
         (str(uuid4()), "costs USD 2,400"),  # chunk that was never retrieved
         (str(PRICING_ID), "costs USD 1"),  # quote not in the chunk
+        (str(PRICING_ID), "costs"),  # too short to prove anything
     ],
 )
 async def test_an_invalid_citation_is_repaired(
@@ -162,12 +164,12 @@ async def test_a_citation_from_another_questions_excerpts_is_rejected(
     wrong = {
         "answers": [
             {
-                "question": "a",
+                "question": QUESTION,
                 "answer": "x",
                 "covered": True,
                 "citations": [{"chunk_id": str(other), "quote": "Cohorts start monthly."}],
             },
-            {"question": "b", "answer": "", "covered": False, "citations": []},
+            {"question": "When does it start?", "answer": "", "covered": False, "citations": []},
         ]
     }
     state = await go(registry, retriever, scripted(registry, wrong, wrong, wrong), lead=both)
@@ -202,3 +204,41 @@ async def test_instructions_inside_a_chunk_or_question_have_no_effect(
     for answer in state["kb_answers"]:
         for c in answer.citations:
             assert c.quote in evil
+
+
+async def test_quotes_are_checked_against_the_text_without_markdown(registry: WorkspaceRegistry):
+    markdown = (
+        "| Program | Price |\n|---|---|\n"
+        "| **Data & AI** | [USD 2,400](https://northwind-academy.example/p) |"
+    )
+    retriever = StubRetriever({QUESTION: [chunk(markdown)]})
+    ok = answer_payload(str(PRICING_ID), "Data & AI USD 2,400")
+    state = await go(registry, retriever, scripted(registry, ok))
+    assert state["kb_answers"][0].covered
+
+
+async def test_a_reworded_question_is_repaired(registry: WorkspaceRegistry):
+    retriever = StubRetriever({QUESTION: [chunk("It costs USD 2,400 in full.")]})
+    wrong = answer_payload(str(PRICING_ID), "costs USD 2,400")
+    wrong["answers"][0]["question"] = "How much is it?"  # type: ignore[index]
+    good = answer_payload(str(PRICING_ID), "costs USD 2,400")
+    provider = scripted(registry, wrong, good)
+    state = await go(registry, retriever, provider)
+    assert state["kb_answers"][0].covered and provider.calls == 5
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["See https://evil.example/pay now.", "Write to boss@evil.example.", "It costs USD 99."],
+)
+async def test_an_answer_the_draft_guard_would_reject_becomes_not_covered(
+    registry: WorkspaceRegistry, text: str
+):
+    retriever = StubRetriever({QUESTION: [chunk("It costs USD 2,400 in full.")]})
+    bad = answer_payload(str(PRICING_ID), "costs USD 2,400")
+    bad["answers"][0]["answer"] = text  # type: ignore[index]
+    state = await go(registry, retriever, scripted(registry, bad))
+    (answer,) = state["kb_answers"]
+    assert not answer.covered and answer.citations == []
+    assert answer.answer == NOT_COVERED["en"]
+    assert text not in state["draft"].body

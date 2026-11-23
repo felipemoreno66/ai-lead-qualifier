@@ -6,6 +6,36 @@ import { humanize } from "./event-text";
 
 const JUDGMENT: Record<string, string> = { met: "Met", partial: "Partial", unmet: "Not met" };
 
+/** Compact score, tier, recommendation and top reasons, shown next to the draft being reviewed. */
+export function QualificationSummary({ lead }: { lead: LeadDetail }) {
+  if (lead.score === null) return null;
+  return (
+    <section className="summary" aria-label="Score summary">
+      <p className="bignum num" aria-label={`Score ${lead.score} out of 100`}>
+        {lead.score}
+      </p>
+      <div>
+        <p>
+          <TierLabel tier={lead.tier} />
+          {lead.recommended_product_name && (
+            <>
+              {" "}&middot; recommended: <b>{lead.recommended_product_name}</b>
+            </>
+          )}
+        </p>
+        {lead.reasons.length > 0 && (
+          <ul>
+            {lead.reasons.slice(0, 2).map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        )}
+        <a href="#why-h">See how the score was built</a>
+      </div>
+    </section>
+  );
+}
+
 /** "Why this score": the score, the tier and the evidence behind every criterion. */
 export function QualificationCard({ lead }: { lead: LeadDetail }) {
   if (lead.score === null) return null;

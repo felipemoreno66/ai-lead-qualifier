@@ -16,7 +16,9 @@ KNOWN_DEFAULT_PREFIX = "local-dev-"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", case_sensitive=False, env_ignore_empty=True
+    )
 
     app_env: Literal["local", "test", "production"] = "local"
     log_level: str = "INFO"
@@ -78,6 +80,8 @@ class Settings(BaseSettings):
 
     embeddings_provider: Literal["fastembed", "openai", "fake"] = "fastembed"
     embeddings_cache_dir: Path = Path(".cache/fastembed")
+    embeddings_warm_on_startup: bool = False
+    kb_reindex_timeout_seconds: float = Field(default=900.0, gt=0)
     kb_top_k: int = Field(default=5, ge=1, le=20)
     kb_min_similarity: float = Field(default=0.3, ge=0, le=1)
 

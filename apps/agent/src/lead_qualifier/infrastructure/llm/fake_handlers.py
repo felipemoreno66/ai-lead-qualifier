@@ -14,6 +14,7 @@ import json
 import re
 from typing import Any
 
+from lead_qualifier.domain.kb_chunker import plain_text
 from lead_qualifier.infrastructure.llm.fake import Handler
 from lead_qualifier.ports.llm import StructuredRequest
 
@@ -243,24 +244,17 @@ def qualify(req: StructuredRequest[Any]) -> dict[str, Any]:
     return {"criteria": criteria, "recommended_product": product["id"], "reasons": reasons}
 
 
-_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 _CITE_MAX = 300
 
 
-def _plain_line(content: str) -> tuple[str, str]:
-    """(quote, plain answer): the first prose line of a chunk. The quote is verbatim from the
-    chunk; the answer has markdown links and bullets removed so it passes the draft guard."""
-    lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
-    for line in lines:
-        if not line.startswith("|"):
-            quote = line.removeprefix("- ").removeprefix("* ")
-            break
-    else:
-        cells = [c.strip() for c in lines[0].strip("|").split("|") if c.strip()]
-        quote = max(cells, key=len) if cells else lines[0]
-    quote = quote[:_CITE_MAX]
-    plain = _LINK_RE.sub(r"\1", quote).replace("**", "").replace("`", "")
-    return quote, plain
+def _plain_quote(content: str) -> str:
+    """The first prose line of a chunk as plain text (the form quotes are checked against). A line
+    too short to be a meaningful quote is replaced by the start of the whole chunk."""
+    lines = [plain_text(ln) for ln in content.splitlines() if ln.strip() and not ln.startswith("|")]
+    line = lines[0] if lines else plain_text(content)
+    if len(line) < 15 and len(line.split()) < 3:
+        line = plain_text(content)
+    return line[:_CITE_MAX].strip()
 
 
 def answer(req: StructuredRequest[Any]) -> dict[str, Any]:
@@ -274,7 +268,7 @@ def answer(req: StructuredRequest[Any]) -> dict[str, Any]:
                 {"question": item["question"], "answer": "", "covered": False, "citations": []}
             )
             continue
-        quote, plain = _plain_line(excerpts[0]["text"])
+        quote = plain = _plain_quote(excerpts[0]["text"])
         answers.append(
             {
                 "question": item["question"],

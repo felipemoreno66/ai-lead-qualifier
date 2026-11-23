@@ -242,10 +242,10 @@ class QualifyService:
             ).scalar_one() + 1
             lead_row = await leads.get(lead_id)
             assert lead_row is not None
-            if "kb_answers" in state:
-                await AnswerRepository(conn).replace_for_lead(
-                    lead_id, run_id, state["kb_answers"], now
-                )
+            # a re-run without questions must not keep the previous run's answers
+            await AnswerRepository(conn).replace_for_lead(
+                lead_id, run_id, state.get("kb_answers", []), now
+            )
             await conn.execute(
                 sa.insert(messages).values(
                     lead_id=lead_id,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -100,3 +102,24 @@ async def test_migration_0011_steps_down_and_up(pg_base_url):
     eng.dispose()
     assert "kb_chunks" in names and not ({"lead_answers", "answer_citations"} & names)
     command.upgrade(cfg, "head")
+
+
+async def test_replacing_with_no_answers_clears_the_previous_ones(make_client, db):
+    from lead_qualifier.infrastructure.db.repositories import AnswerRepository
+    from lead_qualifier.ports.clock import SystemClock
+
+    async with make_client(
+        llm_provider=recorded(db), embeddings=FakeEmbeddings(), kb_min_similarity=0.1
+    ) as client:
+        await reindex(client)
+        await submit(client, "kb4@example.com", looking_for=QUESTION)
+        lead_id = await lead_id_for(client, "kb4@")
+        await qualify(client, lead_id)
+        assert await count(db, "lead_answers") == 1
+        async with db.connect() as conn:
+            run_id = (await conn.execute(sa.text("SELECT id FROM agent_runs"))).scalar_one()
+        async with db.begin() as conn:
+            await AnswerRepository(conn).replace_for_lead(
+                uuid.UUID(lead_id), run_id, [], SystemClock().now()
+            )
+    assert await count(db, "lead_answers") == 0 and await count(db, "answer_citations") == 0

@@ -110,3 +110,84 @@ async def test_migration_0010_steps_down_and_up(pg_base_url):
     eng.dispose()
     assert not ({"kb_documents", "kb_chunks"} & names)
     command.upgrade(cfg, "head")
+
+
+async def test_changing_the_chunking_re_ingests_every_document(service, kb_dir, db):
+    await service.ingest(SLUG, kb_dir)
+    assert (await service.ingest(SLUG, kb_dir)).unchanged == 2
+
+    class SmallerChunks(FakeEmbeddings):
+        max_chunk_tokens = 60
+
+    other = KnowledgeBaseService(db, SmallerChunks(), SystemClock())
+    assert (await other.ingest(SLUG, kb_dir)).updated == 2
+
+
+async def test_unsafe_and_unreadable_files_are_skipped_not_fatal(service, kb_dir, db, tmp_path):
+    await service.ingest(SLUG, kb_dir)
+    outside = tmp_path.parent / "outside.md"
+    outside.write_text("# Secret\n\nnot part of the knowledge base\n")
+    (kb_dir / "link.md").symlink_to(outside)
+    (kb_dir / "big.md").write_text("# Big\n\n" + "word " * 250_000)
+    (kb_dir / "b.md").write_bytes(b"# Beta\n\n\xff\xfe not utf-8")
+    result = await service.ingest(SLUG, kb_dir)
+    assert result.skipped == 3
+    assert result.removed == 0  # b.md keeps its last good version
+    assert await _count(db, "kb_documents") == 2
+
+
+async def test_a_second_reindex_of_the_same_workspace_is_refused(service, kb_dir):
+    import asyncio
+
+    from lead_qualifier.domain.errors import Conflict
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+    original = service._embed
+
+    async def slow(texts):
+        started.set()
+        await release.wait()
+        return await original(texts)
+
+    service._embed = slow
+    first = asyncio.create_task(service.ingest(SLUG, kb_dir))
+    await started.wait()
+    with pytest.raises(Conflict):
+        await service.ingest(SLUG, kb_dir)
+    release.set()
+    assert (await first).added == 2
+
+
+async def test_embedding_runs_outside_the_transaction(service, kb_dir, db):
+    """While the model works, no advisory lock is held, so other writers are not blocked."""
+    seen: list[int] = []
+    original = service._embed
+
+    async def probe(texts):
+        async with db.connect() as conn:
+            seen.append(
+                (
+                    await conn.execute(
+                        sa.text("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'")
+                    )
+                ).scalar_one()
+            )
+        return await original(texts)
+
+    service._embed = probe
+    await service.ingest(SLUG, kb_dir)
+    assert seen and set(seen) == {0}
+
+
+async def test_reindex_times_out_with_504(make_client, db, monkeypatch):
+    import asyncio
+
+    async with make_client(embeddings=FakeEmbeddings(), kb_reindex_timeout_seconds=0.05) as client:
+
+        async def never(*_a, **_k):
+            await asyncio.sleep(5)
+
+        monkeypatch.setattr(client.app.state.kb, "ingest", never)
+        response = await client.post(f"/admin/kb/{SLUG}/reindex", headers=AUTH)
+    assert response.status_code == 504

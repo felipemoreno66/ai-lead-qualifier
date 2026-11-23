@@ -18,6 +18,10 @@ FASTEMBED_MODEL_ID = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v
 class FastEmbeddings:
     model_id = FASTEMBED_MODEL_ID
     dimension = EMBEDDING_DIMENSION
+    # paraphrase-multilingual-MiniLM-L12-v2 reads at most 128 word pieces and silently drops the
+    # rest, so chunks stay well below that (the chunker over-counts to keep a safety margin).
+    max_chunk_tokens = 120
+    chunk_overlap_tokens = 20
 
     def __init__(self, cache_dir: Path) -> None:
         self._cache_dir = cache_dir
@@ -33,6 +37,9 @@ class FastEmbeddings:
                     model_name=self.model_id, cache_dir=str(self._cache_dir)
                 )
             return self._model
+
+    def warm(self) -> None:
+        self._load()
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:

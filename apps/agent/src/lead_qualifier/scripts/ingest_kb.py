@@ -1,6 +1,7 @@
 """Ingest a workspace's knowledge base into pgvector.
 
     python -m lead_qualifier.scripts.ingest_kb <workspace> [--force]
+    python -m lead_qualifier.scripts.ingest_kb --warm   # pre-download the model
 
 Unchanged documents are skipped (content hash), deleted ones are removed. With the default
 fastembed provider the model is downloaded into ``EMBEDDINGS_CACHE_DIR`` on first use.
@@ -45,9 +46,18 @@ async def run(settings: Settings, slug: str, *, force: bool = False) -> IngestRe
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("workspace")
+    parser.add_argument("workspace", nargs="?")
+    parser.add_argument(
+        "--warm", action="store_true", help="only download/load the embedding model, then exit"
+    )
     parser.add_argument("--force", action="store_true", help="re-embed every document")
     args = parser.parse_args(argv)
+    if args.warm:
+        build_embeddings(get_settings()).warm()
+        print("embedding model ready")
+        return 0
+    if not args.workspace:
+        parser.error("workspace is required unless --warm is given")
     result = asyncio.run(run(get_settings(), args.workspace, force=args.force))
     print(" ".join(f"{k}={v}" for k, v in result.as_dict().items()))
     return 0

@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from "./constants";
-import { problemItems, type ProblemItem } from "./problem";
+import { readProblem, type ProblemItem } from "./problem";
 
 export class ApiError extends Error {
   constructor(
@@ -15,17 +15,8 @@ export class ApiError extends Error {
 }
 
 async function failure(res: Response): Promise<ApiError> {
-  try {
-    const body = (await res.json()) as { title?: string; detail?: string; errors?: unknown };
-    return new ApiError(
-      res.status,
-      body.title ?? "Request failed",
-      body.detail ?? res.statusText,
-      problemItems(body.errors),
-    );
-  } catch {
-    return new ApiError(res.status, "Request failed", res.statusText);
-  }
+  const p = await readProblem(res);
+  return new ApiError(p.status, p.title, p.detail, p.errors);
 }
 
 /** GET a `/bff/*` route and validate the JSON with a generated Zod schema. */

@@ -41,7 +41,8 @@ from lead_qualifier.agent.prompts import (
     render_operator_feedback,
     render_workspace_context,
 )
-from lead_qualifier.domain.draft_guard import check_draft_detailed
+from lead_qualifier.domain.draft_guard import answer_problems, check_draft_detailed
+from lead_qualifier.domain.kb_chunker import plain_text
 from lead_qualifier.domain.scoring import compute_score, tier_for
 from lead_qualifier.domain.workspace import Tier, WorkspaceConfig
 from lead_qualifier.infrastructure.llm.structured import generate_validated
@@ -203,6 +204,10 @@ def _squash(text: str) -> str:
     return " ".join(text.split()).casefold()
 
 
+MIN_QUOTE_CHARS = 15
+MIN_QUOTE_WORDS = 3
+
+
 def _answer_check(
     items: list[tuple[str, list[RetrievedChunk]]],
 ) -> Callable[[AnswerOutput], None]:
@@ -214,8 +219,12 @@ def _answer_check(
             raise ValueError(
                 f"answers must have exactly {len(items)} items, got {len(output.answers)}"
             )
-        for number, (item, (_, chunks)) in enumerate(zip(output.answers, items, strict=True), 1):
+        for number, (item, (question, chunks)) in enumerate(
+            zip(output.answers, items, strict=True), 1
+        ):
             by_id = {str(c.chunk_id): c for c in chunks}
+            if _squash(item.question) != _squash(question):
+                raise ValueError(f"item {number}: question must be copied exactly as given")
             if item.covered and not (item.answer.strip() and item.citations):
                 raise ValueError(f"item {number}: a covered answer needs text and a citation")
             if not item.covered and item.citations:
@@ -226,7 +235,13 @@ def _answer_check(
                     raise ValueError(
                         f"item {number}: chunk_id {citation.chunk_id!r} is not one of its excerpts"
                     )
-                if _squash(citation.quote) not in _squash(chunk.content):
+                quote = _squash(citation.quote)
+                if len(quote) < MIN_QUOTE_CHARS and len(quote.split()) < MIN_QUOTE_WORDS:
+                    raise ValueError(
+                        f"item {number}: a quote must be a meaningful passage "
+                        f"(at least {MIN_QUOTE_CHARS} characters or {MIN_QUOTE_WORDS} words)"
+                    )
+                if quote not in _squash(plain_text(chunk.content)):
                     raise ValueError(
                         f"item {number}: the quote does not appear word for word in the excerpt"
                     )
@@ -255,6 +270,7 @@ async def answer_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[
     answered with the fixed "not covered" text in code.
     """
     deps = runtime.context
+    config = deps.workspace
     questions = state["profile"].questions
     language = state["profile"].detected_language
     retrieved: list[list[RetrievedChunk]] = []
@@ -292,6 +308,14 @@ async def answer_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[
         found = by_question.get(question)
         if found is not None and found[0].covered:
             item, chunks = found
+            if answer_problems(config, item.answer):
+                # a fact we may not put in an email (foreign link, unknown price...) is not used
+                answers.append(
+                    AnswerResult(
+                        question=question, answer=not_covered_text(language), covered=False
+                    )
+                )
+                continue
             answers.append(
                 AnswerResult(
                     question=question,

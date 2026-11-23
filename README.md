@@ -48,10 +48,11 @@ heavy and their "AI" is a black box.
   **Approve and send, Edit, Reject and Regenerate**, the delivery status, and a collapsible agent run
   log (node, provider, model, tokens, latency, cost, prompt version). Edits are kept next to the
   original; a draft that fails the safety checks needs an explicit **Send anyway** (recorded in the
-  timeline). Errors show a reason code and a retry button. All actions go through the Next.js BFF
+  timeline) and asks for confirmation first. Errors show a plain sentence, the reason code and a **Retry** button. All actions go through the Next.js BFF
   (server-side token, anti-CSRF header, Zod validation from the generated contracts).
 - **Qualification eval**: ten labelled fictional leads in [evals/qualification](evals/qualification/README.md),
-  run in CI with the fake provider (`make eval`); a capped real-provider run is documented and opt-in.
+  run in CI with the fake provider (`make eval`); a capped real-provider run is documented and opt-in. Fake-provider results verify the plumbing and the
+  scoring code, not model accuracy: only a real-provider run measures that.
 - **LLM provider layer**: one port with Anthropic, a deterministic fake
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
   cost, and `LLM_BUDGET_USD` blocks real providers once spent.
@@ -146,6 +147,8 @@ Stop everything with `docker compose down` (add `-v` to delete the database volu
   `EXPOSE_ADMIN_API=false` on an instance that must not serve them at all. Set `TRUSTED_PROXIES` to the proxy
   CIDRs so rate limits see the real client IP (uvicorn runs with `--no-proxy-headers`).
 - Personal data never reaches the logs: SQL parameters are hidden and exception messages are withheld.
+- **Embeddings stay local by default** (fastembed). If you set `EMBEDDINGS_PROVIDER=openai`, the text of your
+  knowledge-base documents (at ingest) and each lead's questions (at answer time) are sent to OpenAI.
 
 ## Configuration
 
@@ -172,6 +175,7 @@ must be set to at least 16 characters or the agent refuses to start.
 | `ANTHROPIC_API_KEY`, `AWS_REGION`, `OPENAI_API_KEY` | Provider credentials; only needed for that provider |
 | `RATE_*`, `TRUSTED_PROXIES` | Rate limits and proxy trust for `X-Forwarded-For` |
 | `EXPOSE_ADMIN_API` | `false` stops mounting `/admin` and `/internal` (default `true`) |
+| `TRUST_FORWARDED_HOST` | `true` only behind a reverse proxy you control: the web app then believes `X-Forwarded-Host` for its same-origin check |
 | `DASHBOARD_USER`, `DASHBOARD_PASSWORD` | Basic-auth credentials, required when `APP_ENV=production` |
 
 ## Tests
@@ -192,9 +196,10 @@ and the Playwright suite, all without secrets.
 1. ~~Qualification agent~~ (built): LangGraph graph (extract, score against your criteria, draft in the
    lead's language), fake provider for keyless use, human approve/edit/reject before any email is sent.
    Remaining: one real-provider eval run.
-2. **Knowledge base with citations** (RAG) over your own Markdown. Built so far: the fictional
-   Northwind KB and the ingestion pipeline (see [architecture](docs/architecture.md#knowledge-base-ingestion-m32));
-   answering with citations and the dashboard chat are next.
+2. **Knowledge base with citations** (RAG) over your own Markdown. Built: the fictional Northwind KB, the
+   ingestion pipeline and the answer node (questions in an application are answered from the KB with
+   validated citations, or marked as not covered; see [architecture](docs/architecture.md)). Next: the
+   dashboard chat and a retrieval eval.
 3. **Metrics and keyless demo polish**, deployment notes.
 4. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta
    WhatsApp Cloud API and n8n, with a separate opt-in from the lead.

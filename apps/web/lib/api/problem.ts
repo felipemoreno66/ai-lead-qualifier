@@ -12,3 +12,20 @@ export function problemItems(raw: unknown): ProblemItem[] {
       : [];
   });
 }
+
+export type Problem = { status: number; title: string; detail: string; errors: ProblemItem[] };
+
+/** Read an RFC 9457 problem+json answer; anything else becomes a generic failure. */
+export async function readProblem(res: Response): Promise<Problem> {
+  try {
+    const body = (await res.json()) as { title?: string; detail?: string; errors?: unknown };
+    return {
+      status: res.status,
+      title: body.title ?? "Request failed",
+      detail: body.detail ?? res.statusText,
+      errors: problemItems(body.errors),
+    };
+  } catch {
+    return { status: res.status, title: "Request failed", detail: res.statusText, errors: [] };
+  }
+}

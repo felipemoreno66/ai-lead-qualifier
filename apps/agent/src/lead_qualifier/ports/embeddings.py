@@ -18,4 +18,16 @@ class Embeddings(Protocol):
     @property
     def dimension(self) -> int: ...
 
+    @property
+    def max_chunk_tokens(self) -> int:
+        """Largest chunk (title and heading path included) the model embeds without truncating."""
+        ...
+
+    @property
+    def chunk_overlap_tokens(self) -> int: ...
+
+    def warm(self) -> None:
+        """Load (and, if needed, download) the model ahead of the first real use."""
+        ...
+
     def embed(self, texts: list[str]) -> list[list[float]]: ...

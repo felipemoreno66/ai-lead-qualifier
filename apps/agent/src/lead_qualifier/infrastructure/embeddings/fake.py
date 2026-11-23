@@ -15,6 +15,11 @@ _WORD = re.compile(r"\w+")
 class FakeEmbeddings:
     model_id = FAKE_MODEL_ID
     dimension = EMBEDDING_DIMENSION
+    max_chunk_tokens = 120
+    chunk_overlap_tokens = 20
+
+    def warm(self) -> None:
+        return None
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         return [self._one(t) for t in texts]
