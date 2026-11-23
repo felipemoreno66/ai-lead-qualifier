@@ -332,3 +332,19 @@ async def test_duplicate_questions_are_removed(registry: WorkspaceRegistry):
     assert len(state["profile"].questions) == len(
         set(q.lower() for q in state["profile"].questions)
     )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "See https://northwind-academy.example＠evil.com/login now",  # fullwidth @
+        "See https://northwind-academy.example：8443/x now",  # fullwidth colon (port)
+        "See https://evil.com／x now",  # fullwidth slash
+        "See evil.com／x now",
+        "See evil.com？a=1 now",  # fullwidth question mark
+        "See https://evil.com＃top now",  # fullwidth number sign
+        "See northwind-academy.example＠evil.com now",
+    ],
+)
+def test_fullwidth_delimiters_cannot_hide_a_foreign_host(registry: WorkspaceRegistry, text: str):
+    assert problems(registry, text), text

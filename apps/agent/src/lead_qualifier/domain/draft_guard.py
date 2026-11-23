@@ -187,18 +187,28 @@ def check_draft_detailed(
     if not body.strip():
         problems.append(Problem("empty_body", "body is empty"))
     allowed = config.drafting.allowed_link_domains
-    tokens = _URL_RE.findall(text)
-    remainder = _EMAIL_RE.sub(" ", _URL_RE.sub(" ", text))
     own_terms = config_words(config)
-    tokens += [
-        m.group(0)
-        for m in _BARE_RE.finditer(remainder)
-        if m.group(0).rstrip(".,;:!?").lower() not in own_terms
-    ]
-    for token in tokens:
-        problem = _link_problem(token, allowed)
-        if problem:
-            problems.append(problem)
+    # A mail client may read the text differently from our normalised copy (fullwidth delimiters
+    # such as the fullwidth slash or at-sign), so links are checked on the raw text AND the normalised text.
+    for candidate in dict.fromkeys((raw, text)):
+        tokens = _URL_RE.findall(candidate)
+        remainder = _EMAIL_RE.sub(" ", _URL_RE.sub(" ", candidate))
+        tokens += [
+            m.group(0)
+            for m in _BARE_RE.finditer(remainder)
+            if m.group(0).rstrip(".,;:!?").lower() not in own_terms
+        ]
+        for token in tokens:
+            if not token.isascii():
+                problems.append(
+                    Problem(
+                        "unsafe_link", f"link with look-alike or non-ASCII characters: {token[:60]}"
+                    )
+                )
+                continue
+            problem = _link_problem(token, allowed)
+            if problem:
+                problems.append(problem)
     allowed_emails = {
         config.profile.contact_email.lower(),
         config.notifications.owner_email.lower(),
