@@ -118,8 +118,9 @@ flowchart LR
 - **Budget**: `LLM_BUDGET_USD` is a lifetime cap kept in the append-only `llm_spend` ledger (no
   foreign keys, so purging `llm_calls` or deleting a lead never lowers it; migration 0004). The guard
   runs under a Postgres advisory lock, refuses a call when `spent + worst case of this call` passes it
-  and persists a reservation that all processes see until it is settled with the real cost (stale
-  ones expire after 10 minutes); `max_tokens` is
+  and persists a reservation that all processes see until it is settled with the real cost.
+  Settling is fail-closed (runs in `finally`, retried once, falls back to the worst case); reservations
+  never expire, so a crash leaves a conservative charge until an operator reconciles it; `max_tokens` is
   clamped to 8192. Unknown models are priced at the highest known rate, and `build_provider` refuses
   to start with a real provider whose model is missing from `pricing.yaml`. Every call needs an
   `agent_run_id` (`llm_calls.agent_run_id` is NOT NULL, so deleting a lead cascades to its calls).
