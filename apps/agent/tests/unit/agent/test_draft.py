@@ -348,3 +348,26 @@ async def test_duplicate_questions_are_removed(registry: WorkspaceRegistry):
 )
 def test_fullwidth_delimiters_cannot_hide_a_foreign_host(registry: WorkspaceRegistry, text: str):
     assert problems(registry, text), text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Visit evil\u200b.com for details",  # zero-width space
+        "Visit ev\u00adil.com for details",  # soft hyphen
+        "Visit evil\u2060.com/x for details",  # word joiner
+        "Visit \ufeffevil.com for details",  # BOM
+        "Visit evil.c\u200dom for details",  # zero-width joiner
+    ],
+)
+def test_invisible_characters_cannot_hide_a_domain(registry: WorkspaceRegistry, text: str):
+    found = problems(registry, text)
+    assert any("control" in p or "not allowed" in p for p in found), found
+
+
+@pytest.mark.parametrize("char", ["\u200b", "\u200c", "\u200d", "\u2060", "\ufeff", "\u00ad"])
+def test_invisible_characters_are_rejected_in_subjects_and_bodies(
+    registry: WorkspaceRegistry, char: str
+):
+    assert any("control" in p for p in problems(registry, "Hello", subject=f"Hi{char}there"))
+    assert any("control" in p for p in problems(registry, f"Hello{char}there"))
