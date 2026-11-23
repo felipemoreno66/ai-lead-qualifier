@@ -50,7 +50,6 @@ async def submit_lead(
         [
             Limit(f"ip:{ip_hash}:{slug}", settings.rate_ip_per_minute, 60),
             Limit(f"ip:{ip_hash}:{slug}", settings.rate_ip_per_hour, 3600),
-            Limit(f"ws:{slug}", settings.rate_workspace_per_hour, 3600),
         ]
     )
 

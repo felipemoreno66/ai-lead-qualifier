@@ -84,7 +84,9 @@ class IntakeService:
                 )
             if duplicate:
                 log.info("duplicate_submission", workspace=slug, lead_id=str(duplicate["id"]))
-                return str(duplicate["reference"])
+                # Never reveal the stored reference: that would let anyone who knows an
+                # email address learn another person's lead reference.
+                return new_reference(config)
 
         await self.limiter.hit(
             [
@@ -92,7 +94,10 @@ class IntakeService:
                     f"email:{slug}:{hash_value(email, self.settings.ip_hash_secret)}",
                     self.settings.rate_email_per_day,
                     86400,
-                )
+                ),
+                # Last, so only requests that passed the per-IP and per-email limits and
+                # validation consume the shared workspace quota.
+                Limit(f"ws:{slug}", self.settings.rate_workspace_per_hour, 3600),
             ]
         )
         return await self._persist(config, submission, clean, meta)

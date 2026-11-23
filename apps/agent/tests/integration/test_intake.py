@@ -329,12 +329,17 @@ async def test_consent_version_and_time_are_stored(make_client, db):
 # --- duplicates ------------------------------------------------------------------------------
 
 
-async def test_duplicate_within_ten_minutes_returns_the_same_reference(make_client, db):
+async def test_duplicate_is_deduplicated_but_never_reveals_the_stored_reference(make_client, db):
     async with make_client() as client:
         first = await client.post(URL, json=body(fields={"email": "Dup@Example.com"}))
         second = await client.post(URL, json=body(fields={"email": "dup@example.com"}))
     assert first.status_code == second.status_code == 202
-    assert first.json()["reference"] == second.json()["reference"]
+    assert first.json().keys() == second.json().keys()
+    assert REFERENCE_RE.match(second.json()["reference"])
+    assert second.json()["reference"] != first.json()["reference"]
+    async with db.connect() as conn:
+        stored = (await conn.execute(text("SELECT reference FROM leads"))).scalar_one()
+    assert stored == first.json()["reference"] != second.json()["reference"]
     assert await count(db, "leads") == 1
     assert await count(db, "outbox_events") == 1
 
@@ -374,3 +379,24 @@ async def test_logs_do_not_contain_personal_data(make_client):
         assert secret not in logs
     for line in logs.splitlines():
         json.loads(line)  # every line is valid JSON
+
+
+async def test_an_ip_over_its_limit_does_not_consume_workspace_quota(make_client, db):
+    async with make_client(trusted_proxies="127.0.0.1/32", rate_workspace_per_hour=100) as client:
+        abuser = {"X-Forwarded-For": "203.0.113.50"}
+        statuses = [
+            (
+                await client.post(
+                    URL, json=body(fields={"email": f"abuse{i}@example.com"}), headers=abuser
+                )
+            ).status_code
+            for i in range(10)
+        ]
+        assert statuses == [202] * 5 + [429] * 5
+        async with db.connect() as conn:
+            used = (
+                await conn.execute(
+                    text("SELECT coalesce(sum(count),0) FROM rate_limit_hits WHERE key LIKE 'ws:%'")
+                )
+            ).scalar_one()
+        assert used == 5  # only the 5 accepted requests; the 5 rejected by IP cost nothing

@@ -30,10 +30,11 @@ class RateLimiter:
         self.clock = clock
 
     async def hit(self, limits: list[Limit]) -> None:
-        """Count one request against every limit; raise ``RateLimited`` if any is exceeded.
+        """Count one request against each limit in order; raise at the first one exceeded.
 
-        Hits are committed even when the request is rejected, so a client that keeps
-        hammering stays blocked for the whole window.
+        Later limits are not incremented once an earlier one rejects the request, so an
+        abusive caller cannot burn shared quotas (list the most specific limit first).
+        Hits are committed even when rejecting, which keeps the caller blocked for the window.
         """
         now = self.clock.now()
         retry_after = 0
@@ -43,10 +44,10 @@ class RateLimiter:
                 start = window_start(now, limit.window_seconds)
                 count = await repo.hit(f"{limit.key}:{limit.window_seconds}", start)
                 if count > limit.max_hits:
-                    remaining = limit.window_seconds - int((now - start).total_seconds())
-                    retry_after = max(retry_after, remaining)
+                    retry_after = limit.window_seconds - int((now - start).total_seconds())
+                    break
         if retry_after:
             raise RateLimited(
                 "Too many requests. Please try again later.",
-                headers={"Retry-After": str(retry_after)},
+                headers={"Retry-After": str(max(retry_after, 1))},
             )
