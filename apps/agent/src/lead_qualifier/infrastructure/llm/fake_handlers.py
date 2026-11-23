@@ -103,12 +103,11 @@ _BUDGET_UPPER = {"lt-500": 500, "500-2500": 2500, "2500-5000": 5000, "gt-5000": 
 _HOURS_UPPER = {"lt-5h": 5, "5-10h": 10, "10-20h": 20, "gt-20h": 40}
 
 
-def _tag(content: str, name: str) -> dict[str, Any]:
+def _tag(content: str, name: str) -> Any:
     match = re.search(rf"<{name}>\n(.*?)\n</{name}>", content, re.DOTALL)
     if match is None:
         raise ValueError(f"prompt has no <{name}> block")
-    data: dict[str, Any] = json.loads(match.group(1))
-    return data
+    return json.loads(match.group(1))
 
 
 def _text(lead: dict[str, Any], *, include_free_text: bool = True) -> str:
@@ -244,6 +243,49 @@ def qualify(req: StructuredRequest[Any]) -> dict[str, Any]:
     return {"criteria": criteria, "recommended_product": product["id"], "reasons": reasons}
 
 
+_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_CITE_MAX = 300
+
+
+def _plain_line(content: str) -> tuple[str, str]:
+    """(quote, plain answer): the first prose line of a chunk. The quote is verbatim from the
+    chunk; the answer has markdown links and bullets removed so it passes the draft guard."""
+    lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
+    for line in lines:
+        if not line.startswith("|"):
+            quote = line.removeprefix("- ").removeprefix("* ")
+            break
+    else:
+        cells = [c.strip() for c in lines[0].strip("|").split("|") if c.strip()]
+        quote = max(cells, key=len) if cells else lines[0]
+    quote = quote[:_CITE_MAX]
+    plain = _LINK_RE.sub(r"\1", quote).replace("**", "").replace("`", "")
+    return quote, plain
+
+
+def answer(req: StructuredRequest[Any]) -> dict[str, Any]:
+    """Quote the best excerpt of each question (the first one, best first). Deterministic."""
+    items = _tag(req.messages[0].content, "kb_context")
+    answers = []
+    for item in items:
+        excerpts = item.get("excerpts") or []
+        if not excerpts:
+            answers.append(
+                {"question": item["question"], "answer": "", "covered": False, "citations": []}
+            )
+            continue
+        quote, plain = _plain_line(excerpts[0]["text"])
+        answers.append(
+            {
+                "question": item["question"],
+                "answer": plain,
+                "covered": True,
+                "citations": [{"chunk_id": excerpts[0]["id"], "quote": quote}],
+            }
+        )
+    return {"answers": answers}
+
+
 _COPY: dict[str, dict[str, str]] = {
     "en": {
         "subject": "Your application to {business}",
@@ -275,6 +317,26 @@ _COPY: dict[str, dict[str, str]] = {
 }
 
 
+_MAX_ANSWERS_IN_DRAFT = 2
+_MAX_ANSWER_CHARS = 200
+_TEAM_REPLIES = {
+    "en": "The team will reply personally to your other questions.",
+    "es": "El equipo te responderá personalmente tus otras preguntas.",
+}
+
+
+def _answer_lines(content: str, language: str) -> list[str]:
+    """Covered answers (shortened) and one sentence for the questions the docs do not cover."""
+    if "<kb_answers>" not in content:
+        return []
+    answers = _tag(content, "kb_answers")
+    covered = [a["answer"] for a in answers if a["covered"]][:_MAX_ANSWERS_IN_DRAFT]
+    lines = [a[:_MAX_ANSWER_CHARS].rstrip() for a in covered]
+    if len(covered) < len(answers):
+        lines.append(_TEAM_REPLIES.get(language, _TEAM_REPLIES["en"]))
+    return lines
+
+
 def draft(req: StructuredRequest[Any]) -> dict[str, Any]:
     """A short templated email in the lead's language. It never quotes free text from the lead."""
     content = req.messages[0].content
@@ -293,6 +355,7 @@ def draft(req: StructuredRequest[Any]) -> dict[str, Any]:
     if price.get("amount") is not None:
         key = "price" if price.get("note") else "price_plain"
         parts.append(copy[key].format(amount=price["amount"], note=price.get("note")))
+    parts.extend(_answer_lines(content, ctx["language"]))
     parts.append(copy[f"next_{ctx['tier']}"])
     parts.append(copy["close"].format(cta=ctx["call_to_action"].rstrip(".")))
     signature = copy.get("signature")
@@ -305,4 +368,9 @@ def draft(req: StructuredRequest[Any]) -> dict[str, Any]:
     }
 
 
-FAKE_HANDLERS: dict[str, Handler] = {"extract": extract, "qualify": qualify, "draft": draft}
+FAKE_HANDLERS: dict[str, Handler] = {
+    "extract": extract,
+    "qualify": qualify,
+    "answer": answer,
+    "draft": draft,
+}

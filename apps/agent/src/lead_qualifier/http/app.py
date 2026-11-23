@@ -61,6 +61,7 @@ def create_app(
     )
 
     checkpointer = PostgresCheckpointer(settings.database_url)
+    kb = KnowledgeBaseService(engine, embeddings or build_embeddings(settings), clock)
     qualifier = QualifyService(
         engine,
         settings,
@@ -68,6 +69,7 @@ def create_app(
         llm_provider or build_provider(settings, engine),
         clock,
         checkpointer,
+        kb,
     )
     reviewer = ReviewService(engine, clock, qualifier)
     delivery = DeliveryService(
@@ -137,7 +139,7 @@ def create_app(
     app.state.checkpointer = checkpointer
     app.state.workspaces_synced = False
     app.state.trusted_networks = parse_networks(settings.trusted_proxy_list)
-    app.state.kb = KnowledgeBaseService(engine, embeddings or build_embeddings(settings), clock)
+    app.state.kb = kb
     app.state.limiter = RateLimiter(engine, clock)
     app.state.intake = IntakeService(engine, settings, clock, app.state.limiter)
     app.add_middleware(
