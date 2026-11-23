@@ -62,6 +62,7 @@ def create_app(
         checkpointer,
     )
     reviewer = ReviewService(engine, clock, qualifier)
+    qualifier.attach_send_gateway(reviewer)
     n8n_publisher: N8nPublisher | None = None
     if publisher is None:
         if settings.orchestrator == "n8n":
@@ -69,7 +70,7 @@ def create_app(
             publisher = n8n_publisher
         else:
             publisher = InlinePublisher(qualifier.qualify)
-    dispatcher = OutboxDispatcher(engine, publisher, clock, settings)
+    dispatcher = OutboxDispatcher(engine, publisher, clock, settings, checkpointer)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:

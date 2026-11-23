@@ -8,6 +8,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from lead_qualifier.domain.draft_guard import has_unsafe_chars
+
 Group = Literal["attention", "hot", "warm", "scoring", "cold"]
 
 
@@ -135,6 +137,16 @@ class ReviewRequest(BaseModel):
     body: str | None = Field(default=None, min_length=1, max_length=4000)
     feedback: str | None = Field(default=None, max_length=500)
     note: str | None = Field(default=None, max_length=500)
+    override: bool = False  # approve even though the draft checks found problems (recorded)
+
+    @model_validator(mode="after")
+    def _safe_text(self) -> ReviewRequest:
+        if self.subject is not None and has_unsafe_chars(self.subject, allow_newlines=False):
+            raise ValueError("the subject must not contain control or bidirectional characters")
+        for text in (self.body, self.feedback, self.note):
+            if text is not None and has_unsafe_chars(text, allow_newlines=True):
+                raise ValueError("the text must not contain control or bidirectional characters")
+        return self
 
     @model_validator(mode="after")
     def _edit_needs_a_body(self) -> ReviewRequest:

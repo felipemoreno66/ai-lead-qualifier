@@ -61,6 +61,11 @@ class QualifyService:
         self.checkpointer = checkpointer
         self.send_gateway: SendGateway | None = None
 
+    def attach_send_gateway(self, gateway: SendGateway) -> None:
+        """Wire the review service in explicitly (it needs this service, so it cannot be a
+        constructor argument)."""
+        self.send_gateway = gateway
+
     async def qualify(self, lead_id: uuid.UUID) -> QualifyOutcome:
         """Run the graph up to the human-review interrupt for a ``new`` or ``error`` lead.
 
