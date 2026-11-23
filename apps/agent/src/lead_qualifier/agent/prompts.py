@@ -56,7 +56,8 @@ with an id. For every item, in the same order, return an object with: question (
 (a short plain-text reply in the language of the question, no markdown), covered and citations.
 Set covered to true only when the excerpts directly state the answer; then give 1-3 citations, each
 with the id of an excerpt of THAT item and a quote copied word for word from that excerpt (at most
-300 characters). Otherwise set covered to false, answer to an empty string and citations to an
+300 characters; copy plain text only, without markdown, link syntax, bullets or table pipes).
+Otherwise set covered to false, answer to an empty string and citations to an
 empty list. Never use knowledge outside the excerpts. Output only the JSON."""
 
 
