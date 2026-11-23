@@ -129,3 +129,4 @@ input[aria-invalid=true],select[aria-invalid=true],textarea[aria-invalid=true]{b
   .runlog tr{display:flex;flex-wrap:wrap;gap:2px 14px;padding:10px 4px;border-top:1px solid var(--wq-line)}.runlog tr>:first-child{flex-basis:100%}
   .runlog td,.runlog th{border:0;padding:0;text-align:left!important}.runlog td::before{content:attr(data-label) " ";color:var(--wq-muted)}.runlog tr>:first-child::before{content:""}
 }
+.notice ul,.reasons{list-style:disc}
