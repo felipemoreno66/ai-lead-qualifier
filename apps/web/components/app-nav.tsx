@@ -18,7 +18,7 @@ export function AppHeader({ applyHref }: Props) {
       </Link>
       <Link href="/dashboard/ask" aria-current={onAsk ? "page" : undefined}>
         <MessageCircle className="ic" strokeWidth={1.6} aria-hidden="true" />
-        <span>Ask the docs</span>
+        <span>Ask</span>
       </Link>
       {applyHref && (
         <Link href={applyHref}>
