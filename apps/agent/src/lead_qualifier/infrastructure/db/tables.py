@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -251,4 +252,50 @@ llm_spend = Table(
     Column("settled_at", DateTime(timezone=True)),
     CheckConstraint(_in("state", ("reserved", "settled")), name="ck_llm_spend_state"),
     Index("ix_llm_spend_run", "agent_run_id"),
+)
+
+KB_EMBEDDING_MODELS = (
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "openai/text-embedding-3-small@384",
+    "fake-hash-384",
+)
+
+kb_documents = Table(
+    "kb_documents",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("workspace_slug", Text, ForeignKey("workspaces.slug"), nullable=False),
+    Column("path", Text, nullable=False),
+    Column("title", Text, nullable=False),
+    Column("content_sha256", Text, nullable=False),
+    Column("ingested_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    UniqueConstraint("workspace_slug", "path", name="uq_kb_documents_workspace_path"),
+)
+
+kb_chunks = Table(
+    "kb_chunks",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "document_id",
+        UUID(as_uuid=True),
+        ForeignKey("kb_documents.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("chunk_index", Integer, nullable=False),
+    Column("heading_path", Text, nullable=False, server_default=""),
+    Column("content", Text, nullable=False),
+    Column("token_count", Integer, nullable=False),
+    Column("embedding", Vector(384), nullable=False),
+    Column("embedding_model", Text, nullable=False),
+    UniqueConstraint("document_id", "chunk_index", name="uq_kb_chunks_document_index"),
+    CheckConstraint(
+        _in("embedding_model", KB_EMBEDDING_MODELS), name="ck_kb_chunks_embedding_model"
+    ),
+    Index(
+        "ix_kb_chunks_embedding_hnsw",
+        "embedding",
+        postgresql_using="hnsw",
+        postgresql_ops={"embedding": "vector_cosine_ops"},
+    ),
 )
