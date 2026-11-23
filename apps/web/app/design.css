@@ -58,14 +58,14 @@ legend{padding:0;float:left;width:100%;font:400 1.5rem var(--wq-serif);color:var
 .success{max-width:520px;margin:10vh auto 0;text-align:left}.seal{width:72px;height:72px;border-radius:50%;background:var(--wq-sage);color:#fff;display:grid;place-items:center;margin-bottom:28px}.success h1{margin-bottom:16px}.refrow{margin:0 0 28px}.refrow b{background:var(--wq-sage-bg);color:var(--wq-sage);padding:3px 12px;border-radius:99px}
 .tabs{display:none}
 @media (max-width:760px){
-  body{font-size:16px}.top{padding:14px 16px;gap:12px}.dnav{display:none}.ws{margin-left:auto;font-size:.875rem}main{padding:8px 16px 120px}
+  body{font-size:16px}.top{padding:14px 16px;gap:12px}.dnav{display:none}.ws{margin-left:auto;font-size:.875rem}main{padding:8px 16px calc(112px + env(safe-area-inset-bottom))}
  .tabs{display:grid;grid-template-columns:repeat(2,1fr);position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--wq-card);border-top:1px solid var(--wq-line);padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
  .tabs a{flex-direction:column;gap:2px;font-size:.8125rem;padding:8px;border-radius:14px}.tabs a[aria-current=page]{color:var(--wq-accent-d);background:#F8E6DD}
 .leads thead{position:absolute;left:-9999px}.leads,.leads tbody,.leads tr,.leads th,.leads td{display:block}
  .leads tr{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:16px 4px;border-top:1px solid var(--wq-line)}.leads th,.leads td{padding:0;border:0;font-size:.9375rem}.leads tbody th{font-size:1.1875rem}
  .leads td[data-label=Status]{grid-row:1;grid-column:2;justify-self:end}.leads td[data-label=Tier],.leads td[data-label=Country]{display:none}.leads td[data-label=Program]{grid-column:1;color:var(--wq-muted)}.leads td[data-label=Score]{grid-column:2;grid-row:2;justify-self:end}.leads td[data-label=Created]{grid-column:1;color:var(--wq-muted)}
  .errbox{flex-direction:column;padding:24px 20px} 
- fieldset{padding:22px 18px;border-radius:24px}.filters .segs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px}.seg{white-space:nowrap}.verdict{flex-direction:column;align-items:flex-start;gap:8px}
+ fieldset{padding:22px 18px;border-radius:24px}.filters .segs{flex-wrap:wrap;gap:8px}.seg{white-space:nowrap}.verdict{flex-direction:column;align-items:flex-start;gap:8px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
