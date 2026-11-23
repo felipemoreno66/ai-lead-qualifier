@@ -20,6 +20,7 @@ APP_TABLES = {
     "agent_runs",
     "llm_calls",
     "messages",
+    "llm_spend",
 }
 
 
@@ -80,7 +81,7 @@ def test_phase_two_migration_steps_down_and_up_alone(pg_base_url: str):
     command.upgrade(cfg, "head")
 
 
-def test_messages_are_channel_ready_and_budget_view_ignores_fake(migrated_url: str):
+def test_messages_are_channel_ready_and_budget_view_counts_live_reservations(migrated_url: str):
     eng = sa.create_engine(migrated_url)
     with eng.begin() as conn:
         conn.execute(sa.text("DELETE FROM leads WHERE workspace_slug = 'm-test'"))
@@ -114,23 +115,21 @@ def test_messages_are_channel_ready_and_budget_view_ignores_fake(migrated_url: s
             {"l": lead_id},
         )
     with eng.begin() as conn:
-        run_id = conn.execute(
-            sa.text(
-                "INSERT INTO agent_runs (lead_id, thread_id, run_number, graph_version)"
-                " VALUES (:l, 'mig-t', 1, 'test') RETURNING id"
-            ),
-            {"l": lead_id},
-        ).scalar_one()
-        for provider, cost in (("fake", "9"), ("anthropic", "0.5")):
+        for state, amount, age in (
+            ("settled", "0.5", "0 minutes"),
+            ("reserved", "0.25", "1 minute"),
+            ("reserved", "9", "11 minutes"),  # expired reservation
+        ):
             conn.execute(
                 sa.text(
-                    "INSERT INTO llm_calls (agent_run_id, node, provider, model, success, cost_usd)"
-                    " VALUES (:r, 'n', :p, 'm', true, :c)"
+                    "INSERT INTO llm_spend (agent_run_id, provider, model, state, amount_usd,"
+                    " created_at) VALUES (gen_random_uuid(), 'anthropic', 'm', :s, :a,"
+                    " now() - CAST(:age AS interval))"
                 ),
-                {"r": run_id, "p": provider, "c": cost},
+                {"s": state, "a": amount, "age": age},
             )
-        assert conn.execute(sa.text("SELECT spent_usd FROM llm_budget")).scalar_one() == 0.5
-        conn.execute(sa.text("DELETE FROM llm_calls"))
+        assert conn.execute(sa.text("SELECT spent_usd FROM llm_budget")).scalar_one() == 0.75
+        conn.execute(sa.text("DELETE FROM llm_spend"))
         conn.execute(sa.text("DELETE FROM leads WHERE workspace_slug = 'm-test'"))
         conn.execute(sa.text("DELETE FROM workspaces WHERE slug = 'm-test'"))
     eng.dispose()
