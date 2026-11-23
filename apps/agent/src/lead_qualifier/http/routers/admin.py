@@ -12,9 +12,10 @@ from lead_qualifier.domain.errors import NotFound, ValidationFailed
 from lead_qualifier.domain.lead import LeadStatus
 from lead_qualifier.domain.workspace import Tier
 from lead_qualifier.http.auth import require_admin
-from lead_qualifier.http.deps import EngineDep, RegistryDep
+from lead_qualifier.http.deps import EngineDep, KbDep, RegistryDep
 from lead_qualifier.http.schemas import (
     AgentRunOut,
+    KbReindexResult,
     LeadDetail,
     LeadList,
     LeadListItem,
@@ -193,3 +194,18 @@ async def review_lead(lead_id: uuid.UUID, payload: ReviewRequest, request: Reque
         override=payload.override,
     )
     return ReviewResult(**vars(outcome))
+
+
+@router.post("/kb/{slug}/reindex", response_model=KbReindexResult)
+async def reindex_knowledge_base(
+    slug: str, registry: RegistryDep, kb: KbDep, force: bool = False
+) -> KbReindexResult:
+    """Re-read the workspace's Markdown files; unchanged documents are skipped unless forced."""
+    workspace = registry.get(slug)
+    if workspace is None or not workspace.enabled:
+        raise NotFound("Unknown workspace.")
+    if not workspace.config.knowledge_base.enabled:
+        raise ValidationFailed("The knowledge base is disabled for this workspace.")
+    kb_dir = workspace.path / workspace.config.knowledge_base.path
+    result = await kb.ingest(slug, kb_dir, force=force)
+    return KbReindexResult(workspace=slug, **result.as_dict())

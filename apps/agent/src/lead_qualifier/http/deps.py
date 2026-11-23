@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.config import Settings
+from lead_qualifier.services.kb import KnowledgeBaseService
 from lead_qualifier.workspaces.loader import WorkspaceRegistry
 
 
@@ -26,6 +27,12 @@ def engine_dep(request: Request) -> AsyncEngine:
     return engine
 
 
+def kb_dep(request: Request) -> KnowledgeBaseService:
+    kb: KnowledgeBaseService = request.app.state.kb
+    return kb
+
+
 SettingsDep = Annotated[Settings, Depends(settings_dep)]
 RegistryDep = Annotated[WorkspaceRegistry, Depends(registry_dep)]
 EngineDep = Annotated[AsyncEngine, Depends(engine_dep)]
+KbDep = Annotated[KnowledgeBaseService, Depends(kb_dep)]

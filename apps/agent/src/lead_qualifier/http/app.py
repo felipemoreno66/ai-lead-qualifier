@@ -18,16 +18,19 @@ from lead_qualifier.http.routers import admin, health, internal, public
 from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
 from lead_qualifier.infrastructure.db.engine import create_engine
 from lead_qualifier.infrastructure.email.smtp import SmtpSender
+from lead_qualifier.infrastructure.embeddings import build_embeddings
 from lead_qualifier.infrastructure.llm.router import build_provider
 from lead_qualifier.infrastructure.outbox.dispatcher import OutboxDispatcher
 from lead_qualifier.infrastructure.outbox.publishers import InlinePublisher, N8nPublisher
 from lead_qualifier.logging import configure_logging, get_logger
 from lead_qualifier.ports.channel import EmailSender
 from lead_qualifier.ports.clock import Clock, SystemClock
+from lead_qualifier.ports.embeddings import Embeddings
 from lead_qualifier.ports.events import EventPublisher
 from lead_qualifier.ports.llm import LLMProvider
 from lead_qualifier.services.delivery import DeliveryService
 from lead_qualifier.services.intake import IntakeService
+from lead_qualifier.services.kb import KnowledgeBaseService
 from lead_qualifier.services.qualify import QualifyService
 from lead_qualifier.services.rate_limit import RateLimiter
 from lead_qualifier.services.review import ReviewService
@@ -43,6 +46,7 @@ def create_app(
     publisher: EventPublisher | None = None,
     llm_provider: LLMProvider | None = None,
     email_sender: EmailSender | None = None,
+    embeddings: Embeddings | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -133,6 +137,7 @@ def create_app(
     app.state.checkpointer = checkpointer
     app.state.workspaces_synced = False
     app.state.trusted_networks = parse_networks(settings.trusted_proxy_list)
+    app.state.kb = KnowledgeBaseService(engine, embeddings or build_embeddings(settings), clock)
     app.state.limiter = RateLimiter(engine, clock)
     app.state.intake = IntakeService(engine, settings, clock, app.state.limiter)
     app.add_middleware(
