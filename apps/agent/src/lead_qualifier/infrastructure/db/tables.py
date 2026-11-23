@@ -178,7 +178,12 @@ llm_calls = Table(
     "llm_calls",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
-    Column("agent_run_id", UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE")),
+    Column(
+        "agent_run_id",
+        UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
     Column("node", Text, nullable=False),
     Column("provider", Text, nullable=False),
     Column("model", Text, nullable=False),

@@ -114,13 +114,20 @@ def test_messages_are_channel_ready_and_budget_view_ignores_fake(migrated_url: s
             {"l": lead_id},
         )
     with eng.begin() as conn:
+        run_id = conn.execute(
+            sa.text(
+                "INSERT INTO agent_runs (lead_id, thread_id, run_number, graph_version)"
+                " VALUES (:l, 'mig-t', 1, 'test') RETURNING id"
+            ),
+            {"l": lead_id},
+        ).scalar_one()
         for provider, cost in (("fake", "9"), ("anthropic", "0.5")):
             conn.execute(
                 sa.text(
-                    "INSERT INTO llm_calls (node, provider, model, success, cost_usd)"
-                    " VALUES ('n', :p, 'm', true, :c)"
+                    "INSERT INTO llm_calls (agent_run_id, node, provider, model, success, cost_usd)"
+                    " VALUES (:r, 'n', :p, 'm', true, :c)"
                 ),
-                {"p": provider, "c": cost},
+                {"r": run_id, "p": provider, "c": cost},
             )
         assert conn.execute(sa.text("SELECT spent_usd FROM llm_budget")).scalar_one() == 0.5
         conn.execute(sa.text("DELETE FROM llm_calls"))

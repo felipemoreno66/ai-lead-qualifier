@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+import dataclasses
 import json
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 import sqlalchemy as sa
@@ -12,6 +15,7 @@ from lead_qualifier.config import Settings
 from lead_qualifier.infrastructure.llm.fake import FakeProvider
 from lead_qualifier.infrastructure.llm.pricing import PricingTable
 from lead_qualifier.infrastructure.llm.recording import RecordingProvider
+from lead_qualifier.infrastructure.llm.repository import LlmCallRepository
 from lead_qualifier.infrastructure.llm.router import build_provider, model_for
 from lead_qualifier.infrastructure.llm.structured import generate_validated
 from lead_qualifier.ports.llm import BudgetExceeded, CallLimitExceeded, LLMOutputInvalid
@@ -62,9 +66,12 @@ async def make_run(engine: AsyncEngine) -> UUID:
 
 
 async def test_each_attempt_is_recorded_with_cost_and_tokens(db: AsyncEngine):
+    run_id = await make_run(db)
     wire = Wire(ok('{"score": 999}'), ok(json.dumps(GOOD)))
     provider = recorder(provider_for(wire), db)
-    result = await generate_validated(provider, verdict_request(node="qualify"))
+    result = await generate_validated(
+        provider, verdict_request(node="qualify", agent_run_id=run_id)
+    )
     assert result.value.score == 61
     first, second = await rows(db)
     assert (first.attempt, first.success, first.error_code) == (1, False, "llm_output_invalid")
@@ -77,23 +84,107 @@ async def test_each_attempt_is_recorded_with_cost_and_tokens(db: AsyncEngine):
 
 
 async def test_fake_calls_cost_nothing_and_never_hit_the_budget(db: AsyncEngine):
+    run_id = await make_run(db)
     provider = recorder(FakeProvider(), db, budget="0")
-    await provider.generate_structured(verdict_request())
-    await provider.generate_structured(verdict_request())
+    await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    await provider.generate_structured(verdict_request(agent_run_id=run_id))
     stored = await rows(db)
     assert [r.provider for r in stored] == ["fake", "fake"]
     assert all(r.cost_usd == 0 and not r.is_estimated for r in stored)
 
 
 async def test_budget_exceeded_blocks_the_call_before_it_is_made(db: AsyncEngine):
+    run_id = await make_run(db)
     wire = Wire(ok(json.dumps(GOOD)), ok(json.dumps(GOOD)))
-    provider = recorder(provider_for(wire), db, budget="0.000050")
-    await provider.generate_structured(verdict_request())  # 0.000028 spent
-    await provider.generate_structured(verdict_request())  # 0.000056 spent, now over
+    # worst case of one call is about 0.000266 (512 max tokens at 0.50/MTok plus input)
+    provider = recorder(provider_for(wire), db, budget="0.000280")
+    await provider.generate_structured(verdict_request(agent_run_id=run_id))  # 0.000028 spent
     with pytest.raises(BudgetExceeded):
+        await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    assert len(wire.requests) == 1
+    assert len(await rows(db)) == 1
+
+
+async def test_concurrent_calls_cannot_jointly_overshoot_the_budget(db: AsyncEngine):
+    run_id = await make_run(db)
+    wire = Wire(*[ok(json.dumps(GOOD)) for _ in range(5)])
+    provider = recorder(provider_for(wire), db, budget="0.000280")
+    outcomes = await asyncio.gather(
+        *[provider.generate_structured(verdict_request(agent_run_id=run_id)) for _ in range(5)],
+        return_exceptions=True,
+    )
+    assert sum(isinstance(o, BudgetExceeded) for o in outcomes) >= 3
+    assert len(wire.requests) <= 2
+
+
+async def test_unknown_model_is_billed_at_the_highest_known_rate(db: AsyncEngine):
+    run_id = await make_run(db)
+    wire = Wire(ok(json.dumps(GOOD)))
+    provider = recorder(provider_for(wire), db)
+    req = dataclasses.replace(verdict_request(agent_run_id=run_id), model="claude-typo-9")
+    await provider.generate_structured(req)
+    (row,) = await rows(db)
+    assert row.is_estimated
+    assert row.cost_usd == Decimal("0.000554")  # Sonnet rates, 554.5 per million
+
+
+async def test_calls_without_an_agent_run_are_refused(db: AsyncEngine):
+    provider = recorder(FakeProvider(), db)
+    with pytest.raises(ValueError, match="agent_run_id"):
         await provider.generate_structured(verdict_request())
-    assert len(wire.requests) == 2
-    assert len(await rows(db)) == 2
+
+
+async def test_max_tokens_is_clamped_to_the_ceiling(db: AsyncEngine):
+    run_id = await make_run(db)
+    wire = Wire(ok(json.dumps(GOOD)))
+    provider = recorder(provider_for(wire), db)
+    req = dataclasses.replace(verdict_request(agent_run_id=run_id), max_tokens=10**6)
+    await provider.generate_structured(req)
+    assert wire.body()["max_tokens"] == 8192
+
+
+async def test_stored_payloads_are_redacted(db: AsyncEngine):
+    run_id = await make_run(db)
+    provider = recorder(FakeProvider(), db)
+    req = verdict_request("Mail ana@example.com or call +57 300 123 4567", agent_run_id=run_id)
+    await provider.generate_structured(req)
+    (row,) = await rows(db)
+    content = row.request["messages"][0]["content"]
+    assert "ana@example.com" not in content and "300 123" not in content
+    assert "[email]" in content and "[phone]" in content
+
+
+async def test_a_failed_insert_does_not_lose_the_paid_result(db: AsyncEngine):
+    provider = recorder(provider_for(Wire(ok(json.dumps(GOOD)))), db)
+    missing_run = verdict_request(agent_run_id=uuid4())  # FK violation on insert
+    # The guard passes (no rows to count); the insert fails afterwards and is only logged.
+    result = await provider.generate_structured(missing_run)
+    assert result.value.score == 61
+    assert await rows(db) == []
+
+
+async def test_unexpected_adapter_exceptions_are_recorded(db: AsyncEngine):
+    run_id = await make_run(db)
+    provider = recorder(FakeProvider(script=[RuntimeError("boom")]), db)
+    with pytest.raises(RuntimeError):
+        await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    (row,) = await rows(db)
+    assert (row.success, row.error_code) == (False, "unexpected_error")
+
+
+async def test_retention_purge_and_lead_delete_cascade(db: AsyncEngine):
+    run_id = await make_run(db)
+    provider = recorder(FakeProvider(), db)
+    await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    async with db.begin() as conn:
+        await conn.execute(sa.text("UPDATE llm_calls SET created_at = now() - interval '40 days'"))
+    await provider.generate_structured(verdict_request("fresh", agent_run_id=run_id))
+    async with db.begin() as conn:
+        removed = await LlmCallRepository(conn).purge_before(datetime.now(UTC) - timedelta(days=30))
+    assert removed == 1 and len(await rows(db)) == 1
+    async with db.begin() as conn:
+        await conn.execute(sa.text("DELETE FROM leads"))
+    assert await rows(db) == []
 
 
 async def test_call_limit_per_agent_run(db: AsyncEngine):
@@ -107,9 +198,10 @@ async def test_call_limit_per_agent_run(db: AsyncEngine):
 
 
 async def test_failures_are_recorded_and_repair_loop_gives_up(db: AsyncEngine):
+    run_id = await make_run(db)
     provider = recorder(FakeProvider(script=["x", "y", "z"]), db)
     with pytest.raises(LLMOutputInvalid):
-        await generate_validated(provider, verdict_request())
+        await generate_validated(provider, verdict_request(agent_run_id=run_id))
     assert [(r.attempt, r.success) for r in await rows(db)] == [(1, False), (2, False), (3, False)]
 
 
@@ -120,5 +212,30 @@ def test_router_builds_the_configured_provider_and_models(db: AsyncEngine):
     tuned = Settings(app_env="test", llm_model_draft="claude-sonnet-5-5")
     assert model_for(tuned, "draft") == "claude-sonnet-5-5"
     assert model_for(tuned, "qualify") == "claude-haiku-5-5"
-    with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
-        build_provider(Settings(app_env="test", llm_provider="anthropic"), db)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"llm_provider": "anthropic"}, "ANTHROPIC_API_KEY"),
+        ({"llm_provider": "openai"}, "OPENAI_API_KEY"),
+        ({"llm_provider": "bedrock", "aws_region": ""}, "AWS_REGION"),
+        (
+            {"llm_provider": "anthropic", "anthropic_api_key": "k", "llm_model_default": "x-1"},
+            "not in pricing.yaml",
+        ),
+        (
+            {
+                "llm_provider": "anthropic",
+                "anthropic_api_key": "k",
+                "llm_model_draft": "claude-sonnet-5-5-20260101",
+            },
+            "not in pricing.yaml",
+        ),
+    ],
+)
+def test_router_fails_fast_on_bad_config(
+    db: AsyncEngine, overrides: dict[str, object], message: str
+):
+    with pytest.raises(ValueError, match=message):
+        build_provider(Settings(app_env="test", **overrides), db)  # type: ignore[arg-type]

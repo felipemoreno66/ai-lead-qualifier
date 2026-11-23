@@ -145,3 +145,30 @@ def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_settings):
         return client
 
     yield _make
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _block_outbound_network() -> Iterator[None]:
+    """Tests must never reach the internet (and so never a paid API): only private/loopback."""
+    import ipaddress
+    import socket
+
+    real_connect = socket.socket.connect
+
+    def guarded(self: socket.socket, address: object) -> None:
+        if isinstance(address, tuple) and isinstance(address[0], str):
+            if address[0] == "localhost":
+                return real_connect(self, address)  # type: ignore[arg-type]
+            try:
+                ip = ipaddress.ip_address(address[0])
+            except ValueError:
+                ip = None
+            if ip is None or not (ip.is_loopback or ip.is_private):
+                raise RuntimeError(f"outbound network blocked in tests: {address[0]}")
+        real_connect(self, address)  # type: ignore[arg-type]
+
+    socket.socket.connect = guarded  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        socket.socket.connect = real_connect  # type: ignore[method-assign]

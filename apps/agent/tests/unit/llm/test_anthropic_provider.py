@@ -107,7 +107,7 @@ async def test_refusal_is_reported_as_invalid_output_with_usage():
 
 async def test_400_is_not_retried_and_maps_to_provider_error():
     wire = Wire(err(400, "invalid_request_error", "bad"), err(400, "invalid_request_error", "bad"))
-    with pytest.raises(LLMProviderError, match="bad"):
+    with pytest.raises(LLMProviderError, match="status=400 type=invalid_request_error"):
         await provider_for(wire, max_retries=2).generate_structured(verdict_request())
     assert len(wire.requests) == 1
 
@@ -123,3 +123,24 @@ async def test_text_generation():
     wire = Wire(ok("Hello Maria"))
     req = TextRequest("answer", "sys", [ChatMessage("user", "hi")], "claude-haiku-5-5", 100)
     assert (await provider_for(wire).generate_text(req)).value == "Hello Maria"
+
+
+async def test_provider_error_text_never_echoes_the_provider_message():
+    wire = Wire(err(401, "authentication_error", "invalid key sk-ant-api03-SECRET and prompt text"))
+    with pytest.raises(LLMProviderError) as exc:
+        await provider_for(wire).generate_structured(verdict_request())
+    assert "SECRET" not in str(exc.value) and "prompt text" not in str(exc.value)
+
+
+async def test_refusal_is_not_resent_by_the_repair_loop():
+    wire = Wire(ok("", stop="refusal"), ok(json.dumps(GOOD)))
+    with pytest.raises(LLMOutputInvalid):
+        await generate_validated(provider_for(wire), verdict_request())
+    assert len(wire.requests) == 1
+
+
+async def test_truncated_output_is_not_resent_with_the_same_max_tokens():
+    wire = Wire(ok('{"score": 5', stop="max_tokens"), ok(json.dumps(GOOD)))
+    with pytest.raises(LLMOutputInvalid):
+        await generate_validated(provider_for(wire), verdict_request())
+    assert len(wire.requests) == 1

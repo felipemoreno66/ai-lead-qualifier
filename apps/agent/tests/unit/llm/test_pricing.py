@@ -22,10 +22,12 @@ def test_plan_estimate_per_lead_is_about_two_tenths_of_a_cent():
     assert one_call.usd == Decimal("0.000450")
 
 
-def test_unknown_model_is_free_but_flagged_estimated():
-    cost = PricingTable.load().cost("some-new-model", Usage(1000, 1000))
-    assert cost.usd == 0
+def test_unknown_model_is_billed_at_the_highest_rate_and_flagged_estimated():
+    table = PricingTable.load()
+    cost = table.cost("some-new-model", Usage(1000, 1000))
+    assert cost.usd == table.cost("claude-sonnet-5-5", Usage(1000, 1000)).usd > 0
     assert cost.is_estimated
+    assert not table.knows("some-new-model") and table.knows("claude-haiku-5-5")
 
 
 def test_fake_provider_is_always_free():

@@ -45,18 +45,44 @@ class PricingTable:
         }
         return cls(str(data["verified_on"]), prices)
 
+    def knows(self, model: str) -> bool:
+        return model in self._prices
+
+    def _price_for(self, model: str) -> tuple[ModelPrice, bool]:
+        """The model's price, or for unknown models the most expensive rate in the table."""
+        known = self._prices.get(model)
+        if known is not None:
+            return known, False
+        rows = list(self._prices.values())
+        worst = ModelPrice(
+            input=max(r.input for r in rows),
+            output=max(r.output for r in rows),
+            cache_read=max(r.cache_read for r in rows),
+            cache_write=max(r.cache_write for r in rows),
+        )
+        return worst, True
+
     def cost(self, model: str, usage: Usage, *, provider: str = "") -> Cost:
-        """USD for ``usage``. Fake calls are free; unknown models are 0 and flagged estimated."""
+        """USD for ``usage``. Fake calls are free; unknown models are billed at the highest known
+        rate and flagged estimated, so the budget guard can never be bypassed by a new model id."""
         if provider == "fake":
             return Cost(Decimal(0), is_estimated=False)
-        price = self._prices.get(model)
-        if price is None:
+        price, estimated = self._price_for(model)
+        if estimated:
             log.warning("llm_pricing_unknown_model", model=model)
-            return Cost(Decimal(0), is_estimated=True)
         total = (
             Decimal(usage.input_tokens) * price.input
             + Decimal(usage.output_tokens) * price.output
             + Decimal(usage.cache_read_tokens) * price.cache_read
             + Decimal(usage.cache_write_tokens) * price.cache_write
         ) / _MILLION
-        return Cost(total.quantize(_QUANT), is_estimated=False)
+        return Cost(total.quantize(_QUANT), is_estimated=estimated)
+
+    def worst_case(self, model: str, *, input_chars: int, max_tokens: int) -> Decimal:
+        """Upper bound of one call: input at 1 token per 2 characters plus a full output."""
+        price, _ = self._price_for(model)
+        total = (
+            Decimal(input_chars // 2 + 1) * max(price.input, price.cache_write)
+            + Decimal(max_tokens) * price.output
+        ) / _MILLION
+        return total.quantize(_QUANT)
