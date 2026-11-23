@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import uuid
+from collections.abc import Callable
 from decimal import Decimal
+from functools import partial
 from typing import Any
 
 import sqlalchemy as sa
@@ -31,6 +34,12 @@ BUDGET_LOCK_KEY = 7_201_001  # pg_advisory_xact_lock key shared by every process
 MAX_TOKENS_CEILING = 8192
 
 
+def _error_payload(exc: BaseException, *, detail: bool = True) -> dict[str, Any]:
+    if not detail:
+        return {"error": type(exc).__name__}
+    return {"error": str(exc), "raw_text": getattr(exc, "raw_text", None)}
+
+
 class RecordingProvider:
     """Wraps any adapter. Each call (including failed attempts) becomes one ``llm_calls`` row,
     written in its own transaction so it survives a rolled-back caller.
@@ -38,7 +47,8 @@ class RecordingProvider:
     The budget is a lifetime cap over the append-only ``llm_spend`` ledger (not ``llm_calls``, which
     is purged and cascades with leads). The guard runs under a Postgres advisory lock, compares
     ``spent + worst case of this call`` with the budget and persists a reservation that every
-    process sees until it is settled with the real cost.
+    process sees until it is settled with the real cost. Reservations never expire: only an
+    explicit settle lowers them, so a crash leaves a conservative worst-case charge.
     """
 
     def __init__(
@@ -62,7 +72,9 @@ class RecordingProvider:
     def name(self) -> str:
         return self._inner.name
 
-    async def _reserve(self, req: StructuredRequest[Any] | TextRequest) -> uuid.UUID | None:
+    async def _reserve(
+        self, req: StructuredRequest[Any] | TextRequest
+    ) -> tuple[uuid.UUID | None, Decimal]:
         """Check budget and call cap, then persist a reservation in the same locked transaction.
 
         The reservation counts in ``llm_budget`` for every process until it is settled (or expires
@@ -70,7 +82,7 @@ class RecordingProvider:
         """
         assert req.agent_run_id is not None
         if self._inner.name == "fake":
-            return None
+            return None, Decimal(0)
         chars = len(req.system) + sum(len(m.content) for m in req.messages)
         worst = self._pricing.worst_case(req.model, input_chars=chars, max_tokens=req.max_tokens)
         async with self._engine.begin() as conn:
@@ -111,25 +123,30 @@ class RecordingProvider:
                     .returning(llm_spend.c.id)
                 )
             ).scalar_one()
-            return reservation
+            return reservation, worst
 
     async def _settle(self, reservation: uuid.UUID | None, amount: Decimal) -> None:
-        """Replace the estimate with the real cost. A failure keeps the (conservative) estimate."""
+        """Replace the estimate with the real cost (retried once; otherwise worst case stays)."""
         if reservation is None:
             return
-        try:
-            async with self._engine.begin() as conn:
-                await conn.execute(
-                    sa.update(llm_spend)
-                    .where(llm_spend.c.id == reservation)
-                    .values(state="settled", amount_usd=amount, settled_at=sa.func.now())
+        for attempt in (1, 2):
+            try:
+                async with self._engine.begin() as conn:
+                    await conn.execute(
+                        sa.update(llm_spend)
+                        .where(llm_spend.c.id == reservation)
+                        .values(state="settled", amount_usd=amount, settled_at=sa.func.now())
+                    )
+                return
+            except Exception as exc:
+                log.error(
+                    "llm_spend_settle_failed",
+                    attempt=attempt,
+                    cost_usd=str(amount),
+                    error_type=type(exc).__name__,
                 )
-        except Exception as exc:
-            log.error(
-                "llm_spend_settle_failed",
-                cost_usd=str(amount),
-                error_type=type(exc).__name__,
-            )
+        # Both attempts failed: the row stays 'reserved' at its worst-case amount, which keeps
+        # counting against the budget (reservations never expire).
 
     async def _record(
         self,
@@ -192,47 +209,73 @@ class RecordingProvider:
         if req.agent_run_id is None:
             raise ValueError("agent_run_id is required: every LLM call belongs to an agent run")
         req = dataclasses.replace(req, max_tokens=min(req.max_tokens, self._ceiling))
-        reservation = await self._reserve(req)
+        reservation, amount = await self._reserve(req)
+        # Fail closed: ``amount`` stays at the worst case unless the real cost is known, and the
+        # settle in ``finally`` also runs on cancellation and on any unexpected exception.
         try:
-            result: LLMResult[R] = await call(req)
-        except LLMError as exc:
-            cost = await self._record(
+            try:
+                result: LLMResult[R] = await call(req)
+            except LLMError as exc:
+                amount = await self._safe_record(
+                    req,
+                    amount,
+                    usage=exc.usage,
+                    latency_ms=exc.latency_ms,
+                    provider=exc.provider or self.name,
+                    model=exc.model or req.model,
+                    success=False,
+                    error_code=exc.code,
+                    response=partial(_error_payload, exc),
+                )
+                raise
+            except Exception as exc:
+                # Unknown whether the provider billed anything: keep the worst case.
+                await self._safe_record(
+                    req,
+                    amount,
+                    usage=Usage(),
+                    latency_ms=0,
+                    provider=self.name,
+                    model=req.model,
+                    success=False,
+                    error_code="unexpected_error",
+                    response=partial(_error_payload, exc, detail=False),
+                )
+                raise
+            amount = await self._safe_record(
                 req,
-                usage=exc.usage,
-                latency_ms=exc.latency_ms,
-                provider=exc.provider or self.name,
-                model=exc.model or req.model,
-                success=False,
-                error_code=exc.code,
-                response={"error": str(exc), "raw_text": getattr(exc, "raw_text", None)},
+                amount,
+                usage=result.usage,
+                latency_ms=result.latency_ms,
+                provider=result.provider,
+                model=result.model,
+                success=True,
+                error_code=None,
+                response=lambda: to_json(result),
             )
-            await self._settle(reservation, cost)
-            raise
+            return result
+        finally:
+            await asyncio.shield(self._settle(reservation, amount))
+
+    async def _safe_record(
+        self,
+        req: StructuredRequest[Any] | TextRequest,
+        worst: Decimal,
+        *,
+        response: Callable[[], object],
+        **fields: Any,
+    ) -> Decimal:
+        """Record the call; return its actual cost, or ``worst`` if pricing/serialisation failed."""
+        try:
+            return await self._record(req, response=response(), **fields)
         except Exception as exc:
-            cost = await self._record(
-                req,
-                usage=Usage(),
-                latency_ms=0,
-                provider=self.name,
-                model=req.model,
-                success=False,
-                error_code="unexpected_error",
-                response={"error": type(exc).__name__},
+            log.error(
+                "llm_call_record_failed",
+                provider=fields.get("provider"),
+                model=fields.get("model"),
+                error_type=type(exc).__name__,
             )
-            await self._settle(reservation, cost)
-            raise
-        cost = await self._record(
-            req,
-            usage=result.usage,
-            latency_ms=result.latency_ms,
-            provider=result.provider,
-            model=result.model,
-            success=True,
-            error_code=None,
-            response=to_json(result),
-        )
-        await self._settle(reservation, cost)
-        return result
+            return worst
 
     async def generate_structured[T: BaseModel](self, req: StructuredRequest[T]) -> LLMResult[T]:
         return await self._call(

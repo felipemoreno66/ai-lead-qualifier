@@ -118,7 +118,7 @@ def test_messages_are_channel_ready_and_budget_view_counts_live_reservations(mig
         for state, amount, age in (
             ("settled", "0.5", "0 minutes"),
             ("reserved", "0.25", "1 minute"),
-            ("reserved", "9", "11 minutes"),  # expired reservation
+            ("reserved", "9", "11 minutes"),  # old reservations keep counting
         ):
             conn.execute(
                 sa.text(
@@ -128,7 +128,7 @@ def test_messages_are_channel_ready_and_budget_view_counts_live_reservations(mig
                 ),
                 {"s": state, "a": amount, "age": age},
             )
-        assert conn.execute(sa.text("SELECT spent_usd FROM llm_budget")).scalar_one() == 0.75
+        assert conn.execute(sa.text("SELECT spent_usd FROM llm_budget")).scalar_one() == 9.75
         conn.execute(sa.text("DELETE FROM llm_spend"))
         conn.execute(sa.text("DELETE FROM leads WHERE workspace_slug = 'm-test'"))
         conn.execute(sa.text("DELETE FROM workspaces WHERE slug = 'm-test'"))

@@ -179,19 +179,85 @@ async def test_two_processes_share_reservations_through_the_database(db: AsyncEn
     assert len(wire_a.requests) + len(wire_b.requests) == 1
 
 
-async def test_stale_reservations_expire(db: AsyncEngine):
+async def test_old_reservations_keep_counting_at_worst_case(db: AsyncEngine):
     run_id = await make_run(db)
     async with db.begin() as conn:
         await conn.execute(
             sa.text(
                 "INSERT INTO llm_spend (agent_run_id, provider, model, state, amount_usd,"
-                " created_at) VALUES (:r, 'anthropic', 'm', 'reserved', 4.9,"
-                " now() - interval '11 minutes')"
+                " created_at) VALUES (:r, 'anthropic', 'm', 'reserved', 4.9999,"
+                " now() - interval '3 days')"
             ),
             {"r": run_id},
         )
     provider = recorder(provider_for(Wire(ok(json.dumps(GOOD)))), db)
+    with pytest.raises(BudgetExceeded):
+        await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    assert await spend(db) == Decimal("4.9999")
+
+
+async def test_a_failing_record_still_settles_at_least_the_actual_cost(
+    db: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+):
+    run_id = await make_run(db)
+    provider = recorder(provider_for(Wire(ok(json.dumps(GOOD)))), db)
+
+    async def broken(*_a: object, **_k: object) -> Decimal:
+        raise RuntimeError("serialisation failed")
+
+    monkeypatch.setattr(provider, "_record", broken)
+    result = await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    assert result.value.score == 61
+    assert await spend(db) >= Decimal("0.000028")  # fell back to the worst-case reservation
+
+
+async def test_cancellation_leaves_the_worst_case_charged(db: AsyncEngine):
+    run_id = await make_run(db)
+    started = asyncio.Event()
+
+    class Hanging(FakeProvider):
+        name = "anthropic"
+
+        async def generate_structured(self, req):  # type: ignore[no-untyped-def]
+            started.set()
+            await asyncio.sleep(60)
+
+    provider = recorder(Hanging(), db)
+    task = asyncio.create_task(provider.generate_structured(verdict_request(agent_run_id=run_id)))
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert await spend(db) > Decimal("0.0001")
+    async with db.connect() as conn:
+        state = (await conn.execute(sa.text("SELECT state FROM llm_spend"))).scalar_one()
+    assert state == "settled"
+
+
+async def test_settle_is_retried_once_then_the_reservation_stays_counted(
+    db: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+):
+    run_id = await make_run(db)
+    provider = recorder(provider_for(Wire(ok(json.dumps(GOOD)))), db)
+
+    class FlakyEngine:
+        """Delegates to the real engine but fails every transaction after the second."""
+
+        def __init__(self) -> None:
+            self.n = 0
+
+        def begin(self):  # type: ignore[no-untyped-def]
+            self.n += 1  # 1 = reserve, 2 = record, 3 and 4 = the two settle attempts
+            if self.n >= 3:
+                raise RuntimeError("db down")
+            return db.begin()
+
+    flaky = FlakyEngine()
+    monkeypatch.setattr(provider, "_engine", flaky)
     await provider.generate_structured(verdict_request(agent_run_id=run_id))
+    monkeypatch.undo()
+    assert flaky.n == 4
+    assert await spend(db) > Decimal("0.0001")  # still the reserved worst case
 
 
 async def test_calls_without_an_agent_run_are_refused(db: AsyncEngine):
