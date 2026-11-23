@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     max_body_bytes: int = Field(default=16 * 1024, ge=1024)
     duplicate_window_minutes: int = Field(default=10, ge=0)
 
+    smtp_host: str = "localhost"
+    smtp_port: int = Field(default=1025, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_starttls: bool = False
+
     llm_provider: Literal["fake", "anthropic", "bedrock", "openai"] = "fake"
     llm_model_default: str = "claude-haiku-5-5"
     llm_model_draft: str = ""
