@@ -1,0 +1,72 @@
+{
+  "id": "leadCreated0001",
+  "name": "lead-created",
+  "active": false,
+  "nodes": [
+    {
+      "id": "b0c2a1d0-0001-4000-8000-000000000001",
+      "name": "Lead created webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "7d0a6c1e-0001-4000-8000-00000000a001",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-created",
+        "responseMode": "lastNode",
+        "options": { "rawBody": true }
+      }
+    },
+    {
+      "id": "b0c2a1d0-0002-4000-8000-000000000002",
+      "name": "Verify signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nif (!secret) throw new Error('N8N_WEBHOOK_SECRET is not set');\nconst raw = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex');\nconst received = String($input.first().json.headers['x-signature'] || '');\nconst a = Buffer.from(expected);\nconst b = Buffer.from(received);\nif (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {\n  throw new Error('Invalid webhook signature');\n}\nconst event = JSON.parse(raw.toString('utf8'));\nreturn [{ json: event }];"
+      }
+    },
+    {
+      "id": "b0c2a1d0-0003-4000-8000-000000000003",
+      "name": "Notify owner",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [480, 0],
+      "parameters": {
+        "fromEmail": "={{ $env.N8N_NOTIFY_FROM }}",
+        "toEmail": "={{ $env.N8N_NOTIFY_TO }}",
+        "subject": "=New lead for {{ $json.lead.workspace }}: {{ $json.lead.reference }}",
+        "emailFormat": "text",
+        "text": "=A new lead arrived.\n\nReference: {{ $json.lead.reference }}\nWorkspace: {{ $json.lead.workspace }}\n\nOpen it in the dashboard:\n{{ $env.DASHBOARD_BASE_URL }}/dashboard/leads/{{ $json.lead.id }}\n\nNo personal data is included in this message.",
+        "options": {}
+      }
+    },
+    {
+      "id": "b0c2a1d0-0004-4000-8000-000000000004",
+      "name": "Acknowledge event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AGENT_INTERNAL_URL }}/internal/events/{{ $('Verify signature').first().json.event_id }}/ack",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.N8N_API_TOKEN }}" }
+          ]
+        },
+        "options": { "timeout": 5000 }
+      }
+    }
+  ],
+  "connections": {
+    "Lead created webhook": { "main": [[{ "node": "Verify signature", "type": "main", "index": 0 }]] },
+    "Verify signature": { "main": [[{ "node": "Notify owner", "type": "main", "index": 0 }]] },
+    "Notify owner": { "main": [[{ "node": "Acknowledge event", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
