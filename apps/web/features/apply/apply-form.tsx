@@ -31,6 +31,15 @@ export function ApplyForm({ config, apiBase, initialLocale }: Props) {
   const uid = useId();
 
   useEffect(() => {
+    // Keep <html lang> in step with the language the form is shown in (WCAG 3.1.2).
+    const previous = document.documentElement.lang;
+    document.documentElement.lang = locale;
+    return () => {
+      document.documentElement.lang = previous;
+    };
+  }, [locale]);
+
+  useEffect(() => {
     renderedAt.current = new Date().toISOString();
   }, []);
 
