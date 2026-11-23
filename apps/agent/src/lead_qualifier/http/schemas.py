@@ -277,9 +277,14 @@ class StatusCount(BaseModel):
 
 
 class ScoreBucket(BaseModel):
+    """Leads scoring ``min_score..max_score``, split by the tier stored on each lead."""
+
     min_score: int
     max_score: int
     count: int
+    hot: int
+    warm: int
+    cold: int
 
 
 class TierCount(BaseModel):

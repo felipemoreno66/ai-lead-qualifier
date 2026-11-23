@@ -24,6 +24,7 @@ from lead_qualifier.http.schemas import (
     ScoreBucket,
     StatusCount,
     TierCount,
+    TierThresholds,
     TimeToQualify,
 )
 
@@ -70,6 +71,7 @@ async def compute_metrics(
     *,
     workspace: str | None,
     budget_usd: float,
+    tier_thresholds: TierThresholds | None = None,
 ) -> MetricsOut:
     params: dict[str, Any] = {"ws": workspace, "start": window.start_at, "end": window.end_at}
     scope = (
@@ -81,18 +83,19 @@ async def compute_metrics(
         "WHERE (CAST(:ws AS text) IS NULL OR l.workspace_slug = :ws) "
         "AND l.created_at >= :start AND l.created_at < :end"
     )
+    # The ``scope`` fragments below are constants; every value reaches SQL as a bound parameter.
     async with engine.connect() as conn:
 
         async def rows(sql: str) -> list[Any]:
             return list((await conn.execute(sa.text(sql), params)).all())
 
         statuses = dict(await rows(f"SELECT l.status, count(*) {scope} GROUP BY l.status"))
-        buckets = dict(
-            await rows(
-                f"SELECT least(l.score / 10, 9) AS b, count(*) {scope} "
-                "AND l.score IS NOT NULL GROUP BY b"
-            )
-        )
+        buckets: dict[int, dict[str, int]] = {}
+        for bucket, tier, n in await rows(
+            f"SELECT least(l.score / 10, 9) AS b, l.tier, count(*) {scope} "
+            "AND l.score IS NOT NULL GROUP BY b, l.tier"
+        ):
+            buckets.setdefault(bucket, {})[tier] = n
         tiers = dict(
             await rows(f"SELECT coalesce(l.tier, 'unscored'), count(*) {scope} GROUP BY 1")
         )
@@ -119,7 +122,7 @@ async def compute_metrics(
             "WHERE (CAST(:ws AS text) IS NULL OR l.workspace_slug = :ws) "
             "AND l.created_at >= :start AND l.created_at < :end"
         )
-        lifetime = (await conn.execute(sa.text("SELECT spent_usd FROM llm_budget"))).scalar_one()
+        lifetime = (await conn.execute(sa.text("SELECT spent_usd FROM llm_budget"))).scalar()
 
     total = sum(statuses.values())
     total_cost = Decimal(spend[0])
@@ -135,10 +138,14 @@ async def compute_metrics(
             ScoreBucket(
                 min_score=i * 10,
                 max_score=100 if i == 9 else i * 10 + 9,
-                count=buckets.get(i, 0),
+                count=sum(buckets.get(i, {}).values()),
+                hot=buckets.get(i, {}).get("hot", 0),
+                warm=buckets.get(i, {}).get("warm", 0),
+                cold=buckets.get(i, {}).get("cold", 0),
             )
             for i in range(10)
         ],
+        tier_thresholds=tier_thresholds,
         tier_split=[TierCount(tier=t, count=tiers.get(t, 0)) for t in (*TIER_ORDER, "unscored")],
         time_to_qualify=TimeToQualify(
             count=int(ttq[0]),
@@ -153,7 +160,7 @@ async def compute_metrics(
             leads_with_runs=leads_with_runs,
             llm_calls=int(calls[0]),
             providers=providers,
-            lifetime_spent_usd=float(lifetime),
+            lifetime_spent_usd=float(lifetime or 0),
             budget_usd=budget_usd,
         ),
     )

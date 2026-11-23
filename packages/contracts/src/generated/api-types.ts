@@ -952,14 +952,23 @@ export interface components {
       /** Status */
       status: string;
     };
-    /** ScoreBucket */
+    /**
+     * ScoreBucket
+     * @description Leads scoring ``min_score..max_score``, split by the tier stored on each lead.
+     */
     ScoreBucket: {
+      /** Cold */
+      cold: number;
       /** Count */
       count: number;
+      /** Hot */
+      hot: number;
       /** Max Score */
       max_score: number;
       /** Min Score */
       min_score: number;
+      /** Warm */
+      warm: number;
     };
     /** SendFailedCallback */
     SendFailedCallback: {

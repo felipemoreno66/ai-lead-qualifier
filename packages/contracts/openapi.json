@@ -1784,9 +1784,18 @@
         "type": "object"
       },
       "ScoreBucket": {
+        "description": "Leads scoring ``min_score..max_score``, split by the tier stored on each lead.",
         "properties": {
+          "cold": {
+            "title": "Cold",
+            "type": "integer"
+          },
           "count": {
             "title": "Count",
+            "type": "integer"
+          },
+          "hot": {
+            "title": "Hot",
             "type": "integer"
           },
           "max_score": {
@@ -1796,12 +1805,19 @@
           "min_score": {
             "title": "Min Score",
             "type": "integer"
+          },
+          "warm": {
+            "title": "Warm",
+            "type": "integer"
           }
         },
         "required": [
           "min_score",
           "max_score",
-          "count"
+          "count",
+          "hot",
+          "warm",
+          "cold"
         ],
         "title": "ScoreBucket",
         "type": "object"
@@ -2583,6 +2599,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
                   "type": "string"
                 },
                 {

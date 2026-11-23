@@ -205,7 +205,7 @@ async def metrics(
     engine: EngineDep,
     settings: SettingsDep,
     request: Request,
-    workspace: str | None = None,
+    workspace: Annotated[str | None, Query(pattern=r"^[a-z0-9][a-z0-9-]*$", max_length=64)] = None,
     from_: Annotated[date | None, Query(alias="from")] = None,
     to: date | None = None,
 ) -> MetricsOut:
@@ -216,10 +216,14 @@ async def metrics(
         raise ValidationFailed("Unknown workspace.")
     today = request.app.state.clock.now().date()
     window = MetricsWindow.resolve(from_, to, today)
-    result = await compute_metrics(
-        engine, window, workspace=workspace, budget_usd=settings.llm_budget_usd
-    )
+    thresholds = None
     if ws is not None:
         tiers = ws.config.qualification.tiers
-        result.tier_thresholds = TierThresholds(hot_min=tiers.hot_min, warm_min=tiers.warm_min)
-    return result
+        thresholds = TierThresholds(hot_min=tiers.hot_min, warm_min=tiers.warm_min)
+    return await compute_metrics(
+        engine,
+        window,
+        workspace=workspace,
+        budget_usd=settings.llm_budget_usd,
+        tier_thresholds=thresholds,
+    )

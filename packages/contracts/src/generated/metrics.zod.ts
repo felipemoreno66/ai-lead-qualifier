@@ -16,7 +16,16 @@ export const metricsSchema = z.object({
   last_day: z.string().date(),
   leads_per_day: z.array(z.object({ count: z.number().int(), day: z.string().date() })),
   score_histogram: z.array(
-    z.object({ count: z.number().int(), max_score: z.number().int(), min_score: z.number().int() }),
+    z
+      .object({
+        cold: z.number().int(),
+        count: z.number().int(),
+        hot: z.number().int(),
+        max_score: z.number().int(),
+        min_score: z.number().int(),
+        warm: z.number().int(),
+      })
+      .describe("Leads scoring ``min_score..max_score``, split by the tier stored on each lead."),
   ),
   tier_split: z.array(
     z.object({ count: z.number().int(), tier: z.enum(["hot", "warm", "cold", "unscored"]) }),
