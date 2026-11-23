@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr = SecretStr("")
     aws_region: str = "us-east-1"
 
+    embeddings_provider: Literal["fastembed", "openai", "fake"] = "fastembed"
+    embeddings_cache_dir: Path = Path(".cache/fastembed")
+    kb_top_k: int = Field(default=5, ge=1, le=20)
+    kb_min_similarity: float = Field(default=0.3, ge=0, le=1)
+
     @field_validator("enabled_workspaces", "trusted_proxies", mode="before")
     @classmethod
     def _strip(cls, value: object) -> object:

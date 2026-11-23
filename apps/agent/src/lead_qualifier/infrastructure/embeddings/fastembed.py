@@ -1,0 +1,40 @@
+"""Local multilingual embeddings with fastembed (ONNX, CPU).
+
+The model is downloaded into ``cache_dir`` the first time it is needed (first ingest or first
+query), never at image build time.
+"""
+
+from __future__ import annotations
+
+import threading
+from pathlib import Path
+from typing import Any
+
+from lead_qualifier.ports.embeddings import EMBEDDING_DIMENSION
+
+FASTEMBED_MODEL_ID = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
+
+class FastEmbeddings:
+    model_id = FASTEMBED_MODEL_ID
+    dimension = EMBEDDING_DIMENSION
+
+    def __init__(self, cache_dir: Path) -> None:
+        self._cache_dir = cache_dir
+        self._model: Any = None
+        self._lock = threading.Lock()
+
+    def _load(self) -> Any:
+        with self._lock:
+            if self._model is None:
+                from fastembed import TextEmbedding
+
+                self._model = TextEmbedding(
+                    model_name=self.model_id, cache_dir=str(self._cache_dir)
+                )
+            return self._model
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        return [[float(x) for x in vec] for vec in self._load().embed(texts)]
