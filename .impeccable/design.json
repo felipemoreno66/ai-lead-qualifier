@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-23T00:00:00Z",
+  "title": "Design System: AI Lead Qualifier",
+  "extensions": {
+    "colorMeta": {
+      "terracotta": {"role": "primary", "displayName": "Terracotta", "canonical": "#B2432A"},
+      "plum": {"role": "secondary", "displayName": "Plum", "canonical": "#3A2340"},
+      "background": {"role": "neutral", "displayName": "Lavender Cream", "canonical": "#F5F2FA"},
+      "sage": {"role": "state", "displayName": "Sage", "canonical": "#2F6B52"},
+      "amber": {"role": "state", "displayName": "Amber", "canonical": "#8A5A00"},
+      "alert-red": {"role": "state", "displayName": "Alert Red", "canonical": "#A3281C"}
+    },
+    "typographyMeta": {
+      "display": {"displayName": "Display", "purpose": "Page h1, Young Serif."},
+      "body": {"displayName": "Body", "purpose": "All UI text, Figtree."}
+    },
+    "shadows": [
+      {"name": "dialog", "value": "0 24px 48px -16px rgba(36,27,46,.4)", "purpose": "Confirm dialog only."}
+    ],
+    "motion": [
+      {"name": "press", "value": "transform .2s cubic-bezier(.2,.8,.2,1)", "purpose": "Button press and background change."},
+      {"name": "skeleton", "value": "1.4s ease-in-out infinite", "purpose": "Loading shimmer; off under reduced motion."}
+    ],
+    "breakpoints": [{"name": "mobile", "value": "760px"}]
+  },
+  "components": [
+    {"name": "Primary Button", "kind": "button", "refersTo": "button-primary", "description": "The single main action in a region.",
+     "html": "<button class=\"ds-btn ds-btn-primary\">Approve and send</button>",
+     "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 24px;border:1.5px solid #3A2340;border-radius:99px;font:600 1rem Figtree,system-ui,sans-serif;background:#fff;color:#3A2340;cursor:pointer;transition:background .2s,transform .2s cubic-bezier(.2,.8,.2,1)}.ds-btn-primary{background:#B2432A;border-color:#B2432A;color:#fff}.ds-btn-primary:hover{background:#8F3320}.ds-btn:active{transform:scale(.98)}.ds-btn:focus-visible{outline:3px solid #1B5BD8;outline-offset:3px}"},
+    {"name": "Secondary Button", "kind": "button", "refersTo": "button-secondary", "description": "Default outline action.",
+     "html": "<button class=\"ds-btn\">Edit</button>",
+     "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 24px;border:1.5px solid #3A2340;border-radius:99px;font:600 1rem Figtree,system-ui,sans-serif;background:#fff;color:#3A2340;cursor:pointer}.ds-btn:hover{background:#EEE9F5}.ds-btn:focus-visible{outline:3px solid #1B5BD8;outline-offset:3px}"},
+    {"name": "Text Input", "kind": "input", "refersTo": "input", "description": "Labelled field.",
+     "html": "<label class=\"ds-lab\" for=\"n\">Full name</label><input class=\"ds-input\" id=\"n\" placeholder=\"Ada Lovelace\">",
+     "css": ".ds-lab{display:block;font:600 1rem Figtree,system-ui,sans-serif;margin-bottom:8px;color:#241B2E}.ds-input{width:100%;min-height:52px;padding:12px 16px;border:1.5px solid #8F849E;border-radius:12px;background:#fff;font:inherit;color:#241B2E}.ds-input:hover{border-color:#241B2E}.ds-input:focus-visible{outline:3px solid #1B5BD8;outline-offset:3px}"},
+    {"name": "Status Badge", "kind": "chip", "refersTo": "badge-status-pending", "description": "Pending review badge with marker.",
+     "html": "<span class=\"ds-badge\"><i></i>Pending review</span>",
+     "css": ".ds-badge{display:inline-flex;align-items:center;gap:8px;font:600 .875rem Figtree,system-ui,sans-serif;padding:3px 12px 3px 10px;border-radius:99px;background:#FCEFD0;color:#8A5A00}.ds-badge i{width:9px;height:9px;border-radius:50%;background:currentColor}"},
+    {"name": "Nav Pill", "kind": "nav", "refersTo": "nav-pill-active", "description": "Active top-nav link.",
+     "html": "<nav style=\"display:flex;gap:6px\"><a class=\"ds-nav ds-on\" href=\"#\">Leads</a><a class=\"ds-nav\" href=\"#\">Application form</a></nav>",
+     "css": ".ds-nav{padding:8px 16px;border-radius:99px;color:#5E546B;text-decoration:none;font:600 1rem Figtree,system-ui,sans-serif}.ds-nav:hover{background:#ECE6F3;color:#241B2E}.ds-on{background:#3A2340;color:#fff}"},
+    {"name": "Panel", "kind": "card", "refersTo": "panel", "description": "Bordered white container.",
+     "html": "<div class=\"ds-panel\"><h2>Details</h2><p>Program: Data and AI Course</p></div>",
+     "css": ".ds-panel{background:#fff;border:1px solid #E1DAEB;border-radius:28px;padding:32px;color:#241B2E;font-family:Figtree,system-ui,sans-serif}.ds-panel h2{font:400 1.5rem 'Young Serif',Georgia,serif;color:#3A2340;margin:0 0 12px}"},
+    {"name": "Score", "kind": "custom", "refersTo": "badge-status-sent", "description": "Score number with bar.",
+     "html": "<span class=\"ds-score\"><b>82</b><span class=\"ds-bar\"><i style=\"width:82%\"></i></span></span>",
+     "css": ".ds-score{display:inline-flex;align-items:center;gap:10px;font-variant-numeric:tabular-nums}.ds-score b{font:700 1.0625rem Figtree,system-ui,sans-serif;color:#241B2E}.ds-bar{width:44px;height:6px;border-radius:3px;background:#E1DAEB;overflow:hidden}.ds-bar i{display:block;height:100%;background:#B2432A}"}
+  ],
+  "narrative": {
+    "northStar": "The Warm Queue",
+    "overview": "A calm, spacious queue where the operator sees who to answer first, reads the AI's reasoning in plain sentences, and decides. Serif headings, lavender-cream ground, plum structure, one terracotta action.",
+    "keyCharacteristics": ["Serif display, sans UI", "Pill actions, 28px panels", "Status never by color alone", "Mobile tab bar and stacked rows"],
+    "rules": [
+      {"name": "The One Action Rule", "body": "Terracotta fills at most one control per view region.", "section": "colors"},
+      {"name": "The Not-Color-Alone Rule", "body": "Every status carries text and a shape.", "section": "colors"},
+      {"name": "The Serif Is a Voice Rule", "body": "Serif for titles and names only.", "section": "typography"},
+      {"name": "The Flat-Until-Modal Rule", "body": "Depth appears only for the confirmation dialog.", "section": "elevation"}
+    ],
+    "dos": ["Keep touch targets at or above 44px", "Pair every state color with text and a shape", "Use the focus-blue 3px ring everywhere"],
+    "donts": ["No sparkles or purple gradients", "No big-number hero tiles or identical icon cards", "No gradient text, card shadows or side-stripe borders"]
+  }
+}

@@ -71,6 +71,8 @@ at-least-once delivery. More in [docs/architecture.md](docs/architecture.md) and
 - The browser never calls the admin API; a Next.js BFF holds the token.
 - Repositories are concrete SQLAlchemy Core classes rather than Protocol ports (see
   [docs/architecture.md](docs/architecture.md)).
+- The UI design system ("Warm Queue" tokens, components, responsive rules) is documented in
+  [DESIGN.md](DESIGN.md).
 - The score filter in the dashboard uses bands (hot, warm, cold). The API also accepts exact
   `score_min` and `score_max`, which the UI does not expose.
 
