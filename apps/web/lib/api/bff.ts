@@ -24,7 +24,10 @@ export async function handle(request: Request, run: () => Promise<Response>): Pr
   } catch (error) {
     if (error instanceof AgentError) {
       const status = error.status >= 500 ? 502 : error.status;
-      return errorResponse(error.title, error.message, status);
+      return NextResponse.json(
+        { title: error.title, detail: error.message, ...(error.errors.length ? { errors: error.errors } : {}) },
+        { status },
+      );
     }
     if (error instanceof ZodError) {
       return errorResponse("Unexpected response", "The agent answered with an unexpected shape.", 502);

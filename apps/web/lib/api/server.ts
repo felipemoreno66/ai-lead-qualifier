@@ -1,5 +1,6 @@
 import "server-only";
 import type { z } from "zod";
+import { problemItems, type ProblemItem } from "./problem";
 
 /** Failure reported by the agent API (RFC 9457 problem details). */
 export class AgentError extends Error {
@@ -7,6 +8,7 @@ export class AgentError extends Error {
     readonly status: number,
     readonly title: string,
     detail: string,
+    readonly errors: ProblemItem[] = [],
   ) {
     super(detail);
   }
@@ -24,8 +26,13 @@ function adminToken(): string {
 
 async function problem(res: Response): Promise<AgentError> {
   try {
-    const body = (await res.json()) as { title?: string; detail?: string };
-    return new AgentError(res.status, body.title ?? "Request failed", body.detail ?? res.statusText);
+    const body = (await res.json()) as { title?: string; detail?: string; errors?: unknown };
+    return new AgentError(
+      res.status,
+      body.title ?? "Request failed",
+      body.detail ?? res.statusText,
+      problemItems(body.errors),
+    );
   } catch {
     return new AgentError(res.status, "Request failed", res.statusText);
   }
