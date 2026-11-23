@@ -147,6 +147,8 @@ Stop everything with `docker compose down` (add `-v` to delete the database volu
   `EXPOSE_ADMIN_API=false` on an instance that must not serve them at all. Set `TRUSTED_PROXIES` to the proxy
   CIDRs so rate limits see the real client IP (uvicorn runs with `--no-proxy-headers`).
 - Personal data never reaches the logs: SQL parameters are hidden and exception messages are withheld.
+- **Embeddings stay local by default** (fastembed). If you set `EMBEDDINGS_PROVIDER=openai`, the text of your
+  knowledge-base documents (at ingest) and each lead's questions (at answer time) are sent to OpenAI.
 
 ## Configuration
 

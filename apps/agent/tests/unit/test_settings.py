@@ -66,3 +66,11 @@ def test_web_origins_are_normalised():
 
 def test_admin_api_is_exposed_by_default():
     assert Settings(app_env="test").expose_admin_api is True
+
+
+def test_empty_values_in_the_environment_fall_back_to_defaults(monkeypatch):
+    # .env.example ships `EMBEDDINGS_PROVIDER=` and friends empty
+    for name in ("EMBEDDINGS_PROVIDER", "KB_TOP_K", "KB_MIN_SIMILARITY", "EMBEDDINGS_CACHE_DIR"):
+        monkeypatch.setenv(name, "")
+    settings = Settings(_env_file=None)
+    assert settings.embeddings_provider == "fastembed" and settings.kb_top_k == 5

@@ -148,3 +148,17 @@ def test_public_config_hides_internal_settings():
     for secret in ("criteria", "owner_email", "weight", "tone", "allowed_origins", "signature"):
         assert secret not in public
     assert "admissions@" not in public
+
+
+@pytest.mark.parametrize("path", ["../secrets", "/etc", "a/../../b", "..", "", "a\\b"])
+def test_knowledge_base_path_must_stay_inside_the_workspace(path: str):
+    data = northwind_dict()
+    data["knowledge_base"] = {"path": path, "enabled": True}
+    with pytest.raises(ValidationError):
+        WorkspaceConfig.model_validate(data)
+
+
+def test_a_nested_relative_knowledge_base_path_is_fine():
+    data = northwind_dict()
+    data["knowledge_base"] = {"path": "docs/kb", "enabled": True}
+    assert WorkspaceConfig.model_validate(data).knowledge_base.path == "docs/kb"

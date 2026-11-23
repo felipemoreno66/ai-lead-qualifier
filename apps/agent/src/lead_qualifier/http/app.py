@@ -38,6 +38,14 @@ from lead_qualifier.services.workspace_sync import sync_workspaces
 from lead_qualifier.workspaces.loader import WorkspaceRegistry, load_workspaces
 
 
+async def _warm(embeddings: Embeddings) -> None:
+    """Load the embedding model in the background so the first reindex or question is fast."""
+    try:
+        await asyncio.to_thread(embeddings.warm)
+    except Exception as exc:
+        get_logger("app").warning("embeddings_warm_failed", error_type=type(exc).__name__)
+
+
 def create_app(
     settings: Settings | None = None,
     engine: AsyncEngine | None = None,
@@ -61,6 +69,7 @@ def create_app(
     )
 
     checkpointer = PostgresCheckpointer(settings.database_url)
+    embedder = embeddings or build_embeddings(settings)
     qualifier = QualifyService(
         engine,
         settings,
@@ -113,7 +122,14 @@ def create_app(
             if settings.dispatcher_enabled
             else None
         )
+        warm = (
+            asyncio.create_task(_warm(embedder), name="embeddings-warm")
+            if settings.embeddings_warm_on_startup
+            else None
+        )
         yield
+        if warm:
+            warm.cancel()
         if task:
             task.cancel()
             with suppress(asyncio.CancelledError):
@@ -137,7 +153,7 @@ def create_app(
     app.state.checkpointer = checkpointer
     app.state.workspaces_synced = False
     app.state.trusted_networks = parse_networks(settings.trusted_proxy_list)
-    app.state.kb = KnowledgeBaseService(engine, embeddings or build_embeddings(settings), clock)
+    app.state.kb = KnowledgeBaseService(engine, embedder, clock)
     app.state.limiter = RateLimiter(engine, clock)
     app.state.intake = IntakeService(engine, settings, clock, app.state.limiter)
     app.add_middleware(

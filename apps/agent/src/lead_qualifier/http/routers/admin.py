@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Annotated
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request, Response
 
-from lead_qualifier.domain.errors import NotFound, ValidationFailed
+from lead_qualifier.domain.errors import NotFound, UpstreamTimeout, ValidationFailed
 from lead_qualifier.domain.lead import LeadStatus
 from lead_qualifier.domain.workspace import Tier
 from lead_qualifier.http.auth import require_admin
-from lead_qualifier.http.deps import EngineDep, KbDep, RegistryDep
+from lead_qualifier.http.deps import EngineDep, KbDep, RegistryDep, SettingsDep
 from lead_qualifier.http.schemas import (
     AgentRunOut,
     KbReindexResult,
@@ -198,7 +199,7 @@ async def review_lead(lead_id: uuid.UUID, payload: ReviewRequest, request: Reque
 
 @router.post("/kb/{slug}/reindex", response_model=KbReindexResult)
 async def reindex_knowledge_base(
-    slug: str, registry: RegistryDep, kb: KbDep, force: bool = False
+    slug: str, registry: RegistryDep, kb: KbDep, settings: SettingsDep, force: bool = False
 ) -> KbReindexResult:
     """Re-read the workspace's Markdown files; unchanged documents are skipped unless forced."""
     workspace = registry.get(slug)
@@ -207,5 +208,11 @@ async def reindex_knowledge_base(
     if not workspace.config.knowledge_base.enabled:
         raise ValidationFailed("The knowledge base is disabled for this workspace.")
     kb_dir = workspace.path / workspace.config.knowledge_base.path
-    result = await kb.ingest(slug, kb_dir, force=force)
+    try:
+        async with asyncio.timeout(settings.kb_reindex_timeout_seconds):
+            result = await kb.ingest(slug, kb_dir, force=force)
+    except TimeoutError:
+        raise UpstreamTimeout(
+            "The reindex took too long; warm the embedding model first (see the README)."
+        ) from None
     return KbReindexResult(workspace=slug, **result.as_dict())

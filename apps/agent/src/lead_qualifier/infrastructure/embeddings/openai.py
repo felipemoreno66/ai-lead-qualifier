@@ -17,12 +17,17 @@ OPENAI_URL = "https://api.openai.com/v1/embeddings"
 class OpenAIEmbeddings:
     model_id = OPENAI_MODEL_ID
     dimension = EMBEDDING_DIMENSION
+    max_chunk_tokens = 500  # the API accepts up to 8,191 tokens per input
+    chunk_overlap_tokens = 50
 
     def __init__(self, api_key: str, *, timeout: float = 30.0) -> None:
         if not api_key:
             raise ValueError("OPENAI_API_KEY is required when EMBEDDINGS_PROVIDER=openai")
         self._api_key = api_key
         self._timeout = timeout
+
+    def warm(self) -> None:
+        return None
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -32,6 +37,7 @@ class OpenAIEmbeddings:
             headers={"Authorization": f"Bearer {self._api_key}"},
             json={"model": OPENAI_MODEL, "input": texts, "dimensions": self.dimension},
             timeout=self._timeout,
+            follow_redirects=False,
         )
         response.raise_for_status()
         rows = sorted(response.json()["data"], key=lambda r: r["index"])

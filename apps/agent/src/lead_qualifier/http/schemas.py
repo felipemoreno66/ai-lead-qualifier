@@ -277,4 +277,5 @@ class KbReindexResult(BaseModel):
     updated: int
     unchanged: int
     removed: int
+    skipped: int
     chunks: int
