@@ -11,14 +11,14 @@ from typing import Any
 import httpx
 
 from lead_qualifier.logging import get_logger
-from lead_qualifier.ports.events import PermanentPublishError, PublishError
+from lead_qualifier.ports.events import AuthRejectedError, PermanentPublishError, PublishError
 
 log = get_logger("publisher")
 
 WEBHOOK_PATHS = {"lead.created": "lead-created", "message.approved": "message-approved"}
 
 
-PERMANENT_STATUSES = frozenset({400, 401, 403, 404, 410, 422})
+PERMANENT_STATUSES = frozenset({400, 403, 404, 410, 422})
 
 
 def sign(body: bytes, secret: str, timestamp: str = "") -> str:
@@ -60,6 +60,9 @@ class N8nPublisher:
             )
         except httpx.HTTPError as exc:
             raise PublishError(f"{type(exc).__name__}: {exc}"[:300]) from exc
+        if response.status_code == 401:
+            # Clock skew beyond the signature window or a secret rotated mid-flight heals itself.
+            raise AuthRejectedError("n8n rejected the signature (HTTP 401)")
         if response.status_code in PERMANENT_STATUSES:
             # Retrying cannot help (for example a wrong shared secret): fail fast and visibly.
             raise PermanentPublishError(f"n8n rejected the event with HTTP {response.status_code}")

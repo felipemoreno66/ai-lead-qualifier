@@ -143,7 +143,7 @@ async def test_server_error_backs_off_and_lead_stays_new(db, make_settings):
 
 
 @respx.mock
-@pytest.mark.parametrize("status", [401, 403])
+@pytest.mark.parametrize("status", [403, 404])
 async def test_rejection_by_n8n_is_permanent_and_not_retried(db, make_settings, status):
     clock = FakeClock()
     lead_id, event_id = await create_lead_with_event(db, clock)
@@ -159,6 +159,35 @@ async def test_rejection_by_n8n_is_permanent_and_not_retried(db, make_settings, 
     async with db.connect() as conn:
         last = (await LeadRepository(conn).events(lead_id))[-1]
     assert last["payload"]["dead"] is True
+
+
+@respx.mock
+async def test_401_is_retried_then_dead_lettered_with_a_clear_reason(db, make_settings):
+    clock = FakeClock()
+    _, event_id = await create_lead_with_event(db, clock)
+    route = respx.post(WEBHOOK).mock(return_value=httpx.Response(401))
+    dispatcher = make_dispatcher(db, make_settings, clock, n8n())
+    for _ in range(2):
+        await dispatcher.run_once()
+        assert (await event_row(db, event_id))["status"] == "pending"
+        clock.advance(hours=1)
+    await dispatcher.run_once()
+    row = await event_row(db, event_id)
+    assert row["status"] == "dead" and row["attempts"] == 3 and route.call_count == 3
+    assert "HTTP 401" in row["last_error"] and "NTP" in row["last_error"]
+
+
+@respx.mock
+async def test_401_that_clears_up_is_delivered(db, make_settings):
+    clock = FakeClock()
+    _, event_id = await create_lead_with_event(db, clock)
+    route = respx.post(WEBHOOK).mock(return_value=httpx.Response(401))
+    dispatcher = make_dispatcher(db, make_settings, clock, n8n())
+    await dispatcher.run_once()
+    route.mock(return_value=httpx.Response(200))
+    clock.advance(seconds=5)
+    await dispatcher.run_once()
+    assert (await event_row(db, event_id))["status"] == "delivered"
 
 
 @respx.mock
