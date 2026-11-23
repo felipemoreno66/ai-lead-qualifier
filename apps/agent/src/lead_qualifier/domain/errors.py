@@ -65,3 +65,8 @@ class RateLimited(AppError):
 
 class InvalidTransition(Conflict):
     title = "Invalid state transition"
+
+
+class ConsentOutdated(ValidationFailed):
+    type = "urn:lead-qualifier:consent_outdated"
+    title = "Privacy notice changed"

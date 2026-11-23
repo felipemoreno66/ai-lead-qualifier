@@ -76,6 +76,7 @@ class Profile(_Strict):
     website: UrlOrPlaceholder
     contact_email: EmailOrPlaceholder
     timezone: str = Field(min_length=1)
+    reference_prefix: str | None = Field(default=None, pattern=r"^[A-Z]{2,4}$")
     draft: bool = False
 
 
