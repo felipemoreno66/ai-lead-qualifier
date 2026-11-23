@@ -405,7 +405,9 @@ async def test_an_ip_over_its_limit_does_not_consume_workspace_quota(make_client
 async def test_concurrent_identical_submissions_create_a_single_lead(make_client, db):
     import asyncio
 
-    async with make_client(rate_ip_per_minute=100, rate_ip_per_hour=100) as client:
+    async with make_client(
+        rate_ip_per_minute=100, rate_ip_per_hour=100, rate_email_per_day=100
+    ) as client:
         responses = await asyncio.gather(
             *[client.post(URL, json=body(fields={"email": "race@example.com"})) for _ in range(8)]
         )
