@@ -91,6 +91,8 @@ async def generate_validated[T: BaseModel](
                     ) from exc
             return result
         except LLMOutputInvalid as exc:
+            if not exc.repairable:
+                raise
             last = exc
             messages = _repair_messages(list(req.messages), exc.raw_text, str(exc))
     assert last is not None

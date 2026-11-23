@@ -6,6 +6,7 @@ No temperature/top_p (rejected by current models) and no assistant prefill. The 
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -55,7 +56,7 @@ class AnthropicProvider:
         api_key: str | None = None,
         base_url: str | None = None,
         max_retries: int = 2,
-        timeout: float = 60.0,
+        timeout: float = 30.0,
     ) -> None:
         self._client = client or AsyncAnthropic(
             api_key=api_key, base_url=base_url, max_retries=max_retries, timeout=timeout
@@ -83,7 +84,7 @@ class AnthropicProvider:
             ) from exc
         except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
             raise LLMProviderError(
-                f"{type(exc).__name__}: {exc}",
+                _describe(exc),
                 provider=self.name,
                 model=req.model,
                 latency_ms=_ms(started),
@@ -100,6 +101,7 @@ class AnthropicProvider:
             raise LLMOutputInvalid(
                 f"stop_reason={message.stop_reason}",
                 raw_text=raw,
+                repairable=False,
                 usage=usage,
                 latency_ms=latency,
                 provider=self.name,
@@ -119,6 +121,21 @@ class AnthropicProvider:
         message, latency = await self._create(req, {})
         text = _text_of(message)
         return LLMResult(text, text, usage_from(message), latency, self.name, req.model)
+
+
+_SECRET_RE = re.compile(r"sk-ant-[A-Za-z0-9_-]+")
+
+
+def _describe(exc: Exception) -> str:
+    """Status code and error type only: provider messages can echo prompt text or keys."""
+    parts = [type(exc).__name__]
+    if isinstance(exc, anthropic.APIStatusError):
+        parts.append(f"status={exc.status_code}")
+        body = exc.body
+        error = body.get("error") if isinstance(body, dict) else None
+        if isinstance(error, dict) and isinstance(error.get("type"), str):
+            parts.append(f"type={error['type']}")
+    return _SECRET_RE.sub("[redacted]", " ".join(parts))[:200]
 
 
 def _ms(started: float) -> int:

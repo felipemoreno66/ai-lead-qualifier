@@ -101,9 +101,13 @@ class LLMOutputInvalid(LLMError):
 
     code = "llm_output_invalid"
 
-    def __init__(self, message: str, *, raw_text: str = "", **kwargs: object) -> None:
+    def __init__(
+        self, message: str, *, raw_text: str = "", repairable: bool = True, **kwargs: object
+    ) -> None:
         super().__init__(message, **kwargs)  # type: ignore[arg-type]
         self.raw_text = raw_text
+        # False for refusals and truncation: resending the same request cannot help.
+        self.repairable = repairable
 
 
 class BudgetExceeded(LLMError):

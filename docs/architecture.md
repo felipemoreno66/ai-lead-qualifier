@@ -115,7 +115,15 @@ flowchart LR
   cost 0 and are flagged `is_estimated`. `RecordingProvider` writes each call in its own transaction,
   checks the `llm_budget` view against `LLM_BUDGET_USD` before every non-fake call
   (`BudgetExceeded`) and caps calls per agent run at `LLM_MAX_CALLS_PER_LEAD` (`CallLimitExceeded`).
-- **Tables** (migration 0002): `agent_runs`, `llm_calls`, `messages` (channel-ready: `channel`,
+- **Budget**: `LLM_BUDGET_USD` is a lifetime cap. The guard runs under a Postgres advisory lock and
+  refuses a call when `spent + in-flight + worst case of this call` passes it; `max_tokens` is
+  clamped to 8192. Unknown models are priced at the highest known rate, and `build_provider` refuses
+  to start with a real provider whose model is missing from `pricing.yaml`. Every call needs an
+  `agent_run_id` (`llm_calls.agent_run_id` is NOT NULL, so deleting a lead cascades to its calls).
+- **PII**: stored requests/responses have emails and phone numbers redacted and are purged after
+  `LLM_CALLS_RETENTION_DAYS` by the dispatcher's hourly maintenance. Provider error text is reduced to
+  status code and error type. A failed insert after a paid call is logged with its cost, never lost.
+- **Tables** (migration 0002, 0003): `agent_runs`, `llm_calls`, `messages` (channel-ready: `channel`,
   `channel_recipient`, nullable `subject`) and the `llm_budget` view.
 
 Deviation from the plan: the call cap counts per agent run, not per lead across runs, because
