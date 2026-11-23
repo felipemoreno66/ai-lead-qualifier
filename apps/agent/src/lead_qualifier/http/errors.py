@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from lead_qualifier.domain.errors import AppError
+from lead_qualifier.logging import get_logger
 
 PROBLEM = "application/problem+json"
 
@@ -62,7 +63,5 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
-        import structlog
-
-        structlog.get_logger("errors").error("unhandled_error", error_type=type(exc).__name__)
+        get_logger("errors").error("unhandled_error", error_type=type(exc).__name__)
         return problem(request, 500, "Internal error", "Something went wrong on our side.")

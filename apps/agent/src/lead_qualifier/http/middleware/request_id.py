@@ -9,7 +9,9 @@ import structlog
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-log = structlog.get_logger("access")
+from lead_qualifier.logging import get_logger
+
+log = get_logger("access")
 HEADER = "x-request-id"
 
 

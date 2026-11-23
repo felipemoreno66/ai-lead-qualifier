@@ -6,7 +6,6 @@ import asyncio
 from datetime import timedelta
 from typing import Any
 
-import structlog
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.config import Settings
@@ -15,11 +14,12 @@ from lead_qualifier.infrastructure.db.repositories import (
     OutboxRepository,
     RateLimitRepository,
 )
+from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.clock import Clock
-from lead_qualifier.ports.events import EventPublisher
+from lead_qualifier.ports.events import EventPublisher, PermanentPublishError
 from lead_qualifier.services.outbox import envelope
 
-log = structlog.get_logger("dispatcher")
+log = get_logger("dispatcher")
 PURGE_EVERY = timedelta(hours=1)
 RATE_LIMIT_RETENTION = timedelta(days=2)
 
@@ -49,7 +49,11 @@ class OutboxDispatcher:
         try:
             await self.publisher.publish(envelope(row))
         except Exception as exc:  # any publisher failure is retried; never crash the loop
-            await self._record_failure(row, f"{type(exc).__name__}: {exc}")
+            await self._record_failure(
+                row,
+                f"{type(exc).__name__}: {exc}",
+                permanent=isinstance(exc, PermanentPublishError),
+            )
             return
         now = self.clock.now()
         async with self.engine.begin() as conn:
@@ -63,10 +67,12 @@ class OutboxDispatcher:
                 )
         log.info("outbox_delivered", event_id=str(row["id"]), event_type=row["event_type"])
 
-    async def _record_failure(self, row: dict[str, Any], error: str) -> None:
+    async def _record_failure(
+        self, row: dict[str, Any], error: str, *, permanent: bool = False
+    ) -> None:
         now = self.clock.now()
         attempt = row["attempts"] + 1
-        dead = attempt >= self.settings.outbox_max_attempts
+        dead = permanent or attempt >= self.settings.outbox_max_attempts
         schedule = self.settings.backoff_schedule
         delay = schedule[min(attempt - 1, len(schedule) - 1)]
         next_attempt = None if dead else now + timedelta(seconds=delay)
@@ -113,6 +119,6 @@ class OutboxDispatcher:
                 raise
             except Exception as exc:
                 handled = 0
-                log.error("dispatcher_error", error_type=type(exc).__name__)
+                log.error("dispatcher_error", error_type=type(exc).__name__, exc_info=True)
             if not handled:
                 await asyncio.sleep(self.settings.outbox_poll_seconds)

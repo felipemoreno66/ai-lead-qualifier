@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from datetime import timedelta
 from typing import Any
 
@@ -78,6 +79,12 @@ def n8n(client: httpx.AsyncClient | None = None) -> N8nPublisher:
     return N8nPublisher("http://n8n.test:5678", SECRET, client=client)
 
 
+def test_signature_covers_the_timestamp():
+    body = b"{}"
+    assert sign(body, "s", "100") != sign(body, "s", "101")
+    assert sign(body, "s", "100") != sign(body, "s")
+
+
 def test_signature_is_hmac_sha256_over_the_raw_body():
     body = b'{"a":1}'
     assert sign(body, "s") == sign(body, "s")
@@ -96,7 +103,10 @@ async def test_success_marks_delivered_signs_the_body_and_sends_no_pii(db, make_
 
     assert handled == 1 and route.call_count == 1
     request = route.calls.last.request
-    assert request.headers["x-signature"] == sign(request.content, SECRET)
+    assert request.headers["x-signature"] == sign(
+        request.content, SECRET, request.headers["x-timestamp"]
+    )
+    assert abs(int(request.headers["x-timestamp"]) - time.time()) < 60
     assert request.headers["x-event-id"] == str(event_id)
     sent = json.loads(request.content)
     assert sent["event_type"] == "lead.created"
@@ -130,6 +140,25 @@ async def test_server_error_backs_off_and_lead_stays_new(db, make_settings):
         lead = await LeadRepository(conn).get(lead_id)
     assert lead and lead["status"] == "new"
     assert await lead_event_types(db, lead_id) == ["outbox_failed"] * 3
+
+
+@respx.mock
+@pytest.mark.parametrize("status", [401, 403])
+async def test_rejection_by_n8n_is_permanent_and_not_retried(db, make_settings, status):
+    clock = FakeClock()
+    lead_id, event_id = await create_lead_with_event(db, clock)
+    route = respx.post(WEBHOOK).mock(return_value=httpx.Response(status))
+    dispatcher = make_dispatcher(db, make_settings, clock, n8n())
+    await dispatcher.run_once()
+    clock.advance(hours=3)
+    assert await dispatcher.run_once() == 0
+    row = await event_row(db, event_id)
+    assert row["status"] == "dead" and row["attempts"] == 1
+    assert f"HTTP {status}" in row["last_error"]
+    assert route.call_count == 1
+    async with db.connect() as conn:
+        last = (await LeadRepository(conn).events(lead_id))[-1]
+    assert last["payload"]["dead"] is True
 
 
 @respx.mock

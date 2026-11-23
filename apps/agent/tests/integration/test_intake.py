@@ -400,3 +400,16 @@ async def test_an_ip_over_its_limit_does_not_consume_workspace_quota(make_client
                 )
             ).scalar_one()
         assert used == 5  # only the 5 accepted requests; the 5 rejected by IP cost nothing
+
+
+async def test_concurrent_identical_submissions_create_a_single_lead(make_client, db):
+    import asyncio
+
+    async with make_client(rate_ip_per_minute=100, rate_ip_per_hour=100) as client:
+        responses = await asyncio.gather(
+            *[client.post(URL, json=body(fields={"email": "race@example.com"})) for _ in range(8)]
+        )
+    assert {r.status_code for r in responses} == {202}
+    assert len({r.json()["reference"] for r in responses}) == 8  # indistinguishable, all distinct
+    assert await count(db, "leads") == 1
+    assert await count(db, "outbox_events") == 1

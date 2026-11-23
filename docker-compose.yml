@@ -97,6 +97,12 @@ services:
       N8N_WEBHOOK_BASE_URL: http://n8n:5678
       IP_HASH_SECRET: ${IP_HASH_SECRET:-local-dev-ip-hash-secret-change-me}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      EXPOSE_ADMIN_API: ${EXPOSE_ADMIN_API:-true}
+      RATE_IP_PER_MINUTE: ${RATE_IP_PER_MINUTE:-5}
+      RATE_IP_PER_HOUR: ${RATE_IP_PER_HOUR:-30}
+      RATE_WORKSPACE_PER_HOUR: ${RATE_WORKSPACE_PER_HOUR:-300}
+      RATE_EMAIL_PER_DAY: ${RATE_EMAIL_PER_DAY:-3}
     ports:
       - "127.0.0.1:8000:8000"
     mem_limit: 768m
@@ -118,6 +124,9 @@ services:
     environment:
       AGENT_INTERNAL_URL: http://agent:8000
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8000}
+      APP_ENV: ${APP_ENV:-local}
+      DASHBOARD_USER: ${DASHBOARD_USER:-}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-local-dev-admin-token-change-me}
     ports:
       - "127.0.0.1:3000:3000"

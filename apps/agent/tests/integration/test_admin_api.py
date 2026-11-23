@@ -254,3 +254,15 @@ async def test_end_to_end_inline_delivery_after_intake(make_client):
     assert detail["outbox"][0]["status"] == "delivered"
     assert datetime.fromisoformat(detail["created_at"]).tzinfo is not None
     assert UTC
+
+
+async def test_admin_and_internal_routers_can_be_left_unmounted(make_client):
+    async with make_client(expose_admin_api=False) as client:
+        assert (await client.get("/admin/leads", headers=AUTH)).status_code == 404
+        assert (
+            await client.post(f"/internal/events/{uuid.uuid4()}/ack", headers=N8N_AUTH)
+        ).status_code == 404
+        assert (await client.get("/healthz")).status_code == 200
+        assert (
+            await client.get("/api/workspaces/northwind-academy/public-config")
+        ).status_code == 200
