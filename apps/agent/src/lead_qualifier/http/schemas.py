@@ -160,6 +160,34 @@ class QualifyResult(BaseModel):
     error_reason: str | None = None
 
 
+class MessageContent(BaseModel):
+    """An approved message as n8n needs it to send. Served on the private, authenticated API."""
+
+    id: uuid.UUID
+    lead_id: uuid.UUID
+    channel: str
+    recipient: str
+    subject: str | None
+    body: str
+    language: str
+    from_address: str | None
+    message_id_header: str | None
+
+
+class SentCallback(BaseModel):
+    provider_message_id: str | None = Field(default=None, max_length=200)
+
+
+class SendFailedCallback(BaseModel):
+    error: str | None = Field(default=None, max_length=200)  # accepted, never stored
+
+
+class DeliveryOut(BaseModel):
+    message_id: uuid.UUID
+    status: str
+    changed: bool
+
+
 class AckResult(BaseModel):
     event_id: uuid.UUID
     status: Literal["delivered"] = "delivered"

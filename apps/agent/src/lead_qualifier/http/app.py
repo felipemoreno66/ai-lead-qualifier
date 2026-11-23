@@ -17,13 +17,16 @@ from lead_qualifier.http.middleware.request_id import RequestIdMiddleware
 from lead_qualifier.http.routers import admin, health, internal, public
 from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
 from lead_qualifier.infrastructure.db.engine import create_engine
+from lead_qualifier.infrastructure.email.smtp import SmtpSender
 from lead_qualifier.infrastructure.llm.router import build_provider
 from lead_qualifier.infrastructure.outbox.dispatcher import OutboxDispatcher
 from lead_qualifier.infrastructure.outbox.publishers import InlinePublisher, N8nPublisher
 from lead_qualifier.logging import configure_logging, get_logger
+from lead_qualifier.ports.channel import EmailSender
 from lead_qualifier.ports.clock import Clock, SystemClock
 from lead_qualifier.ports.events import EventPublisher
 from lead_qualifier.ports.llm import LLMProvider
+from lead_qualifier.services.delivery import DeliveryService
 from lead_qualifier.services.intake import IntakeService
 from lead_qualifier.services.qualify import QualifyService
 from lead_qualifier.services.rate_limit import RateLimiter
@@ -39,6 +42,7 @@ def create_app(
     clock: Clock | None = None,
     publisher: EventPublisher | None = None,
     llm_provider: LLMProvider | None = None,
+    email_sender: EmailSender | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -62,13 +66,26 @@ def create_app(
         checkpointer,
     )
     reviewer = ReviewService(engine, clock, qualifier)
+    delivery = DeliveryService(
+        engine,
+        clock,
+        registry,
+        email_sender
+        or SmtpSender(
+            settings.smtp_host,
+            settings.smtp_port,
+            username=settings.smtp_username,
+            password=settings.smtp_password.get_secret_value(),
+            starttls=settings.smtp_starttls,
+        ),
+    )
     n8n_publisher: N8nPublisher | None = None
     if publisher is None:
         if settings.orchestrator == "n8n":
             n8n_publisher = N8nPublisher(settings.n8n_webhook_base_url, settings.n8n_webhook_secret)
             publisher = n8n_publisher
         else:
-            publisher = InlinePublisher(qualifier.qualify)
+            publisher = InlinePublisher(qualifier.qualify, delivery.deliver)
     dispatcher = OutboxDispatcher(engine, publisher, clock, settings)
 
     @asynccontextmanager
@@ -109,6 +126,7 @@ def create_app(
     app.state.clock = clock
     app.state.qualifier = qualifier
     app.state.reviewer = reviewer
+    app.state.delivery = delivery
     app.state.checkpointer = checkpointer
     app.state.workspaces_synced = False
     app.state.trusted_networks = parse_networks(settings.trusted_proxy_list)

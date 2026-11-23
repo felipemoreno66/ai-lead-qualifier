@@ -2,14 +2,47 @@
 
 from __future__ import annotations
 
+import hmac
+import time
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Header, Request
 
+from lead_qualifier.domain.errors import Unauthorized
 from lead_qualifier.http.auth import require_n8n
-from lead_qualifier.http.deps import EngineDep
-from lead_qualifier.http.schemas import AckResult, QualifyResult
+from lead_qualifier.http.deps import EngineDep, SettingsDep
+from lead_qualifier.http.schemas import (
+    AckResult,
+    DeliveryOut,
+    MessageContent,
+    QualifyResult,
+    SendFailedCallback,
+    SentCallback,
+)
+from lead_qualifier.infrastructure.outbox.publishers import sign
 from lead_qualifier.services.outbox import acknowledge
+
+MAX_CALLBACK_AGE_SECONDS = 300
+
+
+async def verify_callback_signature(
+    request: Request,
+    settings: SettingsDep,
+    x_timestamp: Annotated[str | None, Header()] = None,
+    x_signature: Annotated[str | None, Header()] = None,
+) -> None:
+    """Delivery callbacks are signed like the webhook in the other direction:
+    ``X-Signature: sha256=HMAC(timestamp + "." + raw body)`` and a timestamp at most 5 minutes
+    old, so a captured callback cannot be replayed later."""
+    timestamp = x_timestamp or ""
+    fresh = timestamp.isdigit() and abs(time.time() - int(timestamp)) <= MAX_CALLBACK_AGE_SECONDS
+    expected = sign(await request.body(), settings.n8n_webhook_secret, timestamp)
+    if not (fresh and x_signature and hmac.compare_digest(expected, x_signature)):
+        raise Unauthorized("Invalid or expired callback signature.")
+
+
+Signed = Depends(verify_callback_signature)
 
 router = APIRouter(prefix="/internal", tags=["internal"], dependencies=[require_n8n])
 
@@ -25,3 +58,26 @@ async def qualify_lead(lead_id: uuid.UUID, request: Request) -> QualifyResult:
     """Run the qualification graph. A failed run answers 200 with ``status: error``."""
     outcome = await request.app.state.qualifier.qualify(lead_id)
     return QualifyResult(**vars(outcome))
+
+
+@router.get("/messages/{message_id}", response_model=MessageContent)
+async def get_message(message_id: uuid.UUID, request: Request) -> MessageContent:
+    return MessageContent(**await request.app.state.delivery.content(message_id))
+
+
+@router.post("/messages/{message_id}/sent", response_model=DeliveryOut, dependencies=[Signed])
+async def message_sent(
+    message_id: uuid.UUID, payload: SentCallback, request: Request
+) -> DeliveryOut:
+    result = await request.app.state.delivery.mark_sent(message_id, payload.provider_message_id)
+    return DeliveryOut(**vars(result))
+
+
+@router.post(
+    "/messages/{message_id}/send-failed", response_model=DeliveryOut, dependencies=[Signed]
+)
+async def message_send_failed(
+    message_id: uuid.UUID, payload: SendFailedCallback, request: Request
+) -> DeliveryOut:
+    result = await request.app.state.delivery.mark_send_failed(message_id, "n8n_send_failed")
+    return DeliveryOut(**vars(result))

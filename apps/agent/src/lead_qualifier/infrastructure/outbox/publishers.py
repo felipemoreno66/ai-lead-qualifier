@@ -74,18 +74,28 @@ class N8nPublisher:
 
 
 class InlinePublisher:
-    """Inline orchestration: ``lead.created`` runs the qualification graph in-process.
+    """Inline orchestration: ``lead.created`` runs the qualification graph in-process and
+    ``message.approved`` sends the email in-process.
 
     A lead that is no longer qualifiable (already processed, or deleted) is not an error: the
     event is simply done, which keeps redelivery idempotent. A failed graph run is recorded on the
     lead (``error``, retryable) and does not fail the event.
     """
 
-    def __init__(self, qualify: Callable[[uuid.UUID], Awaitable[object]] | None = None) -> None:
+    def __init__(
+        self,
+        qualify: Callable[[uuid.UUID], Awaitable[object]] | None = None,
+        deliver: Callable[[uuid.UUID], Awaitable[object]] | None = None,
+    ) -> None:
         self._qualify = qualify
+        self._deliver = deliver
 
     async def publish(self, event: dict[str, Any]) -> None:
         log.info("inline_event", event_id=event["event_id"], event_type=event["event_type"])
+        if event["event_type"] == "message.approved" and self._deliver is not None:
+            # Sending is idempotent: a sent message makes a redelivered event a no-op.
+            await self._deliver(uuid.UUID(event["message"]["id"]))
+            return
         if event["event_type"] != "lead.created" or self._qualify is None:
             return
         try:
