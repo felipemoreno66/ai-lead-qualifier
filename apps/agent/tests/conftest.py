@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
@@ -132,7 +133,10 @@ async def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_setting
     clients: list[httpx.AsyncClient] = []
 
     def _make(
-        clock: object | None = None, llm_provider: object | None = None, **overrides: object
+        clock: object | None = None,
+        llm_provider: object | None = None,
+        email_sender: object | None = None,
+        **overrides: object,
     ) -> httpx.AsyncClient:
         settings = make_settings(**overrides)
         enabled = frozenset(settings.enabled_workspace_slugs)
@@ -143,6 +147,7 @@ async def make_client(db: AsyncEngine, registry: WorkspaceRegistry, make_setting
             registry=reg,
             clock=clock,  # type: ignore[arg-type]
             llm_provider=llm_provider,  # type: ignore[arg-type]
+            email_sender=email_sender,  # type: ignore[arg-type]
         )
         client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
@@ -185,3 +190,41 @@ def _block_outbound_network() -> Iterator[None]:
         yield
     finally:
         socket.socket.connect = real_connect  # type: ignore[method-assign]
+
+
+class SmtpInbox:
+    """A real SMTP server on loopback that keeps what it receives (no mail ever leaves the box)."""
+
+    def __init__(self) -> None:
+        from aiosmtpd.controller import Controller
+
+        self.messages: list[Any] = []
+        self.replies: list[str] = []  # scripted SMTP answers, consumed one per message
+        inbox = self
+
+        class Handler:
+            async def handle_DATA(self, server: Any, session: Any, envelope: Any) -> str:
+                if inbox.replies:
+                    return inbox.replies.pop(0)
+                inbox.messages.append(envelope)
+                return "250 OK"
+
+        import socket
+
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            self.port: int = probe.getsockname()[1]
+        self._controller = Controller(Handler(), hostname="127.0.0.1", port=self.port)
+
+    def __enter__(self) -> SmtpInbox:
+        self._controller.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._controller.stop()
+
+
+@pytest.fixture
+def smtp_inbox() -> Iterator[SmtpInbox]:
+    with SmtpInbox() as inbox:
+        yield inbox

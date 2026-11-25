@@ -194,6 +194,60 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/internal/messages/{message_id}/claim": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Claim Message
+     * @description Hand an approved message to n8n for sending and mark it ``sending`` so it is sent once.
+     */
+    post: operations["claim_message_internal_messages__message_id__claim_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/internal/messages/{message_id}/send-failed": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Message Send Failed */
+    post: operations["message_send_failed_internal_messages__message_id__send_failed_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/internal/messages/{message_id}/sent": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Message Sent */
+    post: operations["message_sent_internal_messages__message_id__sent_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/readyz": {
     parameters: {
       query?: never;
@@ -241,6 +295,18 @@ export interface components {
       label: string;
       /** Value */
       value: string | number | boolean;
+    };
+    /** DeliveryOut */
+    DeliveryOut: {
+      /** Changed */
+      changed: boolean;
+      /**
+       * Message Id
+       * Format: uuid
+       */
+      message_id: string;
+      /** Status */
+      status: string;
     };
     /** FieldOption */
     FieldOption: {
@@ -429,6 +495,37 @@ export interface components {
       tier: string | null;
       /** Workspace Slug */
       workspace_slug: string;
+    };
+    /**
+     * MessageContent
+     * @description An approved message as n8n needs it to send. Served on the private, authenticated API.
+     */
+    MessageContent: {
+      /** Body */
+      body?: string | null;
+      /** Channel */
+      channel?: string | null;
+      /** Deliverable */
+      deliverable: boolean;
+      /** From Address */
+      from_address?: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Language */
+      language?: string | null;
+      /** Lead Id */
+      lead_id?: string | null;
+      /** Message Id Header */
+      message_id_header?: string | null;
+      /** Recipient */
+      recipient?: string | null;
+      /** Status */
+      status: string;
+      /** Subject */
+      subject?: string | null;
     };
     /** MessageOut */
     MessageOut: {
@@ -632,6 +729,26 @@ export interface components {
       message_id: string;
       /** Status */
       status: string;
+    };
+    /** SendFailedCallback */
+    SendFailedCallback: {
+      /** Error */
+      error?: string | null;
+      /**
+       * Message Id
+       * Format: uuid
+       */
+      message_id: string;
+    };
+    /** SentCallback */
+    SentCallback: {
+      /**
+       * Message Id
+       * Format: uuid
+       */
+      message_id: string;
+      /** Provider Message Id */
+      provider_message_id?: string | null;
     };
     /** ValidationError */
     ValidationError: {
@@ -1049,6 +1166,117 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["QualifyResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  claim_message_internal_messages__message_id__claim_post: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path: {
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageContent"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  message_send_failed_internal_messages__message_id__send_failed_post: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+        "x-timestamp"?: string | null;
+        "x-signature"?: string | null;
+      };
+      path: {
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SendFailedCallback"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DeliveryOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  message_sent_internal_messages__message_id__sent_post: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+        "x-timestamp"?: string | null;
+        "x-signature"?: string | null;
+      };
+      path: {
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SentCallback"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DeliveryOut"];
         };
       };
       /** @description Validation Error */

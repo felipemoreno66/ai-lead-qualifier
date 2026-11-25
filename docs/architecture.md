@@ -164,8 +164,57 @@ flowchart TD
   `LLM_CALLS_RETENTION_DAYS` ago. Runs waiting for a human are never purged.
 - `agent_runs.duration_ms` includes the time spent waiting for review, and regenerating reuses the
   same run (so the call cap and cost cover every draft).
-- Approved messages are only queued until the sending milestone is merged (the inline publisher only
-  logs `message.approved`, so an approved lead stays `approved`).
+- Approved messages are queued as `message.approved` and sent as described below.
+
+
+### Sending (M2.4)
+
+```mermaid
+sequenceDiagram
+  participant D as Outbox dispatcher
+  participant I as Inline sender
+  participant N as n8n message-approved
+  participant A as Agent /internal
+  participant S as SMTP (Mailpit)
+  D->>D: message.approved event
+  alt ORCHESTRATOR=inline
+    D->>I: publish (in-process)
+    I->>S: send (stable Message-ID)
+    I->>A: mark sent / send_failed
+  else ORCHESTRATOR=n8n
+    D->>N: signed webhook (ids only)
+    N->>A: POST /internal/messages/{id}/claim (approved to sending)
+    N->>S: send (channel = email)
+    N->>A: POST sent or send-failed (bearer + HMAC + timestamp)
+    N->>A: POST /internal/events/{id}/ack
+  end
+```
+
+- `ports/channel.py` defines `MessageChannel` (`validate_recipient`, `render`) and `EmailSender`;
+  `domain/channel.py` has the only implementation, `EmailChannel`. A message whose channel has no
+  implementation (for example `whatsapp`) fails cleanly with `send_failed`.
+- `services/delivery.py` is idempotent: a message that is no longer `approved` is not sent again, so an
+  outbox event delivered twice sends one email. The email carries a `Message-ID` derived from the
+  stored message, so even a crash between sending and recording can be recognised downstream.
+- Success: message `sent`, lead `sent` with `sent_at`, timeline event `email_sent`. Failure: message
+  `failed`, lead `error` with reason `send_failed: the message could not be delivered`; only the error
+  type is kept because SMTP errors can contain the recipient's address. Retrying the lead
+  re-qualifies it and drafts a new message.
+- The webhook to n8n carries ids only; n8n claims the content on the private authenticated API.
+- **Delivery is at-least-once with a stable `Message-ID`, but guarded by a claim.** Before any SMTP
+  call the message moves from `approved` to `sending` under `FOR UPDATE` (inline `deliver` and n8n's
+  `/claim`), so a redelivered event or a second worker sees `sending`/`sent` and does nothing. A claim
+  that is never settled (a crash between the SMTP call and its report) is **not** resent: the
+  dispatcher logs `stale_sending_messages` after `SEND_STALE_MINUTES`, and an operator checks the
+  mailbox, then settles the row with `POST /internal/messages/{id}/sent` or `/send-failed`.
+- Transient SMTP failures (4xx, timeouts, connection errors) release the claim and leave the outbox
+  event undelivered so it is retried with backoff, up to `SEND_MAX_ATTEMPTS` (default 3); permanent
+  ones (5xx) fail the message at once. In n8n mode the Send email node retries three times itself.
+- A `sent` report that arrives after the message was marked `failed` wins: the message and, if it is
+  still in `error: send_failed`, the lead move to `sent` and the timeline records `late_report`.
+- n8n's Send email node cannot set custom headers, so in n8n mode the `Message-ID` is the one the
+  node generates (reported back as `provider_message_id`); the claim, not the header, prevents a
+  second send. SMTP credentials are refused without STARTTLS or SSL (startup fails).
 
 ## LLM provider layer
 

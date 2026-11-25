@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     max_body_bytes: int = Field(default=16 * 1024, ge=1024)
     duplicate_window_minutes: int = Field(default=10, ge=0)
 
+    smtp_host: str = "localhost"
+    smtp_port: int = Field(default=1025, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_starttls: bool = False
+    smtp_ssl: bool = False
+    send_max_attempts: int = Field(default=3, ge=1)
+    send_stale_minutes: int = Field(default=15, ge=1)
+
     llm_provider: Literal["fake", "anthropic", "bedrock", "openai"] = "fake"
     llm_model_default: str = "claude-haiku-5-5"
     llm_model_draft: str = ""
@@ -71,6 +80,15 @@ class Settings(BaseSettings):
     @classmethod
     def _strip(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _smtp_credentials_need_tls(self) -> Settings:
+        if self.smtp_username and not (self.smtp_starttls or self.smtp_ssl):
+            raise ValueError(
+                "SMTP_USERNAME is set but neither SMTP_STARTTLS nor SMTP_SSL is on: "
+                "credentials would cross the network in clear text"
+            )
+        return self
 
     @model_validator(mode="after")
     def _fill_or_require_secrets(self) -> Settings:

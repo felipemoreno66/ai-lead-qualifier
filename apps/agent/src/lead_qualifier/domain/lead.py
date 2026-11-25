@@ -29,6 +29,7 @@ class LeadTrigger(StrEnum):
     REJECT = "reject"
     SENT = "sent"
     SEND_FAILED = "send_failed"
+    LATE_SENT = "late_sent"
 
 
 S = LeadStatus
@@ -44,6 +45,8 @@ TRANSITIONS: dict[tuple[LeadStatus, LeadTrigger], LeadStatus] = {
     (S.PENDING_REVIEW, T.REJECT): S.REJECTED,
     (S.APPROVED, T.SENT): S.SENT,
     (S.APPROVED, T.SEND_FAILED): S.ERROR,
+    # A delivery report that arrives after the send was already marked failed.
+    (S.ERROR, T.LATE_SENT): S.SENT,
 }
 
 TERMINAL_STATUSES = frozenset({S.REJECTED, S.SENT})
