@@ -24,6 +24,11 @@ class Embeddings(Protocol):
         ...
 
     @property
+    def default_min_similarity(self) -> float:
+        """Cosine similarity under which a chunk is not a match (the scale differs by model)."""
+        ...
+
+    @property
     def chunk_overlap_tokens(self) -> int: ...
 
     def warm(self) -> None:

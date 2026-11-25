@@ -19,6 +19,7 @@ class OpenAIEmbeddings:
     dimension = EMBEDDING_DIMENSION
     max_chunk_tokens = 500  # the API accepts up to 8,191 tokens per input
     chunk_overlap_tokens = 50
+    default_min_similarity = 0.3  # not swept: re-run the RAG eval before relying on it
 
     def __init__(self, api_key: str, *, timeout: float = 30.0) -> None:
         if not api_key:
