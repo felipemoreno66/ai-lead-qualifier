@@ -28,6 +28,9 @@ export async function applyAndOpen(page: Page, who: { name: string; email: strin
   await expect(page).toHaveURL(/\/apply\/thanks\?ref=NW-/);
   await page.goto("/dashboard");
   await page.getByLabel("Search by name or email").fill(who.email);
+  // The search is debounced and rewrites the URL; a click before it lands would be undone by it.
+  await expect(page).toHaveURL(/[?&]q=/);
+  await expect(page.getByText(/^1 lead\b/)).toBeVisible();
   await page.getByRole("link", { name: who.name }).click();
   await expect(page.getByRole("heading", { level: 1, name: who.name })).toBeVisible();
 }
