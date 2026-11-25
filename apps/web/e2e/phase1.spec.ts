@@ -33,8 +33,8 @@ test.describe("Phase 1: apply and see the lead in the dashboard", () => {
 
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Who should you reply to first?" })).toBeVisible();
-    await page.getByRole("button", { name: "New", exact: true }).click();
-    await expect(page).toHaveURL(/status=new/);
+    // No status filter here: inline orchestration moves the lead from new to pending_review within
+    // a couple of seconds, so any single status would be a race.
     await page.getByLabel("Search by name or email").fill(EMAIL);
     await expect(page).toHaveURL(/q=eve/);
     const row = page.getByRole("link", { name: NAME });

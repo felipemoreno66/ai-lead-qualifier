@@ -5,7 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from lead_qualifier.domain.workspace import FieldType, WorkspaceConfig
-from lead_qualifier.http.schemas import AnswerOut, LeadDetail, LeadEventOut, OutboxEventOut
+from lead_qualifier.http.schemas import (
+    AnswerOut,
+    LeadDetail,
+    LeadEventOut,
+    MessageOut,
+    OutboxEventOut,
+)
 
 
 def interest_label(config: WorkspaceConfig | None, answers: dict[str, Any]) -> str | None:
@@ -50,6 +56,7 @@ def lead_detail(
     events: list[dict[str, Any]],
     outbox: list[dict[str, Any]],
     config: WorkspaceConfig | None,
+    drafts: list[dict[str, Any]] | None = None,
 ) -> LeadDetail:
     product_name = None
     if config and lead["recommended_product"]:
@@ -91,4 +98,5 @@ def lead_detail(
         answers=answers_view(config, lead["answers"]),
         events=[LeadEventOut(**{k: e[k] for k in LeadEventOut.model_fields}) for e in events],
         outbox=[OutboxEventOut(**{k: o[k] for k in OutboxEventOut.model_fields}) for o in outbox],
+        messages=[MessageOut(**{k: m[k] for k in MessageOut.model_fields}) for m in drafts or []],
     )

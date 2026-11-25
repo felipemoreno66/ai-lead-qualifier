@@ -15,6 +15,7 @@ from lead_qualifier.http.errors import install_error_handlers
 from lead_qualifier.http.middleware.cors import WorkspaceCORSMiddleware
 from lead_qualifier.http.middleware.request_id import RequestIdMiddleware
 from lead_qualifier.http.routers import admin, health, internal, public
+from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
 from lead_qualifier.infrastructure.db.engine import create_engine
 from lead_qualifier.infrastructure.llm.router import build_provider
 from lead_qualifier.infrastructure.outbox.dispatcher import OutboxDispatcher
@@ -26,6 +27,7 @@ from lead_qualifier.ports.llm import LLMProvider
 from lead_qualifier.services.intake import IntakeService
 from lead_qualifier.services.qualify import QualifyService
 from lead_qualifier.services.rate_limit import RateLimiter
+from lead_qualifier.services.review import ReviewService
 from lead_qualifier.services.workspace_sync import sync_workspaces
 from lead_qualifier.workspaces.loader import WorkspaceRegistry, load_workspaces
 
@@ -50,13 +52,17 @@ def create_app(
         enabled=settings.enabled_workspace_slugs,
     )
 
+    checkpointer = PostgresCheckpointer(settings.database_url)
     qualifier = QualifyService(
         engine,
         settings,
         registry,
         llm_provider or build_provider(settings, engine),
         clock,
+        checkpointer,
     )
+    reviewer = ReviewService(engine, clock, qualifier)
+    qualifier.attach_send_gateway(reviewer)
     n8n_publisher: N8nPublisher | None = None
     if publisher is None:
         if settings.orchestrator == "n8n":
@@ -64,7 +70,7 @@ def create_app(
             publisher = n8n_publisher
         else:
             publisher = InlinePublisher(qualifier.qualify)
-    dispatcher = OutboxDispatcher(engine, publisher, clock, settings)
+    dispatcher = OutboxDispatcher(engine, publisher, clock, settings, checkpointer)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -89,6 +95,7 @@ def create_app(
             task.cancel()
             with suppress(asyncio.CancelledError):
                 await task
+        await checkpointer.aclose()
         if n8n_publisher:
             await n8n_publisher.aclose()
         if owned_engine:
@@ -102,6 +109,8 @@ def create_app(
     app.state.dispatcher = dispatcher
     app.state.clock = clock
     app.state.qualifier = qualifier
+    app.state.reviewer = reviewer
+    app.state.checkpointer = checkpointer
     app.state.workspaces_synced = False
     app.state.trusted_networks = parse_networks(settings.trusted_proxy_list)
     app.state.limiter = RateLimiter(engine, clock)

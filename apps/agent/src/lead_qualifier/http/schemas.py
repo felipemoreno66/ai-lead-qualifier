@@ -6,7 +6,9 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
+
+from lead_qualifier.domain.draft_guard import has_unsafe_chars
 
 Group = Literal["attention", "hot", "warm", "scoring", "cold"]
 
@@ -102,11 +104,62 @@ class LeadDetail(BaseModel):
     answers: list[AnswerOut]
     events: list[LeadEventOut]
     outbox: list[OutboxEventOut]
+    messages: list[MessageOut]
 
 
 class RetriggerResult(BaseModel):
     event_id: uuid.UUID
     attempt: int
+
+
+class MessageOut(BaseModel):
+    id: uuid.UUID
+    version: int
+    language: str
+    channel: str
+    channel_recipient: str
+    subject: str | None
+    body: str
+    short_body: str | None
+    status: str
+    edited_by_operator: bool
+    original_body: str | None
+    review_note: str | None
+    guard_warnings: list[str]
+    created_at: datetime
+    reviewed_at: datetime | None
+    sent_at: datetime | None
+
+
+class ReviewRequest(BaseModel):
+    action: Literal["approve", "edit", "reject", "regenerate"]
+    subject: str | None = Field(default=None, min_length=1, max_length=150)
+    body: str | None = Field(default=None, min_length=1, max_length=4000)
+    feedback: str | None = Field(default=None, max_length=500)
+    note: str | None = Field(default=None, max_length=500)
+    override: bool = False  # approve even though the draft checks found problems (recorded)
+
+    @model_validator(mode="after")
+    def _safe_text(self) -> ReviewRequest:
+        if self.subject is not None and has_unsafe_chars(self.subject, allow_newlines=False):
+            raise ValueError("the subject must not contain control or bidirectional characters")
+        for text in (self.body, self.feedback, self.note):
+            if text is not None and has_unsafe_chars(text, allow_newlines=True):
+                raise ValueError("the text must not contain control or bidirectional characters")
+        return self
+
+    @model_validator(mode="after")
+    def _edit_needs_a_body(self) -> ReviewRequest:
+        if self.action == "edit" and not self.body:
+            raise ValueError("an edit needs the new body")
+        return self
+
+
+class ReviewResult(BaseModel):
+    lead_id: uuid.UUID
+    status: str
+    message_id: uuid.UUID
+    error_reason: str | None = None
 
 
 class QualifyResult(BaseModel):

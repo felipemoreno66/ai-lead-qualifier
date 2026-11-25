@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.config import Settings
+from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
 from lead_qualifier.infrastructure.db.repositories import (
     LeadRepository,
     OutboxRepository,
@@ -29,8 +30,14 @@ RATE_LIMIT_RETENTION = timedelta(days=2)
 
 class OutboxDispatcher:
     def __init__(
-        self, engine: AsyncEngine, publisher: EventPublisher, clock: Clock, settings: Settings
+        self,
+        engine: AsyncEngine,
+        publisher: EventPublisher,
+        clock: Clock,
+        settings: Settings,
+        checkpointer: PostgresCheckpointer | None = None,
     ) -> None:
+        self.checkpointer = checkpointer
         self.engine = engine
         self.publisher = publisher
         self.clock = clock
@@ -123,7 +130,17 @@ class OutboxDispatcher:
             purged = await LlmCallRepository(conn).purge_before(
                 now - timedelta(days=self.settings.llm_calls_retention_days)
             )
-        log.info("rate_limits_purged", removed=removed, llm_calls_purged=purged)
+        threads = 0
+        if self.checkpointer is not None:
+            threads = await self.checkpointer.purge_stale_threads(
+                self.engine, now, timedelta(days=self.settings.llm_calls_retention_days)
+            )
+        log.info(
+            "rate_limits_purged",
+            removed=removed,
+            llm_calls_purged=purged,
+            checkpoint_threads=threads,
+        )
 
     async def run_forever(self) -> None:
         log.info("dispatcher_started", poll_seconds=self.settings.outbox_poll_seconds)

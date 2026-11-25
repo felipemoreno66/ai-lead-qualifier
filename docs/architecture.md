@@ -112,8 +112,60 @@ flowchart LR
   a new run. In `inline` mode the outbox dispatcher calls the service for `lead.created`.
 - The fake provider's rule-based extract/qualify handlers (`infrastructure/llm/fake_handlers.py`) read
   the same rendered prompt, so the keyless demo produces explainable judgments.
-- Interim state: after a successful run the lead stays in `qualifying` (score stored). Drafting and
-  human review (M2.3) move it to `pending_review`; there is no checkpointer yet.
+
+### Drafting and human review (M2.3)
+
+```mermaid
+flowchart TD
+  Q[qualify] --> D[draft]
+  D --> V[validate_draft]
+  V -- "problems, first time" --> D
+  V --> H[[human_review: interrupt]]
+  H -- approve / edit --> R[request_send: outbox message.approved]
+  H -- regenerate + feedback --> D
+  H -- reject --> X([END])
+  R --> X
+```
+
+- `draft` writes in the lead's language (falls back to the workspace default when unsupported) using
+  the workspace tone, signature and call to action, and only the recommended product's facts. Its
+  output has `subject`, `body` and an optional plain-text `short_body` for a future WhatsApp channel.
+  `LLM_MODEL_DRAFT` selects a different model for this node.
+- `validate_draft` (`domain/draft_guard.py`, no LLM): word limit, links only on
+  `allowed_link_domains`, only the business's email addresses, no placeholders, every amount must be a
+  price fact from the config (product amounts and numbers in price notes), a language sanity check and
+  `short_body` rules. Every content rule covers subject, body and `short_body` together, links are
+  parsed like a browser would (userinfo, `\`, `%`, odd ports and non-hostname characters are rejected,
+  hosts are compared in punycode so look-alikes fail, bare domains such as `evil.com/x` count as links)
+  and an operator edit clears `short_body`. A failing draft is regenerated once with the problems as feedback; if it still
+  fails it goes to review with the problems shown as `guard_warnings`.
+- The graph runs with the Postgres checkpointer (schema `langgraph`, created on first use) and one
+  thread per run. `human_review` contains only `interrupt()`; the paused thread survives an agent
+  restart. The draft is stored in `messages` (status `draft`, `channel='email'`) and the lead becomes
+  `pending_review`.
+- `POST /admin/leads/{id}/review` with `approve`, `edit` (needs `body`), `reject` or `regenerate`
+  (optional `feedback`): 409 unless the lead is in `pending_review` with a draft, 422 on a bad payload.
+  Approve and edit resume the graph; `request_send` is one transaction that approves the message
+  (an edit keeps `original_body`), inserts the `message.approved` outbox event under the unique key
+  `message:<id>:send` and moves the lead to `approved`. A replay is a no-op. Regenerate marks the old
+  draft `rejected` with the feedback and creates version n+1.
+- The draft checks (`check_draft_detailed`) run again on the **final** text when the operator approves
+  or edits: problems answer 422 with their codes unless the request carries `override: true`, which is
+  recorded in the timeline (`reviewed` event with the problem codes). Control and bidirectional
+  characters are rejected in subjects and bodies. Only fixed problem codes (never lead-derived text)
+  are fed back to the model when it redrafts.
+- Each review action is claimed first: one transaction holds a row lock on the lead and writes the
+  new state (an approval also queues `message.approved` once); only then is the paused graph resumed.
+  A concurrent second request sees the new status (409), except that approving an already approved
+  lead answers 200 with the same result. If resuming fails after the claim, the database stays the
+  source of truth and the paused thread is discarded.
+- Checkpoints contain lead data: deleting a lead deletes its threads (retried), and the dispatcher's
+  hourly maintenance also removes orphaned threads and threads of runs that finished more than
+  `LLM_CALLS_RETENTION_DAYS` ago. Runs waiting for a human are never purged.
+- `agent_runs.duration_ms` includes the time spent waiting for review, and regenerating reuses the
+  same run (so the call cap and cost cover every draft).
+- Approved messages are only queued until the sending milestone is merged (the inline publisher only
+  logs `message.approved`, so an approved lead stays `approved`).
 
 ## LLM provider layer
 

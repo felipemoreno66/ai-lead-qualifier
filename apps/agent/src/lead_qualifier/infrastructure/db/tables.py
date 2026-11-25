@@ -226,6 +226,8 @@ messages = Table(
     Column("reviewed_at", DateTime(timezone=True)),
     Column("sent_at", DateTime(timezone=True)),
     Column("provider_message_id", Text),
+    Column("short_body", Text),
+    Column("guard_warnings", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
     UniqueConstraint("lead_id", "version", name="uq_messages_lead_version"),
     CheckConstraint(_in("status", MESSAGE_STATUSES), name="ck_messages_status"),
     CheckConstraint(_in("channel", MESSAGE_CHANNELS), name="ck_messages_channel"),
