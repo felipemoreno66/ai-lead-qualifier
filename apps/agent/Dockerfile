@@ -17,6 +17,9 @@ COPY apps/agent/migrations ./migrations
 COPY workspaces /app/workspaces
 COPY db /app/db
 # Cache of the embedding model (a named volume in compose); the model is downloaded on first use.
+# HF_HOME keeps the Hugging Face client's own cache and logs inside the volume too: the container
+# runs as a system user whose HOME (/app) is not writable.
+ENV HF_HOME=/var/cache/fastembed/hf
 RUN mkdir -p /var/cache/fastembed && chown app /var/cache/fastembed
 USER app
 EXPOSE 8000

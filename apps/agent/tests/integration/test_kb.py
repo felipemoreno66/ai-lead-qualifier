@@ -220,3 +220,13 @@ async def test_the_workspace_stays_busy_until_the_embedding_thread_ends(db, kb_d
         if SLUG not in service._running:
             break
     assert (await service.ingest(SLUG, kb_dir)).added == 2
+
+
+async def test_retrieval_uses_the_models_default_threshold_unless_overridden(db, kb_dir):
+    class Strict(FakeEmbeddings):
+        default_min_similarity = 0.99
+
+    strict = KnowledgeBaseService(db, Strict(), SystemClock())
+    await strict.ingest(SLUG, kb_dir)
+    assert await strict.retrieve(SLUG, "full refund within 14 days") == []
+    assert await strict.retrieve(SLUG, "full refund within 14 days", min_similarity=0.0)

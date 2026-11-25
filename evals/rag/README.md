@@ -16,7 +16,7 @@ cites the right document, and refuses what the documentation does not cover.
 - **Citation precision**: citations to an expected source divided by all citations on answerable questions.
 - **Refusal correctness**: unanswerable questions answered with `covered=false`.
 - **Refusal correctness is two things at once**: a question with no chunk above the minimum similarity
-  (`--min-similarity`, default 0.3) is refused without calling the model, so a high score can come from the
+  (`--min-similarity`, default: the embedding model's own, 0.45 for fastembed) is refused without calling the model, so a high score can come from the
   threshold rather than from the model's judgement. The table prints the threshold used.
 - **False refusals**: answerable questions that were refused (a count, lower is better).
 
@@ -46,3 +46,21 @@ ANTHROPIC_API_KEY=... uv run --project apps/agent python evals/rag/run.py \
   production; pgvector is covered by the integration tests.
 
 No real run has been made yet. Record the first one here (date, model, embeddings, the table above, cost).
+
+## Threshold sweep (fastembed, fake LLM)
+
+Run on the 15 Northwind questions to choose the fastembed default (`--embeddings fastembed --min-similarity X`):
+
+| Minimum similarity | Refusal correctness | False refusals |
+|---|---|---|
+| 0.3 | 0% (every unanswerable question came back covered) | 0 |
+| 0.4 to 0.6 | 100% | 0 |
+| 0.65 | 100% | 3 |
+
+The default is 0.45, inside the safe band. A real model may refuse on its own judgement above that, but
+the threshold is the first line of defence, so re-run the sweep when the embedding model or the documents change.
+
+## Known limits of the fake
+
+The fake provider quotes the English knowledge-base passage verbatim, so for a Spanish question its answer
+(and the draft built from it) contains English text. A real model translates; the fake does not.
