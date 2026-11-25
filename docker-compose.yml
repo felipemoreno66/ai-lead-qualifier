@@ -79,11 +79,12 @@ services:
     build:
       context: .
       dockerfile: apps/agent/Dockerfile
+    image: leadq-agent:local
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
+    environment: &agent-env
       APP_ENV: ${APP_ENV:-local}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leadq}:${POSTGRES_PASSWORD:-leadq}@postgres:5432/${POSTGRES_DB:-leadq}
       WORKSPACES_DIR: /app/workspaces
@@ -112,7 +113,10 @@ services:
       AGENT_RUN_TIMEOUT_MINUTES: ${AGENT_RUN_TIMEOUT_MINUTES:-10}
       QUALIFY_MAX_RUNS_PER_DAY: ${QUALIFY_MAX_RUNS_PER_DAY:-5}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-fastembed}
+      # DEMO_EMBEDDINGS=fake skips the one-time embedding model download (demo only).
+      EMBEDDINGS_PROVIDER: ${DEMO_EMBEDDINGS:-${EMBEDDINGS_PROVIDER:-fastembed}}
+      # The keyless demo loads the fictional Northwind data on first start (demo-init below).
+      DEMO_SEED: ${DEMO_SEED:-true}
       EMBEDDINGS_CACHE_DIR: /var/cache/fastembed
       HF_HOME: /var/cache/fastembed/hf
       EMBEDDINGS_WARM_ON_STARTUP: ${EMBEDDINGS_WARM_ON_STARTUP:-false}
@@ -145,6 +149,21 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
+
+  # One-shot: loads the Northwind demo data and ingests its knowledge base, then exits. Idempotent;
+  # a no-op with DEMO_SEED=false and refused with APP_ENV=production. The first run downloads the
+  # embedding model (about 90 MB, free) unless DEMO_EMBEDDINGS=fake.
+  demo-init:
+    image: leadq-agent:local
+    restart: "no"
+    depends_on:
+      agent:
+        condition: service_healthy
+    environment: *agent-env
+    command: ["python", "-m", "lead_qualifier.scripts.demo_init"]
+    volumes:
+      - fastembed_cache:/var/cache/fastembed
+    mem_limit: 1g
 
   web:
     build:

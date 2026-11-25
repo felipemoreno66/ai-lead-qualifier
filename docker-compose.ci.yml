@@ -11,3 +11,11 @@ services:
       EMBEDDINGS_PROVIDER: fake
       KB_MIN_SIMILARITY: "0.1"
       KB_ASK_PER_HOUR: "1000"
+
+  # Same overrides for the one-shot demo init (the anchor in docker-compose.yml is not shared).
+  demo-init:
+    environment:
+      ORCHESTRATOR: inline
+      EMBEDDINGS_PROVIDER: fake
+      KB_MIN_SIMILARITY: "0.1"
+      KB_ASK_PER_HOUR: "1000"

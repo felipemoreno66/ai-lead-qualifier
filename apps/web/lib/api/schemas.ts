@@ -1,5 +1,6 @@
 import {
   agentRunsSchema,
+  instanceStatusSchema,
   kbChatEntriesSchema,
   kbChatEntrySchema,
   leadDetailSchema,
@@ -15,6 +16,7 @@ import { z } from "zod";
 
 export {
   agentRunsSchema,
+  instanceStatusSchema,
   kbChatEntriesSchema,
   kbChatEntrySchema,
   leadDetailSchema,
