@@ -19,9 +19,11 @@ from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.clock import Clock
 from lead_qualifier.ports.events import EventPublisher, PermanentPublishError
 from lead_qualifier.services.outbox import envelope
+from lead_qualifier.services.reaper import reap_stale_runs
 
 log = get_logger("dispatcher")
 PURGE_EVERY = timedelta(hours=1)
+REAP_EVERY = timedelta(minutes=1)
 RATE_LIMIT_RETENTION = timedelta(days=2)
 
 
@@ -34,6 +36,7 @@ class OutboxDispatcher:
         self.clock = clock
         self.settings = settings
         self._last_purge = clock.now()
+        self._last_reap = clock.now() - REAP_EVERY
 
     async def run_once(self) -> int:
         """Claim and deliver one batch. Returns how many events were handled."""
@@ -101,6 +104,15 @@ class OutboxDispatcher:
             error_type=error.split(":", 1)[0],
         )
 
+    async def reap_stale_runs(self) -> None:
+        now = self.clock.now()
+        if now - self._last_reap < REAP_EVERY:
+            return
+        self._last_reap = now
+        await reap_stale_runs(
+            self.engine, self.clock, timedelta(minutes=self.settings.agent_run_timeout_minutes)
+        )
+
     async def purge_rate_limits(self) -> None:
         now = self.clock.now()
         if now - self._last_purge < PURGE_EVERY:
@@ -119,6 +131,7 @@ class OutboxDispatcher:
             try:
                 handled = await self.run_once()
                 await self.purge_rate_limits()
+                await self.reap_stale_runs()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:

@@ -37,6 +37,7 @@ LEAD_EVENT_TYPES = (
     "reviewed",
     "retriggered",
     "email_sent",
+    "injection_suspected",
 )
 OUTBOX_STATUSES = ("pending", "processing", "delivered", "dead")
 OUTBOX_EVENT_TYPES = ("lead.created", "message.approved")

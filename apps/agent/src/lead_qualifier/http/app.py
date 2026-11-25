@@ -16,12 +16,15 @@ from lead_qualifier.http.middleware.cors import WorkspaceCORSMiddleware
 from lead_qualifier.http.middleware.request_id import RequestIdMiddleware
 from lead_qualifier.http.routers import admin, health, internal, public
 from lead_qualifier.infrastructure.db.engine import create_engine
+from lead_qualifier.infrastructure.llm.router import build_provider
 from lead_qualifier.infrastructure.outbox.dispatcher import OutboxDispatcher
 from lead_qualifier.infrastructure.outbox.publishers import InlinePublisher, N8nPublisher
 from lead_qualifier.logging import configure_logging, get_logger
 from lead_qualifier.ports.clock import Clock, SystemClock
 from lead_qualifier.ports.events import EventPublisher
+from lead_qualifier.ports.llm import LLMProvider
 from lead_qualifier.services.intake import IntakeService
+from lead_qualifier.services.qualify import QualifyService
 from lead_qualifier.services.rate_limit import RateLimiter
 from lead_qualifier.services.workspace_sync import sync_workspaces
 from lead_qualifier.workspaces.loader import WorkspaceRegistry, load_workspaces
@@ -33,6 +36,7 @@ def create_app(
     registry: WorkspaceRegistry | None = None,
     clock: Clock | None = None,
     publisher: EventPublisher | None = None,
+    llm_provider: LLMProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -46,13 +50,20 @@ def create_app(
         enabled=settings.enabled_workspace_slugs,
     )
 
+    qualifier = QualifyService(
+        engine,
+        settings,
+        registry,
+        llm_provider or build_provider(settings, engine),
+        clock,
+    )
     n8n_publisher: N8nPublisher | None = None
     if publisher is None:
         if settings.orchestrator == "n8n":
             n8n_publisher = N8nPublisher(settings.n8n_webhook_base_url, settings.n8n_webhook_secret)
             publisher = n8n_publisher
         else:
-            publisher = InlinePublisher()
+            publisher = InlinePublisher(qualifier.qualify)
     dispatcher = OutboxDispatcher(engine, publisher, clock, settings)
 
     @asynccontextmanager
@@ -90,6 +101,7 @@ def create_app(
     app.state.registry = registry
     app.state.dispatcher = dispatcher
     app.state.clock = clock
+    app.state.qualifier = qualifier
     app.state.workspaces_synced = False
     app.state.trusted_networks = parse_networks(settings.trusted_proxy_list)
     app.state.limiter = RateLimiter(engine, clock)

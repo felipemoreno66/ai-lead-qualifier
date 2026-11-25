@@ -87,6 +87,34 @@ Public surface: `/api/*` and `/healthz`. Private: `/admin/*` (web server, admin 
 (n8n, its own token); `EXPOSE_ADMIN_API=false` unmounts both. In production the dashboard requires HTTP Basic
 auth and fails closed (503) when credentials are not configured.
 
+## Qualification graph (M2.2)
+
+```mermaid
+flowchart LR
+  S([START]) --> E[extract: LeadProfile]
+  E -->|ok| Q[qualify: per-criterion judgments]
+  Q --> C[score and tier computed in code]
+  E -. LLMError .-> X([END: error])
+  Q -. LLMError .-> X
+```
+
+- `agent/graph.py` (LangGraph `StateGraph` with a typed state and a `GraphDeps` run context),
+  `agent/prompts.py` (versions `extract@1`, `qualify@1`, stored in `agent_runs.prompt_versions`),
+  `domain/scoring.py` (judgment met/partial/unmet = 1/0.5/0, weights normalised, tiers from the
+  workspace config).
+- Prompt-injection defences: lead data is JSON inside `<lead_submission>` with `<`/`>` escaped; the
+  system prompt says it is data; no tools; `qualify` output must name every criterion exactly once and a
+  real product id (otherwise the repair loop, then `llm_output_invalid`); the model never emits the score.
+  The extract step flags injection attempts and the fake provider then ignores the free text.
+- `QualifyService` creates the `agent_runs` row (`thread_id = lead:<id>:run:<n>`), runs the graph, stores
+  score, tier, product, language and `qualification` on the lead, and sums the run's cost. A failed run
+  moves the lead to `error` with `error_reason` (`llm_timeout`, `budget_exceeded`, ...); retrying starts
+  a new run. In `inline` mode the outbox dispatcher calls the service for `lead.created`.
+- The fake provider's rule-based extract/qualify handlers (`infrastructure/llm/fake_handlers.py`) read
+  the same rendered prompt, so the keyless demo produces explainable judgments.
+- Interim state: after a successful run the lead stays in `qualifying` (score stored). Drafting and
+  human review (M2.3) move it to `pending_review`; there is no checkpointer yet.
+
 ## LLM provider layer
 
 `ports/llm.py` defines `LLMProvider` (`generate_structured`, `generate_text`) and the error types.

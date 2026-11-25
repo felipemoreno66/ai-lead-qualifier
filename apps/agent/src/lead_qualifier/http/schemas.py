@@ -92,6 +92,7 @@ class LeadDetail(BaseModel):
     recommended_product: str | None
     recommended_product_name: str | None
     qualification: dict[str, Any] | None
+    injection_suspected: bool = False
     detected_language: str | None
     error_reason: str | None
     created_at: datetime
@@ -106,6 +107,16 @@ class LeadDetail(BaseModel):
 class RetriggerResult(BaseModel):
     event_id: uuid.UUID
     attempt: int
+
+
+class QualifyResult(BaseModel):
+    lead_id: uuid.UUID
+    agent_run_id: uuid.UUID
+    status: str
+    score: int | None = None
+    tier: str | None = None
+    recommended_product: str | None = None
+    error_reason: str | None = None
 
 
 class AckResult(BaseModel):

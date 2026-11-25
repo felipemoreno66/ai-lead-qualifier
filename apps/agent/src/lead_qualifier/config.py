@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     llm_model_default: str = "claude-haiku-5-5"
     llm_model_draft: str = ""
     llm_budget_usd: float = Field(default=5.0, ge=0)
+    agent_run_timeout_minutes: int = Field(default=10, ge=1)
+    qualify_max_runs_per_day: int = Field(default=5, ge=1)
     llm_calls_retention_days: int = Field(default=30, ge=1)
     llm_max_calls_per_lead: int = Field(default=12, ge=1)
     anthropic_api_key: SecretStr = SecretStr("")

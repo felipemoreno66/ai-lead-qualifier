@@ -546,7 +546,7 @@ Tokens are compared with `hmac.compare_digest`. `/admin` and `/internal` have no
 | Method & path | Phase | Purpose |
 |---|---|---|
 | `POST /internal/events/{event_id}/ack` | 1 | n8n confirms it processed `lead.created` (Phase 1 workflow only notifies) |
-| `POST /internal/leads/{id}/qualify` | 2 | runs graph to the interrupt; synchronous, idempotent (409 → returns current state if already qualifying/qualified); returns `{status, score, tier, recommended_product}` |
+| `POST /internal/leads/{id}/qualify` | 2 | runs the graph to the interrupt; synchronous. Only `new` and `error` leads can be qualified: any other status answers `409` (a duplicate delivery does not start a second run), `404` for an unknown lead, `429` after `QUALIFY_MAX_RUNS_PER_DAY` runs (default 5) for the same lead; a failed run answers `200` with `status: error` and a generic `error_reason`; returns `{status, score, tier, recommended_product}` |
 | `POST /internal/messages/{id}/sent` | 2 | `{provider_message_id}` → message `sent`, lead `sent` |
 | `POST /internal/messages/{id}/send-failed` | 2 | `{error}` → lead `error` (`send_failed`) |
 

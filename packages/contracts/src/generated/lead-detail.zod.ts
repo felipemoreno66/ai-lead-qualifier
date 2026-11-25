@@ -29,6 +29,7 @@ export const leadDetailSchema = z.object({
     }),
   ),
   id: z.string().uuid(),
+  injection_suspected: z.boolean().default(false),
   locale: z.union([z.string(), z.null()]),
   name: z.string(),
   origin: z.union([z.string(), z.null()]),

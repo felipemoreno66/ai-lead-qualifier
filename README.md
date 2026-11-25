@@ -33,9 +33,14 @@ heavy and their "AI" is a black box.
   webhooks and n8n emails the owner through Mailpit.
 - **Dashboard** ("Warm Queue" design): leads grouped by priority, filters in the URL, lead detail with
   application answers, timeline, orchestration state, re-trigger and delete. Works on a phone.
-- **LLM provider layer** (not yet wired into leads): one port with Anthropic, a deterministic fake
+- **Lead qualification (core)**: a LangGraph graph (`extract`, then `qualify`) judges each criterion
+  of the workspace, and the score and tier are computed in code from those judgments and the criteria
+  weights. Lead text is treated as untrusted data (delimited, escaped, never obeyed). Runs inline after
+  intake (`ORCHESTRATOR=inline`) or via `POST /internal/leads/{id}/qualify`; a failed run puts the lead
+  in `error` with a reason and can be retried. Drafting and human review come next.
+- **LLM provider layer**: one port with Anthropic, a deterministic fake
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
-  cost, and `LLM_BUDGET_USD` blocks real providers once spent. The qualification graph comes next.
+  cost, and `LLM_BUDGET_USD` blocks real providers once spent.
 
 | Lead detail | Public form (mobile) |
 |---|---|
