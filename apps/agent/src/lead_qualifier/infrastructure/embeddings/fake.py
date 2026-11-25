@@ -17,6 +17,7 @@ class FakeEmbeddings:
     dimension = EMBEDDING_DIMENSION
     max_chunk_tokens = 120
     chunk_overlap_tokens = 20
+    default_min_similarity = 0.3
 
     def warm(self) -> None:
         return None

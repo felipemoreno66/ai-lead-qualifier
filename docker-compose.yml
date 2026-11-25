@@ -112,6 +112,13 @@ services:
       AGENT_RUN_TIMEOUT_MINUTES: ${AGENT_RUN_TIMEOUT_MINUTES:-10}
       QUALIFY_MAX_RUNS_PER_DAY: ${QUALIFY_MAX_RUNS_PER_DAY:-5}
       AWS_REGION: ${AWS_REGION:-us-east-1}
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-fastembed}
+      EMBEDDINGS_CACHE_DIR: /var/cache/fastembed
+      HF_HOME: /var/cache/fastembed/hf
+      EMBEDDINGS_WARM_ON_STARTUP: ${EMBEDDINGS_WARM_ON_STARTUP:-false}
+      KB_TOP_K: ${KB_TOP_K:-5}
+      # Empty = the embedding model's own default (0.45 for fastembed MiniLM).
+      KB_MIN_SIMILARITY: ${KB_MIN_SIMILARITY:-}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -126,7 +133,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
       - "127.0.0.1:8000:8000"
-    mem_limit: 768m
+    volumes:
+      - fastembed_cache:/var/cache/fastembed
+    # ~730 MiB peak with the fastembed model loaded; the whole stack needs about 1.1 GB.
+    mem_limit: 1g
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
       interval: 5s
@@ -161,3 +171,4 @@ services:
 
 volumes:
   pgdata:
+  fastembed_cache:

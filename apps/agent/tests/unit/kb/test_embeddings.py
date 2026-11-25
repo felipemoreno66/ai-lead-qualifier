@@ -49,3 +49,11 @@ def test_openai_requires_a_key_and_sends_shortened_embeddings():
         out = OpenAIEmbeddings("k").embed(["a", "b"])
     assert out == [[0.1], [0.2]]
     assert b'"dimensions":384' in route.calls[0].request.content.replace(b" ", b"")
+
+
+def test_the_similarity_threshold_defaults_to_the_models_own():
+    assert FastEmbeddings.default_min_similarity == 0.45
+    assert FakeEmbeddings.default_min_similarity == 0.3
+    # `KB_MIN_SIMILARITY=` (empty) in a .env file means "use the model's default"
+    assert Settings(_env_file=None).kb_min_similarity is None
+    assert Settings(kb_min_similarity=0.5).kb_min_similarity == 0.5
