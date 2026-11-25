@@ -114,9 +114,11 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-fastembed}
       EMBEDDINGS_CACHE_DIR: /var/cache/fastembed
+      HF_HOME: /var/cache/fastembed/hf
       EMBEDDINGS_WARM_ON_STARTUP: ${EMBEDDINGS_WARM_ON_STARTUP:-false}
       KB_TOP_K: ${KB_TOP_K:-5}
-      KB_MIN_SIMILARITY: ${KB_MIN_SIMILARITY:-0.3}
+      # Empty = the embedding model's own default (0.45 for fastembed MiniLM).
+      KB_MIN_SIMILARITY: ${KB_MIN_SIMILARITY:-}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -133,7 +135,8 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - fastembed_cache:/var/cache/fastembed
-    mem_limit: 768m
+    # ~730 MiB peak with the fastembed model loaded; the whole stack needs about 1.1 GB.
+    mem_limit: 1g
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
       interval: 5s
