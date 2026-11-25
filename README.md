@@ -8,7 +8,7 @@ approve-before-send drafting are described in [Roadmap](#roadmap); a person alwa
 > **Status: Phase 2 (qualification agent).** Public form, safe intake API, transactional outbox, n8n
 > integration, LangGraph qualification and drafting, and a dashboard where you review every reply. All data in this repository is fictional (Northwind Academy).
 
-![Leads list, grouped by priority](docs/screenshots/leads-desktop.png)
+![Lead awaiting review: draft reply, score explanation and run log](docs/screenshots/review-desktop.png)
 
 ## The problem
 
@@ -63,14 +63,6 @@ heavy and their "AI" is a black box.
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
   cost, and `LLM_BUDGET_USD` blocks real providers once spent.
 
-| Review a drafted reply (desktop) | Same lead on a phone |
-|---|---|
-| ![Lead detail with the draft reply, score explanation and run log](docs/screenshots/review-desktop.png) | ![Lead detail on a phone](docs/screenshots/review-mobile.png) |
-
-| Metrics | Metrics on a phone |
-|---|---|
-| ![Metrics page](docs/screenshots/metrics-desktop.png) | ![Metrics page on a phone](docs/screenshots/metrics-mobile.png) |
-
 | Draft that failed the safety checks | Public form (mobile) |
 |---|---|
 | ![Safety check failure with Send anyway](docs/screenshots/review-checks-desktop.png) | ![Application form on a phone](docs/screenshots/apply-mobile.png) |
@@ -120,21 +112,41 @@ Next.js 16 (App Router), React 19, Tailwind CSS v4, shadcn/ui, TanStack Query, Z
 Mailpit, Docker Compose. Tooling: uv, pnpm, ruff, mypy (strict), pytest, Testcontainers, Vitest,
 Playwright, GitHub Actions.
 
-## Run it
-
-Requirements: Docker with Compose v2. No API keys are needed for anything in this phase.
+## Quick start (no keys, no accounts)
 
 ```bash
-docker compose up -d --build --wait
-docker compose run --rm agent python -m lead_qualifier.scripts.seed   # 20 fictional leads
+git clone https://github.com/felipemoreno66/ai-lead-qualifier.git && cd ai-lead-qualifier
+cp .env.example .env
+docker compose up
 ```
+
+That is the whole setup. On the first start the stack builds, applies the migrations and a one-shot
+`demo-init` service loads the fictional Northwind Academy data: 20 leads, reply drafts, agent run
+logs, the knowledge base (embedded locally) and a few answered questions. Everything uses the
+deterministic **fake LLM provider**, so nothing is billed and no key is needed. The dashboard says so in a
+"Demo mode" banner.
 
 | URL | What |
 |---|---|
-| http://localhost:3000/dashboard | Dashboard |
-| http://localhost:3000/w/northwind-academy/apply | Public application form |
+| http://localhost:3000/dashboard | Dashboard: leads, Ask the docs, metrics |
+| http://localhost:3000/w/northwind-academy/apply | Public application form (apply, then watch the lead appear) |
+| http://localhost:8025 | Mailpit: the emails you approve arrive here |
 | http://localhost:8000/docs | Agent API (OpenAPI) |
-| http://localhost:8025 | Mailpit (emails) |
+
+![Apply, qualify, approve, email in Mailpit](docs/demo-flow.webp)
+
+- **First run:** about 3 minutes on a typical laptop and connection (image build about 2 minutes, then
+  the knowledge base needs one more minute while a small embedding model, about 90 MB, downloads
+  once into a Docker volume). The dashboard is usable as soon as the leads are loaded; Ask the docs and
+  its sample answers appear when `demo-init` finishes (`docker compose logs demo-init`). Later starts
+  take seconds.
+- **Memory:** about 1.1 GB for the whole stack while the embedding model is loaded (agent limit 1 GB).
+- **Low bandwidth:** `DEMO_EMBEDDINGS=fake KB_MIN_SIMILARITY=0.1 docker compose up` skips the model
+  download and uses offline stand-in embeddings (Ask works, answers are less precise).
+- **Start empty instead:** `DEMO_SEED=false docker compose up`. Demo data is never loaded when
+  `APP_ENV=production` and never for another workspace than `northwind-academy`.
+- **Reset the demo leads:** `make seed-reset` (leads only) or `docker compose run --rm agent python -m lead_qualifier.scripts.demo_init --reset`
+  (leads, drafts, logs).
 
 All ports are bound to `127.0.0.1`. To use n8n as the orchestrator:
 
@@ -142,7 +154,24 @@ All ports are bound to `127.0.0.1`. To use n8n as the orchestrator:
 ORCHESTRATOR=n8n COMPOSE_PROFILES=n8n docker compose up -d --build --wait   # n8n on :5678
 ```
 
-Stop everything with `docker compose down` (add `-v` to delete the database volume).
+Stop everything with `docker compose down` (add `-v` to delete the database and model volumes).
+
+### Screens
+
+| Leads, by priority | Lead awaiting review (desktop) |
+|---|---|
+| ![Leads](docs/screenshots/leads-desktop.png) | ![Lead with draft, score and run log](docs/screenshots/review-desktop.png) |
+
+| Ask the docs | Metrics |
+|---|---|
+| ![Ask the docs](docs/screenshots/ask-desktop.png) | ![Metrics](docs/screenshots/metrics-desktop.png) |
+
+| Sent reply | A failed lead, with Retry |
+|---|---|
+| ![Sent letter](docs/screenshots/sent-desktop.png) | ![Error banner](docs/screenshots/error-desktop.png) |
+
+On a phone: [leads](docs/screenshots/leads-mobile.png), [lead](docs/screenshots/review-mobile.png),
+[Ask](docs/screenshots/ask-mobile.png), [metrics](docs/screenshots/metrics-mobile.png).
 
 ## Security notes (Phase 1)
 
@@ -185,6 +214,8 @@ must be set to at least 16 characters or the agent refuses to start.
 | `ANTHROPIC_API_KEY`, `AWS_REGION`, `OPENAI_API_KEY` | Provider credentials; only needed for that provider |
 | `RATE_*`, `TRUSTED_PROXIES` | Rate limits and proxy trust for `X-Forwarded-For` |
 | `EXPOSE_ADMIN_API` | `false` stops mounting `/admin` and `/internal` (default `true`) |
+| `DEMO_SEED` | Load the Northwind demo data on first start (compose default `true`; ignored in production) |
+| `DEMO_EMBEDDINGS` | `fake` skips the embedding model download for the demo (also set `KB_MIN_SIMILARITY=0.1`) |
 | `TRUST_FORWARDED_HOST` | `true` only behind a reverse proxy you control: the web app then believes `X-Forwarded-Host` for its same-origin check |
 | `DASHBOARD_USER`, `DASHBOARD_PASSWORD` | Basic-auth credentials, required when `APP_ENV=production` |
 
