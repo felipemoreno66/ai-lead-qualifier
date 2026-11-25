@@ -338,6 +338,49 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "KbReindexResult": {
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "chunks": {
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "removed": {
+            "title": "Removed",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          },
+          "workspace": {
+            "title": "Workspace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "added",
+          "updated",
+          "unchanged",
+          "removed",
+          "skipped",
+          "chunks"
+        ],
+        "title": "KbReindexResult",
+        "type": "object"
+      },
       "LeadAccepted": {
         "properties": {
           "received": {
@@ -1765,6 +1808,75 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/kb/{slug}/reindex": {
+      "post": {
+        "description": "Re-read the workspace's Markdown files; unchanged documents are skipped unless forced.",
+        "operationId": "reindex_knowledge_base_admin_kb__slug__reindex_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KbReindexResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reindex Knowledge Base",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/leads": {
       "get": {
         "operationId": "list_leads_admin_leads_get",

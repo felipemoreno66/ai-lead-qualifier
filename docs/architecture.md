@@ -269,3 +269,44 @@ flowchart LR
 
 Deviation from the plan: the call cap counts per agent run, not per lead across runs, because
 `llm_calls` references runs; a re-run gets a fresh allowance and the global budget still applies.
+
+## Knowledge base ingestion (M3.2)
+
+`python -m lead_qualifier.scripts.ingest_kb <workspace> [--force]` (or `POST /admin/kb/{slug}/reindex`,
+admin token) reads `workspaces/<slug>/<knowledge_base.path>/*.md` and stores chunks in pgvector.
+
+- **Chunking** (`domain/kb_chunker.py`): LangChain `MarkdownHeaderTextSplitter` on `#` to `####`, then a
+  recursive splitter caps each section. The cap is a property of the embedding model
+  (`Embeddings.max_chunk_tokens`): fastembed's MiniLM reads only 128 word pieces and drops the rest, so its
+  chunks are at most 120 estimated tokens with 20 overlap, counting the document title and heading path that
+  are embedded with the text. The token estimate is deliberately pessimistic (no tokenizer download).
+  OpenAI uses 500/50. Each chunk keeps its heading path (`Pricing > Bootcamp > Payment plan`).
+- **Idempotent**: the stored hash covers the file bytes, the chunker version and the model's chunk size, so
+  editing a file or changing the chunking re-ingests it, and nothing else. Documents deleted from disk lose
+  their chunks. A file that is skipped (symlink or outside the folder, over 1 MB, invalid UTF-8) keeps its
+  last good version in the database and is reported as `skipped`.
+- **Concurrency**: chunking and embedding run before the transaction; only the writes run under a per-workspace
+  advisory lock. A second reindex of the same workspace in the same process gets `409`, and a reindex that
+  exceeds `KB_REINDEX_TIMEOUT_SECONDS` answers `504`.
+- **Embeddings port** (`ports/embeddings.py`): `fastembed` with
+  `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensions), an optional OpenAI adapter
+  (`text-embedding-3-small` at 384 dimensions, redirects off, untested against the real API) and a
+  deterministic `FakeEmbeddings` used by tests and CI.
+- **Model download**: not at image build. Run `python -m lead_qualifier.scripts.ingest_kb --warm` once (or set
+  `EMBEDDINGS_WARM_ON_STARTUP=true`) so the first reindex does not wait for the download. The model files live
+  in `EMBEDDINGS_CACHE_DIR`; fastembed has no revision pin, so the exact files are whatever the cache volume
+  holds. Keep the volume to freeze them, and re-ingest if you ever replace it.
+- **Similarity threshold**: `KB_MIN_SIMILARITY` is optional; empty means the embedding model's own default
+  (`Embeddings.default_min_similarity`: 0.45 for fastembed MiniLM, 0.3 for the fake). Similarity scales differ
+  by model. On the Northwind eval with fastembed (fake LLM): 0.3 answered every unanswerable question, 0.4 to
+  0.6 refused all of them with no false refusals, and 0.65 refused 3 answerable ones. Re-run the sweep when the
+  model or the documents change.
+- **Container**: the agent runs as an unprivileged user, so the model and the Hugging Face client cache both
+  live in the `fastembed_cache` volume (`EMBEDDINGS_CACHE_DIR=/var/cache/fastembed`, `HF_HOME` under it).
+  With the model loaded the agent peaks at about 730 MiB, so its limit is 1 GB and the whole stack needs
+  roughly 1.1 GB of RAM.
+- **Tables** (migration `0010`): `kb_documents`, `kb_chunks` with `vector(384)`, an HNSW index with
+  `vector_cosine_ops` and a CHECK on `embedding_model`. Retrieval (`KnowledgeBaseService.retrieve`) only
+  compares vectors of the active model and returns the top-k above a minimum cosine similarity.
+- `knowledge_base.path` must be a relative folder without `..`.
+

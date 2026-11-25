@@ -269,3 +269,13 @@ class AckResult(BaseModel):
     event_id: uuid.UUID
     status: Literal["delivered"] = "delivered"
     changed: bool
+
+
+class KbReindexResult(BaseModel):
+    workspace: str
+    added: int
+    updated: int
+    unchanged: int
+    removed: int
+    skipped: int
+    chunks: int

@@ -33,6 +33,11 @@ class Conflict(AppError):
     title = "Conflict"
 
 
+class UpstreamTimeout(AppError):
+    status = 504
+    title = "Timed out"
+
+
 class Forbidden(AppError):
     status = 403
     title = "Forbidden"
