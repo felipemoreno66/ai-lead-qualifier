@@ -6,7 +6,7 @@ import asyncio
 import uuid
 from dataclasses import asdict
 from datetime import date
-from typing import Annotated, Any
+from typing import Annotated
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request, Response
@@ -46,6 +46,7 @@ from lead_qualifier.services import retrigger as operator
 from lead_qualifier.services.kb import WorkspaceRetriever
 from lead_qualifier.services.kb_chat import KbChatUnavailable
 from lead_qualifier.services.metrics import MetricsWindow, compute_metrics
+from lead_qualifier.workspaces.loader import LoadedWorkspace
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[require_admin])
 
@@ -259,7 +260,7 @@ async def reindex_knowledge_base(
     return KbReindexResult(workspace=slug, **result.as_dict())
 
 
-def _kb_workspace(registry: RegistryDep, slug: str) -> Any:
+def _kb_workspace(registry: RegistryDep, slug: str) -> LoadedWorkspace:
     workspace = registry.get(slug)
     if workspace is None or not workspace.enabled:
         raise NotFound("Unknown workspace.")

@@ -329,10 +329,13 @@ The dashboard page `/dashboard/ask` answers one question at a time from a worksp
 - **Agent**: `POST /admin/kb/{slug}/ask` `{question (3-500 chars), language?}` and
   `GET /admin/kb/{slug}/queries`. It calls `answer_questions`, the same function as the answer node (same
   retrieval threshold, citation validation, escaping and draft-guard downgrade). Not covered questions get the
-  fixed text, in Spanish when the question looks Spanish. Limit: `KB_ASK_PER_HOUR` per workspace (429).
+  fixed text, in Spanish when the question looks Spanish. Limit: `KB_ASK_PER_HOUR` per workspace (429). There is one bucket per workspace, not per client: the
+  operator credential is shared and every request comes from the dashboard server. Failed calls count against
+  it, and the fixed window can let through up to twice the limit around a window boundary.
 - **Runs**: each question is its own `agent_runs` row (`kind = 'kb_chat'`, no lead, migration `0012`), so its
   model call lands in `llm_calls` and is covered by the budget and per-run call caps. The answer is logged in
-  `kb_queries` (question, answer, covered, citations, run id). Both are purged after `LLM_CALLS_RETENTION_DAYS`.
+  `kb_queries` (question, answer, covered, citations, run id). Both are purged after `KB_QUERIES_RETENTION_DAYS` (default 30), and the reaper fails `kb_chat` runs
+  stuck in `running` after `AGENT_RUN_TIMEOUT_MINUTES`.
 - **Web**: BFF routes `/bff/kb/{slug}/ask` (anti-CSRF header, Sec-Fetch-Site, Zod, 2.3 KB body cap) and
   `/bff/kb/{slug}/queries`. The page shows the thread, sources as disclosures (document, heading path,
   quote), the explicit "Not in the docs" state and the recent questions.

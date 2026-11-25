@@ -6,7 +6,9 @@ import { SLUG_PATTERN } from "@/lib/kb/slug";
 
 export const dynamic = "force-dynamic";
 
-// 500 characters at up to 4 bytes each, plus the JSON around them.
+// 500 characters at up to 4 bytes each, plus the JSON around them. The declared Content-Length is
+// refused first; the body is then read and its real size checked (a streaming limit is the reverse
+// proxy's job, see the README's exposure notes).
 const MAX_BODY_BYTES = 2_300;
 const tooLarge = () => errorResponse("Payload too large", "The question is too long.", 413);
 

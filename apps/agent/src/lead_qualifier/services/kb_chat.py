@@ -7,6 +7,7 @@ logged in ``kb_queries``. Retrieval, citation validation and escaping are the an
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -14,7 +15,7 @@ from decimal import Decimal
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from lead_qualifier.agent.graph import GraphDeps, answer_questions
 from lead_qualifier.agent.models import AnswerResult
@@ -73,6 +74,9 @@ class KbChatService:
         question: str,
         language: str | None = None,
     ) -> KbChatEntry:
+        # One bucket per workspace: the operator credential is shared and every request comes from
+        # the dashboard server, so a per-IP key would tell nothing. Failed calls count too, and the
+        # fixed window can let through up to twice the limit around a window boundary.
         await self._limiter.hit(
             [Limit(f"kb_ask:{workspace.slug}", self._settings.kb_ask_per_hour, 3600)]
         )
@@ -91,12 +95,14 @@ class KbChatService:
         try:
             (answer,) = await answer_questions(deps, [question], lang)
         except LLMError as exc:
-            await self._finish(run_id, started, error=f"{exc.code}")
+            await self._fail(run_id, started, exc.code)
             raise KbChatUnavailable(exc.code) from exc
-        except Exception as exc:
-            await self._finish(run_id, started, error=f"internal_error: {type(exc).__name__}")
+        except BaseException as exc:  # includes cancellation: the run must never stay "running"
+            await asyncio.shield(
+                self._fail(run_id, started, f"internal_error: {type(exc).__name__}")
+            )
             raise
-        return await self._finish(run_id, started, workspace=workspace.slug, answer=answer)
+        return await self._complete(run_id, started, workspace.slug, answer)
 
     async def recent(self, workspace_slug: str, limit: int = 10) -> list[KbChatEntry]:
         async with self._engine.connect() as conn:
@@ -127,39 +133,41 @@ class KbChatService:
             )
         return run_id
 
-    async def _finish(
-        self,
-        run_id: uuid.UUID,
-        started: datetime,
-        *,
-        error: str | None = None,
-        workspace: str | None = None,
-        answer: AnswerResult | None = None,
-    ) -> KbChatEntry:
+    async def _close(
+        self, conn: AsyncConnection, run_id: uuid.UUID, started: datetime, error: str | None
+    ) -> datetime:
         now = self._clock.now()
-        async with self._engine.begin() as conn:
-            cost = (
-                await conn.execute(
-                    sa.select(sa.func.coalesce(sa.func.sum(llm_calls.c.cost_usd), 0)).where(
-                        llm_calls.c.agent_run_id == run_id
-                    )
-                )
-            ).scalar_one()
+        cost = (
             await conn.execute(
-                sa.update(agent_runs)
-                .where(agent_runs.c.id == run_id)
-                .values(
-                    status="failed" if error else "completed",
-                    finished_at=now,
-                    duration_ms=int((now - started).total_seconds() * 1000),
-                    total_cost_usd=Decimal(cost),
-                    error=error,
+                sa.select(sa.func.coalesce(sa.func.sum(llm_calls.c.cost_usd), 0)).where(
+                    llm_calls.c.agent_run_id == run_id
                 )
             )
-            if answer is None or workspace is None:
-                return KbChatEntry(run_id, "", "", False, [], now)
-            citations = [c.model_dump() for c in answer.citations]
-            row = (
+        ).scalar_one()
+        await conn.execute(
+            sa.update(agent_runs)
+            .where(agent_runs.c.id == run_id)
+            .values(
+                status="failed" if error else "completed",
+                finished_at=now,
+                duration_ms=int((now - started).total_seconds() * 1000),
+                total_cost_usd=Decimal(cost),
+                error=error,
+            )
+        )
+        return now
+
+    async def _fail(self, run_id: uuid.UUID, started: datetime, code: str) -> None:
+        async with self._engine.begin() as conn:
+            await self._close(conn, run_id, started, code)
+
+    async def _complete(
+        self, run_id: uuid.UUID, started: datetime, workspace: str, answer: AnswerResult
+    ) -> KbChatEntry:
+        citations = [c.model_dump() for c in answer.citations]
+        async with self._engine.begin() as conn:
+            now = await self._close(conn, run_id, started, None)
+            entry_id = (
                 await conn.execute(
                     sa.insert(kb_queries)
                     .values(
@@ -174,7 +182,7 @@ class KbChatService:
                     .returning(kb_queries.c.id)
                 )
             ).scalar_one()
-        return KbChatEntry(row, answer.question, answer.answer, answer.covered, citations, now)
+        return KbChatEntry(entry_id, answer.question, answer.answer, answer.covered, citations, now)
 
 
 def _entry(row: Any) -> KbChatEntry:
