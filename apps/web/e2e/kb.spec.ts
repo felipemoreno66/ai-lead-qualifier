@@ -26,30 +26,33 @@ test.describe("Phase 3: ask the docs", () => {
   test("a covered question shows the answer and sources with their quotes", async ({ page }) => {
     await page.goto("/dashboard/ask");
     await expect(page.getByRole("heading", { level: 1, name: "Ask the docs" })).toBeVisible();
-    await ask(page, "How much does the Data & AI Course cost?");
+    // Unique per run: the log persists, so a repeated question would match older entries too.
+    const question = `How much does the Data & AI Course cost? (ref ${Date.now()})`;
+    await ask(page, question);
 
-    const answer = page.locator(".msg.a").first();
+    const answer = page.locator(".thread .msg.a").first();
     await expect(answer).toBeVisible({ timeout: 30_000 });
     await expect(answer).not.toContainText("Not in the docs");
+    // Focus returns to the input once the answer has landed (before the sources are touched).
+    await expect(page.getByLabel("Your question")).toBeFocused();
     const sources = answer.getByRole("list", { name: "Sources" });
     await expect(sources.locator("summary").first()).toBeVisible();
     const first = sources.locator("details").first();
     await expect(first.locator(".cq")).toBeHidden();
     await first.locator("summary").click();
     await expect(first.locator(".cq")).toContainText("“");
-    await expect(page.getByLabel("Your question")).toBeFocused();
 
     // The question is logged and listed after a reload.
     await page.reload();
     await expect(
-      page.getByRole("region", { name: "Recent questions" }).getByText("How much does the Data & AI Course cost?"),
+      page.getByRole("region", { name: "Recent questions" }).getByText(question),
     ).toBeVisible();
   });
 
   test("a question the documents do not cover says so and shows no sources", async ({ page }) => {
     await page.goto("/dashboard/ask");
     await ask(page, "zxqv wxyz plugh");
-    const answer = page.locator(".msg.nodoc");
+    const answer = page.locator(".thread .msg.nodoc");
     await expect(answer).toBeVisible({ timeout: 30_000 });
     await expect(answer).toContainText("Not in the docs");
     await expect(answer).toContainText("Not covered in our documentation");
@@ -68,9 +71,9 @@ test.describe("Phase 3: ask the docs", () => {
   test("the page has no accessibility violations with answers on screen", async ({ page }) => {
     await page.goto("/dashboard/ask");
     await ask(page, "How much does the Data & AI Course cost?");
-    await expect(page.locator(".msg.a").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".thread .msg.a").first()).toBeVisible({ timeout: 30_000 });
     await ask(page, "zxqv wxyz plugh");
-    await expect(page.locator(".msg.nodoc")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".thread .msg.nodoc")).toBeVisible({ timeout: 30_000 });
     await page.locator(".cite-d summary").first().click();
     const results = await new AxeBuilder({ page }).withTags(WCAG).analyze();
     expect(results.violations).toEqual([]);
@@ -82,7 +85,7 @@ test.describe("Phase 3: ask the docs", () => {
     test("no horizontal overflow at 390px, with the form above the tab bar", async ({ page }) => {
       await page.goto("/dashboard/ask");
       await ask(page, "How much does the Data & AI Course cost?");
-      await expect(page.locator(".msg.a").first()).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator(".thread .msg.a").first()).toBeVisible({ timeout: 30_000 });
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );
