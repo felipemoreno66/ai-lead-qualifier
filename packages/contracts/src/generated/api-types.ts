@@ -149,6 +149,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/admin/metrics": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Metrics
+     * @description Counts, score distribution, time to qualify, spend and leads per day for a UTC day range
+     *     (default: the last 30 days).
+     */
+    get: operations["metrics_admin_metrics_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/admin/outbox": {
     parameters: {
       query?: never;
@@ -431,6 +452,27 @@ export interface components {
       /** Quote */
       quote: string;
     };
+    /** CostMetrics */
+    CostMetrics: {
+      /** Ask Questions */
+      ask_questions: number;
+      /** Ask Total Usd */
+      ask_total_usd: number;
+      /** Avg Per Lead Usd */
+      avg_per_lead_usd: number | null;
+      /** Budget Usd */
+      budget_usd: number;
+      /** Leads With Runs */
+      leads_with_runs: number;
+      /** Lifetime Spent Usd */
+      lifetime_spent_usd: number;
+      /** Llm Calls */
+      llm_calls: number;
+      /** Providers */
+      providers: string[];
+      /** Total Usd */
+      total_usd: number;
+    };
     /**
      * CriterionBreakdown
      * @description One scored criterion: what was judged, the points it earned and the evidence.
@@ -451,6 +493,16 @@ export interface components {
       max_points: number;
       /** Points */
       points: number;
+    };
+    /** DayCount */
+    DayCount: {
+      /** Count */
+      count: number;
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
     };
     /** DeliveryOut */
     DeliveryOut: {
@@ -846,6 +898,34 @@ export interface components {
       /** Version */
       version: number;
     };
+    /** MetricsOut */
+    MetricsOut: {
+      /** By Status */
+      by_status: components["schemas"]["StatusCount"][];
+      cost: components["schemas"]["CostMetrics"];
+      /**
+       * First Day
+       * Format: date
+       */
+      first_day: string;
+      /**
+       * Last Day
+       * Format: date
+       */
+      last_day: string;
+      /** Leads Per Day */
+      leads_per_day: components["schemas"]["DayCount"][];
+      /** Score Histogram */
+      score_histogram: components["schemas"]["ScoreBucket"][];
+      /** Tier Split */
+      tier_split: components["schemas"]["TierCount"][];
+      tier_thresholds?: components["schemas"]["TierThresholds"] | null;
+      time_to_qualify: components["schemas"]["TimeToQualify"];
+      /** Total Leads */
+      total_leads: number;
+      /** Workspace */
+      workspace: string | null;
+    };
     /** OutboxEventOut */
     OutboxEventOut: {
       /** Attempts */
@@ -1007,6 +1087,24 @@ export interface components {
       /** Status */
       status: string;
     };
+    /**
+     * ScoreBucket
+     * @description Leads scoring ``min_score..max_score``, split by the tier stored on each lead.
+     */
+    ScoreBucket: {
+      /** Cold */
+      cold: number;
+      /** Count */
+      count: number;
+      /** Hot */
+      hot: number;
+      /** Max Score */
+      max_score: number;
+      /** Min Score */
+      min_score: number;
+      /** Warm */
+      warm: number;
+    };
     /** SendFailedCallback */
     SendFailedCallback: {
       /** Error */
@@ -1026,6 +1124,44 @@ export interface components {
       message_id: string;
       /** Provider Message Id */
       provider_message_id?: string | null;
+    };
+    /** StatusCount */
+    StatusCount: {
+      /** Count */
+      count: number;
+      /** Status */
+      status: string;
+    };
+    /** TierCount */
+    TierCount: {
+      /** Count */
+      count: number;
+      /**
+       * Tier
+       * @enum {string}
+       */
+      tier: "hot" | "warm" | "cold" | "unscored";
+    };
+    /** TierThresholds */
+    TierThresholds: {
+      /** Hot Min */
+      hot_min: number;
+      /** Warm Min */
+      warm_min: number;
+    };
+    /**
+     * TimeToQualify
+     * @description Seconds from application to the first qualification (``qualified_at - created_at``).
+     */
+    TimeToQualify: {
+      /** Avg Seconds */
+      avg_seconds: number | null;
+      /** Count */
+      count: number;
+      /** P50 Seconds */
+      p50_seconds: number | null;
+      /** P90 Seconds */
+      p90_seconds: number | null;
     };
     /** ValidationError */
     ValidationError: {
@@ -1372,6 +1508,41 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentRunOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  metrics_admin_metrics_get: {
+    parameters: {
+      query?: {
+        workspace?: string | null;
+        from?: string | null;
+        to?: string | null;
+      };
+      header?: {
+        authorization?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MetricsOut"];
         };
       };
       /** @description Validation Error */

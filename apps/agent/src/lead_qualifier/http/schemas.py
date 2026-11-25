@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
@@ -299,6 +299,72 @@ class AckResult(BaseModel):
     event_id: uuid.UUID
     status: Literal["delivered"] = "delivered"
     changed: bool
+
+
+class StatusCount(BaseModel):
+    status: str
+    count: int
+
+
+class ScoreBucket(BaseModel):
+    """Leads scoring ``min_score..max_score``, split by the tier stored on each lead."""
+
+    min_score: int
+    max_score: int
+    count: int
+    hot: int
+    warm: int
+    cold: int
+
+
+class TierCount(BaseModel):
+    tier: Literal["hot", "warm", "cold", "unscored"]
+    count: int
+
+
+class TimeToQualify(BaseModel):
+    """Seconds from application to the first qualification (``qualified_at - created_at``)."""
+
+    count: int
+    avg_seconds: float | None
+    p50_seconds: float | None
+    p90_seconds: float | None
+
+
+class DayCount(BaseModel):
+    day: date
+    count: int
+
+
+class CostMetrics(BaseModel):
+    total_usd: float
+    avg_per_lead_usd: float | None
+    leads_with_runs: int
+    llm_calls: int
+    providers: list[str]
+    ask_total_usd: float  # "Ask the docs" chat runs of the workspace, not tied to any lead
+    ask_questions: int
+    lifetime_spent_usd: float
+    budget_usd: float
+
+
+class TierThresholds(BaseModel):
+    hot_min: int
+    warm_min: int
+
+
+class MetricsOut(BaseModel):
+    workspace: str | None
+    first_day: date
+    last_day: date
+    total_leads: int
+    by_status: list[StatusCount]
+    score_histogram: list[ScoreBucket]
+    tier_split: list[TierCount]
+    tier_thresholds: TierThresholds | None = None
+    time_to_qualify: TimeToQualify
+    leads_per_day: list[DayCount]
+    cost: CostMetrics
 
 
 class KbReindexResult(BaseModel):

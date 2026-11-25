@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import asdict
+from datetime import date
 from typing import Annotated
 
 import sqlalchemy as sa
@@ -24,10 +25,12 @@ from lead_qualifier.http.schemas import (
     LeadList,
     LeadListItem,
     LlmCallOut,
+    MetricsOut,
     OutboxEventOut,
     RetriggerResult,
     ReviewRequest,
     ReviewResult,
+    TierThresholds,
     WorkspaceSummary,
 )
 from lead_qualifier.http.views import interest_label, lead_detail
@@ -42,6 +45,7 @@ from lead_qualifier.infrastructure.db.tables import messages
 from lead_qualifier.services import retrigger as operator
 from lead_qualifier.services.kb import WorkspaceRetriever
 from lead_qualifier.services.kb_chat import KbChatUnavailable
+from lead_qualifier.services.metrics import MetricsWindow, compute_metrics
 from lead_qualifier.workspaces.loader import LoadedWorkspace
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[require_admin])
@@ -203,6 +207,36 @@ async def review_lead(lead_id: uuid.UUID, payload: ReviewRequest, request: Reque
         override=getattr(payload, "override", False),
     )
     return ReviewResult(**vars(outcome))
+
+
+@router.get("/metrics", response_model=MetricsOut)
+async def metrics(
+    registry: RegistryDep,
+    engine: EngineDep,
+    settings: SettingsDep,
+    request: Request,
+    workspace: Annotated[str | None, Query(pattern=r"^[a-z0-9][a-z0-9-]*$", max_length=64)] = None,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+) -> MetricsOut:
+    """Counts, score distribution, time to qualify, spend and leads per day for a UTC day range
+    (default: the last 30 days)."""
+    ws = registry.get(workspace) if workspace else None
+    if workspace and ws is None:
+        raise ValidationFailed("Unknown workspace.")
+    today = request.app.state.clock.now().date()
+    window = MetricsWindow.resolve(from_, to, today)
+    thresholds = None
+    if ws is not None:
+        tiers = ws.config.qualification.tiers
+        thresholds = TierThresholds(hot_min=tiers.hot_min, warm_min=tiers.warm_min)
+    return await compute_metrics(
+        engine,
+        window,
+        workspace=workspace,
+        budget_usd=settings.llm_budget_usd,
+        tier_thresholds=thresholds,
+    )
 
 
 @router.post("/kb/{slug}/reindex", response_model=KbReindexResult)

@@ -21,6 +21,7 @@ from lead_qualifier.http.schemas import (
     KbChatEntryOut,
     LeadDetail,
     LeadList,
+    MetricsOut,
     RetriggerResult,
     ReviewRequest,
     ReviewResult,
@@ -51,6 +52,7 @@ def main() -> None:
     _write(schemas / "lead-submission.schema.json", LeadSubmission.model_json_schema())
     _write(schemas / "lead-list.schema.json", LeadList.model_json_schema())
     _write(schemas / "lead-detail.schema.json", LeadDetail.model_json_schema())
+    _write(schemas / "metrics.schema.json", MetricsOut.model_json_schema())
     _write(schemas / "retrigger-result.schema.json", RetriggerResult.model_json_schema())
     _write(schemas / "review-request.schema.json", TypeAdapter(ReviewRequest).json_schema())
     _write(schemas / "review-result.schema.json", ReviewResult.model_json_schema())

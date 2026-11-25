@@ -3,6 +3,7 @@ import {
   agentRunsSchema,
   leadDetailSchema,
   leadListSchema,
+  metricsSchema,
   reviewResultSchema,
   workspaceSummariesSchema,
   type ReviewInput,
@@ -18,3 +19,8 @@ export const submitReview = (id: string, review: ReviewInput) =>
   bffPost(`/bff/leads/${id}/review`, review, reviewResultSchema);
 export const leadKey = (id: string) => ["lead", id] as const;
 export const runsKey = (id: string) => ["lead", id, "runs"] as const;
+
+export type MetricsParams = { workspace?: string; from: string; to: string };
+export const fetchMetrics = (params: MetricsParams) =>
+  bffGet(`/bff/metrics?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`, metricsSchema);
+export const metricsKey = (params: MetricsParams) => ["metrics", params] as const;
