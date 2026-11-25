@@ -9,6 +9,6 @@ Topics deliberately NOT covered, so that "not in the documentation" answers can 
 - Job placement or employment guarantees.
 - Visa sponsorship or immigration help.
 - Accreditation, degrees or certificates recognized by universities.
-- Corporate or team pricing.
+- Corporate or team pricing, invoices or purchase orders for companies.
 - Teacher names and biographies.
 - Refunds in currencies other than USD.
