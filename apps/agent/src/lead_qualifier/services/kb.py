@@ -327,7 +327,7 @@ class WorkspaceRetriever:
         workspace_slug: str,
         *,
         top_k: int,
-        min_similarity: float,
+        min_similarity: float | None,
     ) -> None:
         self._service = service
         self._slug = workspace_slug
