@@ -207,6 +207,12 @@ On a phone: [leads](docs/screenshots/leads-mobile.png), [lead](docs/screenshots/
   to the agent. `/admin/*` and `/internal/*` are for the web server and n8n on a private network; set
   `EXPOSE_ADMIN_API=false` on an instance that must not serve them at all. Set `TRUSTED_PROXIES` to the proxy
   CIDRs so rate limits see the real client IP (uvicorn runs with `--no-proxy-headers`).
+- **Basic auth needs TLS.** HTTP Basic credentials travel in clear text, so serve the dashboard only behind
+  HTTPS (reverse proxy) or a private network such as Tailscale.
+- **Keep clocks in sync (NTP).** n8n signatures carry a timestamp and are rejected outside a ~5 minute window.
+  The dispatcher retries an HTTP 401 three times with backoff, then dead-letters the event with a reason that
+  points at the secret and clock sync. After fixing the cause, replay dead events from the dashboard
+  (re-trigger) or the admin API.
 - Personal data never reaches the logs: SQL parameters are hidden and exception messages are withheld.
 - **Embeddings stay local by default** (fastembed). If you set `EMBEDDINGS_PROVIDER=openai`, the text of your
   knowledge-base documents (at ingest) and each lead's questions (at answer time) are sent to OpenAI.

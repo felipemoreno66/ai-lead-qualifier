@@ -13,3 +13,7 @@ class PermanentPublishError(PublishError):
 
 class EventPublisher(Protocol):
     async def publish(self, event: dict[str, Any]) -> None: ...
+
+
+class AuthRejectedError(PublishError):
+    """n8n answered 401: clock skew or a secret rotation in flight may clear up, so retry."""

@@ -19,11 +19,12 @@ from lead_qualifier.infrastructure.db.repositories import (
 from lead_qualifier.infrastructure.llm.repository import LlmCallRepository
 from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.clock import Clock
-from lead_qualifier.ports.events import EventPublisher, PermanentPublishError
+from lead_qualifier.ports.events import AuthRejectedError, EventPublisher, PermanentPublishError
 from lead_qualifier.services.outbox import envelope
 from lead_qualifier.services.reaper import reap_stale_runs, report_stale_sending
 
 log = get_logger("dispatcher")
+AUTH_REJECTED_MAX_ATTEMPTS = 3
 PURGE_EVERY = timedelta(hours=1)
 REAP_EVERY = timedelta(minutes=1)
 RATE_LIMIT_RETENTION = timedelta(days=2)
@@ -65,6 +66,7 @@ class OutboxDispatcher:
                 row,
                 f"{type(exc).__name__}: {exc}",
                 permanent=isinstance(exc, PermanentPublishError),
+                auth_rejected=isinstance(exc, AuthRejectedError),
             )
             return
         now = self.clock.now()
@@ -80,11 +82,22 @@ class OutboxDispatcher:
         log.info("outbox_delivered", event_id=str(row["id"]), event_type=row["event_type"])
 
     async def _record_failure(
-        self, row: dict[str, Any], error: str, *, permanent: bool = False
+        self,
+        row: dict[str, Any],
+        error: str,
+        *,
+        permanent: bool = False,
+        auth_rejected: bool = False,
     ) -> None:
         now = self.clock.now()
         attempt = row["attempts"] + 1
         dead = permanent or attempt >= self.settings.outbox_max_attempts
+        if auth_rejected and attempt >= AUTH_REJECTED_MAX_ATTEMPTS:
+            dead = True
+            error = (
+                f"{error}; rejected {attempt} times: check N8N_WEBHOOK_SECRET "
+                "and clock sync (NTP) between the agent and n8n"
+            )
         schedule = self.settings.backoff_schedule
         delay = schedule[min(attempt - 1, len(schedule) - 1)]
         next_attempt = None if dead else now + timedelta(seconds=delay)
