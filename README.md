@@ -3,11 +3,10 @@
 Open-source, self-hostable mini CRM for small businesses. Prospects apply through a form,
 the lead is saved first and handed to an orchestrator (n8n, optional), and an operator sees every
 lead ranked by priority in a dashboard. The AI qualification agent, knowledge-base answers and
-approve-before-send drafting are the next phases (see [Roadmap](#roadmap)); a person will always
-approve every reply.
+approve-before-send drafting are described in [Roadmap](#roadmap); a person always approves every reply.
 
-> **Status: Phase 1 (base).** Public form, safe intake API, transactional outbox, n8n integration,
-> dashboard (list, detail, timeline). All data in this repository is fictional (Northwind Academy).
+> **Status: Phase 2 (qualification agent).** Public form, safe intake API, transactional outbox, n8n
+> integration, LangGraph qualification and drafting, and a dashboard where you review every reply. All data in this repository is fictional (Northwind Academy).
 
 ![Leads list, grouped by priority](docs/screenshots/leads-desktop.png)
 
@@ -43,14 +42,28 @@ heavy and their "AI" is a black box.
   survives restarts; the checks run again on the approved or edited text) until
   `POST /admin/leads/{id}/review` approves, edits, rejects or regenerates it.
   Approved messages are sent by SMTP (Mailpit locally) either in-process or through n8n, and the lead
-  becomes `sent` (or `error`, retryable); the dashboard UI comes next.
+  becomes `sent` (or `error`, retryable).
+- **Review in the dashboard**: the lead detail shows *Why this score* (score, tier, points and evidence per
+  criterion, reasons, a notice when prompt injection is suspected), the draft as a letter with
+  **Approve and send, Edit, Reject and Regenerate**, the delivery status, and a collapsible agent run
+  log (node, provider, model, tokens, latency, cost, prompt version). Edits are kept next to the
+  original; a draft that fails the safety checks needs an explicit **Send anyway** (recorded in the
+  timeline) and asks for confirmation first. Errors show a plain sentence, the reason code and a **Retry** button. All actions go through the Next.js BFF
+  (server-side token, anti-CSRF header, Zod validation from the generated contracts).
+- **Qualification eval**: ten labelled fictional leads in [evals/qualification](evals/qualification/README.md),
+  run in CI with the fake provider (`make eval`); a capped real-provider run is documented and opt-in. Fake-provider results verify the plumbing and the
+  scoring code, not model accuracy: only a real-provider run measures that.
 - **LLM provider layer**: one port with Anthropic, a deterministic fake
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
   cost, and `LLM_BUDGET_USD` blocks real providers once spent.
 
-| Lead detail | Public form (mobile) |
+| Review a drafted reply (desktop) | Same lead on a phone |
 |---|---|
-| ![Lead detail](docs/screenshots/detail-desktop.png) | ![Application form on a phone](docs/screenshots/apply-mobile.png) |
+| ![Lead detail with the draft reply, score explanation and run log](docs/screenshots/review-desktop.png) | ![Lead detail on a phone](docs/screenshots/review-mobile.png) |
+
+| Draft that failed the safety checks | Public form (mobile) |
+|---|---|
+| ![Safety check failure with Send anyway](docs/screenshots/review-checks-desktop.png) | ![Application form on a phone](docs/screenshots/apply-mobile.png) |
 
 ## Architecture
 
@@ -160,6 +173,7 @@ must be set to at least 16 characters or the agent refuses to start.
 | `ANTHROPIC_API_KEY`, `AWS_REGION`, `OPENAI_API_KEY` | Provider credentials; only needed for that provider |
 | `RATE_*`, `TRUSTED_PROXIES` | Rate limits and proxy trust for `X-Forwarded-For` |
 | `EXPOSE_ADMIN_API` | `false` stops mounting `/admin` and `/internal` (default `true`) |
+| `TRUST_FORWARDED_HOST` | `true` only behind a reverse proxy you control: the web app then believes `X-Forwarded-Host` for its same-origin check |
 | `DASHBOARD_USER`, `DASHBOARD_PASSWORD` | Basic-auth credentials, required when `APP_ENV=production` |
 
 ## Tests
@@ -168,7 +182,8 @@ must be set to at least 16 characters or the agent refuses to start.
 make test                      # agent (needs Docker for Testcontainers) and web (Vitest)
 cd apps/agent && uv run pytest # needs Docker, or set TEST_DATABASE_URL
 pnpm --filter web test         # unit tests
-pnpm --filter web e2e          # Playwright; needs the stack from "Run it" plus the seed
+pnpm --filter web e2e          # Playwright; needs the stack from "Run it" plus the seed (use `make seed-reset`)
+make eval                      # qualification eval, fake provider, offline
 ```
 
 CI (`.github/workflows/ci.yml`) runs lint, types, tests, build, contract-drift check, secret scan
@@ -176,9 +191,9 @@ and the Playwright suite, all without secrets.
 
 ## Roadmap
 
-1. **Qualification agent**: LangGraph graph (extract, score against your criteria, draft in the
-   lead's language) with a fake provider for keyless use, and human approve/edit/reject before any
-   email is sent.
+1. ~~Qualification agent~~ (built): LangGraph graph (extract, score against your criteria, draft in the
+   lead's language), fake provider for keyless use, human approve/edit/reject before any email is sent.
+   Remaining: one real-provider eval run.
 2. **Knowledge base with citations** (RAG) over your own Markdown.
 3. **Metrics and keyless demo polish**, deployment notes.
 4. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta

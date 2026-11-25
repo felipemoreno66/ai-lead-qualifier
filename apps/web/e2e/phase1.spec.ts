@@ -90,7 +90,7 @@ test.describe("Phase 1: apply and see the lead in the dashboard", () => {
     await page.goto("/dashboard?status=error");
     await page.getByRole("link", { name: "Priya Nair" }).click();
     await expect(page.getByText("llm_timeout")).toBeVisible();
-    await page.getByRole("button", { name: "Re-trigger" }).first().click();
+    await page.getByRole("button", { name: "Retry", exact: true }).first().click();
     await expect(page.getByText("Queued again", { exact: false }).first()).toBeVisible();
   });
 

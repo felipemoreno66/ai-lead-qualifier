@@ -31,6 +31,8 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest --cov --cov-report=term-missing
+      - name: Qualification eval (fake provider, no keys)
+        run: uv run python ../../evals/qualification/run.py
 
   web:
     name: Web (lint, types, tests, build)

@@ -16,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from lead_qualifier.domain.errors import Conflict
 from lead_qualifier.domain.lead import LeadStatus
 from lead_qualifier.infrastructure.db.tables import (
+    agent_runs,
     lead_events,
     leads,
+    llm_calls,
     outbox_events,
     rate_limit_hits,
     workspaces,
@@ -166,6 +168,29 @@ class LeadRepository:
             .order_by(lead_events.c.created_at, lead_events.c.id)
         )
         return [_row(r) for r in (await self.conn.execute(stmt)).mappings()]
+
+    async def runs_with_calls(self, lead_id: uuid.UUID) -> list[Row]:
+        """Runs of a lead, oldest first, each with its model calls under ``calls``."""
+        runs = [
+            _row(r)
+            for r in (
+                await self.conn.execute(
+                    select(agent_runs)
+                    .where(agent_runs.c.lead_id == lead_id)
+                    .order_by(agent_runs.c.run_number)
+                )
+            ).mappings()
+        ]
+        calls: dict[uuid.UUID, list[Row]] = {r["id"]: [] for r in runs}
+        if runs:
+            stmt = (
+                select(llm_calls)
+                .where(llm_calls.c.agent_run_id.in_(calls))
+                .order_by(llm_calls.c.created_at, llm_calls.c.id)
+            )
+            for call in (await self.conn.execute(stmt)).mappings():
+                calls[call["agent_run_id"]].append(_row(call))
+        return [{**r, "calls": calls[r["id"]]} for r in runs]
 
     async def counts_by_workspace(self) -> dict[str, dict[str, int]]:
         stmt = select(leads.c.workspace_slug, leads.c.status, func.count()).group_by(

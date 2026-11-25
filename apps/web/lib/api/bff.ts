@@ -23,8 +23,12 @@ export async function handle(request: Request, run: () => Promise<Response>): Pr
     return await run();
   } catch (error) {
     if (error instanceof AgentError) {
-      const status = error.status >= 500 ? 502 : error.status;
-      return errorResponse(error.title, error.message, status);
+      // An agent crash says nothing useful to a browser and may carry internals: keep it generic.
+      if (error.status >= 500) return errorResponse("Agent unavailable", "The agent could not handle this request.", 502);
+      return NextResponse.json(
+        { title: error.title, detail: error.message, ...(error.errors.length ? { errors: error.errors } : {}) },
+        { status: error.status },
+      );
     }
     if (error instanceof ZodError) {
       return errorResponse("Unexpected response", "The agent answered with an unexpected shape.", 502);
@@ -42,11 +46,17 @@ export function assertSameOrigin(request: Request): Response | null {
   if (request.headers.get(MUTATION_HEADER) !== MUTATION_HEADER_VALUE) {
     return errorResponse("Forbidden", "Missing request header.", 403);
   }
+  // Browsers label every fetch with its relationship to the page; only same-origin may mutate.
+  const site = request.headers.get("sec-fetch-site");
+  if (site && site !== "same-origin") {
+    return errorResponse("Forbidden", "Cross-site requests are not allowed.", 403);
+  }
   // Compare with the Host the browser used: behind Docker, `request.url` carries the container's
-  // bind address (0.0.0.0), not the public one.
+  // bind address (0.0.0.0), not the public one. X-Forwarded-Host is only believed behind a proxy
+  // the operator declared (TRUST_FORWARDED_HOST=true), because any client can send it.
   const origin = request.headers.get("origin");
-  const host =
-    request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? new URL(request.url).host;
+  const forwarded = process.env.TRUST_FORWARDED_HOST === "true" ? request.headers.get("x-forwarded-host") : null;
+  const host = forwarded ?? request.headers.get("host") ?? new URL(request.url).host;
   if (origin && originHost(origin) !== host) {
     return errorResponse("Forbidden", "Cross-origin requests are not allowed.", 403);
   }

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -75,6 +75,17 @@ class OutboxEventOut(BaseModel):
     delivered_at: datetime | None
 
 
+class CriterionBreakdown(BaseModel):
+    """One scored criterion: what was judged, the points it earned and the evidence."""
+
+    id: str
+    description: str
+    judgment: Literal["met", "partial", "unmet"]
+    points: float
+    max_points: float
+    evidence: str
+
+
 class LeadDetail(BaseModel):
     id: uuid.UUID
     reference: str
@@ -94,6 +105,9 @@ class LeadDetail(BaseModel):
     recommended_product: str | None
     recommended_product_name: str | None
     qualification: dict[str, Any] | None
+    breakdown: list[CriterionBreakdown]
+    reasons: list[str]
+    tier_capped: bool = False
     injection_suspected: bool = False
     detected_language: str | None
     error_reason: str | None
@@ -105,6 +119,35 @@ class LeadDetail(BaseModel):
     events: list[LeadEventOut]
     outbox: list[OutboxEventOut]
     messages: list[MessageOut]
+
+
+class LlmCallOut(BaseModel):
+    id: uuid.UUID
+    node: str
+    provider: str
+    model: str
+    attempt: int
+    input_tokens: int
+    output_tokens: int
+    latency_ms: int
+    cost_usd: float
+    success: bool
+    error_code: str | None
+    prompt_version: str | None
+    created_at: datetime
+
+
+class AgentRunOut(BaseModel):
+    id: uuid.UUID
+    run_number: int
+    status: str
+    graph_version: str
+    started_at: datetime
+    finished_at: datetime | None
+    duration_ms: int | None
+    total_cost_usd: float
+    error: str | None
+    calls: list[LlmCallOut]
 
 
 class RetriggerResult(BaseModel):
@@ -131,28 +174,46 @@ class MessageOut(BaseModel):
     sent_at: datetime | None
 
 
-class ReviewRequest(BaseModel):
-    action: Literal["approve", "edit", "reject", "regenerate"]
-    subject: str | None = Field(default=None, min_length=1, max_length=150)
-    body: str | None = Field(default=None, min_length=1, max_length=4000)
-    feedback: str | None = Field(default=None, max_length=500)
-    note: str | None = Field(default=None, max_length=500)
-    override: bool = False  # approve even though the draft checks found problems (recorded)
-
+class _ReviewBase(BaseModel):
     @model_validator(mode="after")
-    def _safe_text(self) -> ReviewRequest:
-        if self.subject is not None and has_unsafe_chars(self.subject, allow_newlines=False):
+    def _safe_text(self) -> Self:
+        subject = getattr(self, "subject", None)
+        if subject is not None and has_unsafe_chars(subject, allow_newlines=False):
             raise ValueError("the subject must not contain control or bidirectional characters")
-        for text in (self.body, self.feedback, self.note):
+        for name in ("body", "feedback", "note"):
+            text = getattr(self, name, None)
             if text is not None and has_unsafe_chars(text, allow_newlines=True):
                 raise ValueError("the text must not contain control or bidirectional characters")
         return self
 
-    @model_validator(mode="after")
-    def _edit_needs_a_body(self) -> ReviewRequest:
-        if self.action == "edit" and not self.body:
-            raise ValueError("an edit needs the new body")
-        return self
+
+class ApproveReview(_ReviewBase):
+    action: Literal["approve"]
+    override: bool = False  # approve even though the draft checks found problems (recorded)
+
+
+class EditReview(_ReviewBase):
+    """Edit and approve: the operator's text replaces the draft (the original is kept)."""
+
+    action: Literal["edit"]
+    subject: str | None = Field(default=None, min_length=1, max_length=150)
+    body: str = Field(min_length=1, max_length=4000)
+    override: bool = False
+
+
+class RejectReview(_ReviewBase):
+    action: Literal["reject"]
+    note: str | None = Field(default=None, max_length=500)
+
+
+class RegenerateReview(_ReviewBase):
+    action: Literal["regenerate"]
+    feedback: str | None = Field(default=None, max_length=500)
+
+
+ReviewRequest = Annotated[
+    ApproveReview | EditReview | RejectReview | RegenerateReview, Field(discriminator="action")
+]
 
 
 class ReviewResult(BaseModel):

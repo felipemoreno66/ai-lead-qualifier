@@ -14,9 +14,11 @@ from lead_qualifier.domain.workspace import Tier
 from lead_qualifier.http.auth import require_admin
 from lead_qualifier.http.deps import EngineDep, RegistryDep
 from lead_qualifier.http.schemas import (
+    AgentRunOut,
     LeadDetail,
     LeadList,
     LeadListItem,
+    LlmCallOut,
     OutboxEventOut,
     RetriggerResult,
     ReviewRequest,
@@ -130,6 +132,29 @@ async def get_lead(lead_id: uuid.UUID, registry: RegistryDep, engine: EngineDep)
     return lead_detail(lead, events, outbox, ws.config if ws else None, drafts)
 
 
+@router.get("/leads/{lead_id}/runs", response_model=list[AgentRunOut])
+async def lead_runs(lead_id: uuid.UUID, engine: EngineDep) -> list[AgentRunOut]:
+    """Agent runs of a lead with their model calls (tokens, latency, cost, prompt version)."""
+    async with engine.connect() as conn:
+        repo = LeadRepository(conn)
+        if await repo.get(lead_id) is None:
+            raise NotFound("Unknown lead.")
+        runs = await repo.runs_with_calls(lead_id)
+    return [
+        AgentRunOut(
+            **{k: run[k] for k in AgentRunOut.model_fields if k != "calls"},
+            calls=[
+                LlmCallOut(
+                    **{k: c[k] for k in LlmCallOut.model_fields if k != "prompt_version"},
+                    prompt_version=(run["prompt_versions"] or {}).get(c["node"]),
+                )
+                for c in run["calls"]
+            ],
+        )
+        for run in runs
+    ]
+
+
 @router.post("/leads/{lead_id}/retrigger", response_model=RetriggerResult, status_code=202)
 async def retrigger_lead(
     lead_id: uuid.UUID, request: Request, engine: EngineDep
@@ -161,10 +186,10 @@ async def review_lead(lead_id: uuid.UUID, payload: ReviewRequest, request: Reque
     outcome = await request.app.state.reviewer.review(
         lead_id,
         payload.action,
-        subject=payload.subject,
-        body=payload.body,
-        feedback=payload.feedback,
-        note=payload.note,
-        override=payload.override,
+        subject=getattr(payload, "subject", None),
+        body=getattr(payload, "body", None),
+        feedback=getattr(payload, "feedback", None),
+        note=getattr(payload, "note", None),
+        override=getattr(payload, "override", False),
     )
     return ReviewResult(**vars(outcome))
