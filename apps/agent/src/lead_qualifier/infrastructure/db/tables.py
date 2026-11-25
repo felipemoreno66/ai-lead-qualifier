@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    Numeric,
     SmallInteger,
     Table,
     Text,
@@ -39,6 +40,9 @@ LEAD_EVENT_TYPES = (
 )
 OUTBOX_STATUSES = ("pending", "processing", "delivered", "dead")
 OUTBOX_EVENT_TYPES = ("lead.created", "message.approved")
+AGENT_RUN_STATUSES = ("running", "interrupted", "completed", "failed")
+MESSAGE_STATUSES = ("draft", "approved", "rejected", "sent", "failed")
+MESSAGE_CHANNELS = ("email", "whatsapp")
 
 
 def _in(column: str, values: tuple[str, ...]) -> str:
@@ -146,4 +150,100 @@ rate_limit_hits = Table(
     Column("key", Text, primary_key=True),
     Column("window_start", DateTime(timezone=True), primary_key=True),
     Column("count", BigInteger, nullable=False, server_default="0"),
+)
+
+agent_runs = Table(
+    "agent_runs",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "lead_id", UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
+    ),
+    Column("thread_id", Text, nullable=False),
+    Column("run_number", Integer, nullable=False),
+    Column("status", Text, nullable=False, server_default="running"),
+    Column("graph_version", Text, nullable=False),
+    Column("prompt_versions", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Column("started_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("finished_at", DateTime(timezone=True)),
+    Column("duration_ms", Integer),
+    Column("total_cost_usd", Numeric(10, 6), nullable=False, server_default="0"),
+    Column("error", Text),
+    UniqueConstraint("thread_id", name="uq_agent_runs_thread_id"),
+    UniqueConstraint("lead_id", "run_number", name="uq_agent_runs_lead_run"),
+    CheckConstraint(_in("status", AGENT_RUN_STATUSES), name="ck_agent_runs_status"),
+)
+
+llm_calls = Table(
+    "llm_calls",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "agent_run_id",
+        UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("node", Text, nullable=False),
+    Column("provider", Text, nullable=False),
+    Column("model", Text, nullable=False),
+    Column("attempt", SmallInteger, nullable=False, server_default="1"),
+    Column("input_tokens", Integer, nullable=False, server_default="0"),
+    Column("output_tokens", Integer, nullable=False, server_default="0"),
+    Column("cache_read_tokens", Integer, nullable=False, server_default="0"),
+    Column("cache_write_tokens", Integer, nullable=False, server_default="0"),
+    Column("latency_ms", Integer, nullable=False, server_default="0"),
+    Column("cost_usd", Numeric(10, 6), nullable=False, server_default="0"),
+    Column("is_estimated", Boolean, nullable=False, server_default=text("false")),
+    Column("success", Boolean, nullable=False),
+    Column("error_code", Text),
+    Column("request", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Column("response", JSONB),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Index("ix_llm_calls_run", "agent_run_id"),
+)
+
+messages = Table(
+    "messages",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "lead_id", UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
+    ),
+    Column("agent_run_id", UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL")),
+    Column("version", Integer, nullable=False),
+    Column("language", Text, nullable=False),
+    Column("channel", Text, nullable=False, server_default="email"),
+    Column("channel_recipient", Text, nullable=False),
+    Column("subject", Text),
+    Column("body", Text, nullable=False),
+    Column("status", Text, nullable=False, server_default="draft"),
+    Column("edited_by_operator", Boolean, nullable=False, server_default=text("false")),
+    Column("original_body", Text),
+    Column("review_note", Text),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("reviewed_at", DateTime(timezone=True)),
+    Column("sent_at", DateTime(timezone=True)),
+    Column("provider_message_id", Text),
+    UniqueConstraint("lead_id", "version", name="uq_messages_lead_version"),
+    CheckConstraint(_in("status", MESSAGE_STATUSES), name="ck_messages_status"),
+    CheckConstraint(_in("channel", MESSAGE_CHANNELS), name="ck_messages_channel"),
+    Index("ix_messages_lead", "lead_id"),
+)
+
+# Append-only budget ledger. No foreign keys on purpose: neither lead deletion nor the llm_calls
+# retention purge may lower the lifetime spend that ``llm_budget`` reports.
+llm_spend = Table(
+    "llm_spend",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("agent_run_id", UUID(as_uuid=True), nullable=False),
+    Column("provider", Text, nullable=False),
+    Column("model", Text, nullable=False),
+    Column("state", Text, nullable=False),
+    Column("amount_usd", Numeric(14, 6), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("settled_at", DateTime(timezone=True)),
+    CheckConstraint(_in("state", ("reserved", "settled")), name="ck_llm_spend_state"),
+    Index("ix_llm_spend_run", "agent_run_id"),
 )

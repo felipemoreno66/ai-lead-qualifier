@@ -11,7 +11,17 @@ from tests.conftest import alembic_config, create_database
 
 pytestmark = pytest.mark.integration
 
-APP_TABLES = {"workspaces", "leads", "lead_events", "outbox_events", "rate_limit_hits"}
+APP_TABLES = {
+    "workspaces",
+    "leads",
+    "lead_events",
+    "outbox_events",
+    "rate_limit_hits",
+    "agent_runs",
+    "llm_calls",
+    "messages",
+    "llm_spend",
+}
 
 
 def _tables(url: str) -> set[str]:
@@ -58,4 +68,71 @@ def test_check_constraints_reject_bad_values(migrated_url: str):
             conn.execute(insert, {"ref": f"CK-{status}-{score}", "status": status, "score": score})
     with eng.begin() as conn:
         conn.execute(sa.text("DELETE FROM workspaces WHERE slug = 'ck-test'"))
+    eng.dispose()
+
+
+def test_phase_two_migration_steps_down_and_up_alone(pg_base_url: str):
+    url = create_database(pg_base_url, "leadq_migration_0002")
+    cfg = alembic_config(url)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "0001")
+    assert not ({"agent_runs", "llm_calls", "messages"} & _tables(url))
+    assert "leads" in _tables(url)
+    command.upgrade(cfg, "head")
+
+
+def test_messages_are_channel_ready_and_budget_view_counts_live_reservations(migrated_url: str):
+    eng = sa.create_engine(migrated_url)
+    with eng.begin() as conn:
+        conn.execute(sa.text("DELETE FROM leads WHERE workspace_slug = 'm-test'"))
+        conn.execute(sa.text("DELETE FROM workspaces WHERE slug = 'm-test'"))
+        conn.execute(
+            sa.text("INSERT INTO workspaces (slug, name, config_hash) VALUES ('m-test','x','h')")
+        )
+        lead_id = conn.execute(
+            sa.text(
+                "INSERT INTO leads (reference, workspace_slug, name, email, source, ip_hash,"
+                " consent_at, consent_notice_version)"
+                " VALUES ('M-1','m-test','n','e@example.com','seed','h', now(), 'v') RETURNING id"
+            )
+        ).scalar_one()
+        conn.execute(
+            sa.text(
+                "INSERT INTO messages (lead_id, version, language, channel_recipient, body)"
+                " VALUES (:l, 1, 'en', 'e@example.com', 'hi')"
+            ),
+            {"l": lead_id},
+        )
+        row = conn.execute(sa.text("SELECT channel, subject FROM messages")).one()
+        assert row.channel == "email"
+        assert row.subject is None
+    with pytest.raises(sa.exc.IntegrityError), eng.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO messages (lead_id, version, language, channel, channel_recipient,"
+                " body) VALUES (:l, 2, 'en', 'sms', '+1', 'hi')"
+            ),
+            {"l": lead_id},
+        )
+    with eng.begin() as conn:
+        conn.execute(sa.text("SET LOCAL app.allow_spend_reset = 'on'"))
+        conn.execute(sa.text("DELETE FROM llm_spend"))  # other tests share this database
+        for state, amount, age in (
+            ("settled", "0.5", "0 minutes"),
+            ("reserved", "0.25", "1 minute"),
+            ("reserved", "9", "11 minutes"),  # old reservations keep counting
+        ):
+            conn.execute(
+                sa.text(
+                    "INSERT INTO llm_spend (agent_run_id, provider, model, state, amount_usd,"
+                    " created_at) VALUES (gen_random_uuid(), 'anthropic', 'm', :s, :a,"
+                    " now() - CAST(:age AS interval))"
+                ),
+                {"s": state, "a": amount, "age": age},
+            )
+        assert conn.execute(sa.text("SELECT spent_usd FROM llm_budget")).scalar_one() == 9.75
+        conn.execute(sa.text("SET LOCAL app.allow_spend_reset = 'on'"))
+        conn.execute(sa.text("DELETE FROM llm_spend"))
+        conn.execute(sa.text("DELETE FROM leads WHERE workspace_slug = 'm-test'"))
+        conn.execute(sa.text("DELETE FROM workspaces WHERE slug = 'm-test'"))
     eng.dispose()

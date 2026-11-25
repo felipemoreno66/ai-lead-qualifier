@@ -14,6 +14,7 @@ from lead_qualifier.infrastructure.db.repositories import (
     OutboxRepository,
     RateLimitRepository,
 )
+from lead_qualifier.infrastructure.llm.repository import LlmCallRepository
 from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.clock import Clock
 from lead_qualifier.ports.events import AuthRejectedError, EventPublisher, PermanentPublishError
@@ -120,7 +121,10 @@ class OutboxDispatcher:
         self._last_purge = now
         async with self.engine.begin() as conn:
             removed = await RateLimitRepository(conn).purge_before(now - RATE_LIMIT_RETENTION)
-        log.info("rate_limits_purged", removed=removed)
+            purged = await LlmCallRepository(conn).purge_before(
+                now - timedelta(days=self.settings.llm_calls_retention_days)
+            )
+        log.info("rate_limits_purged", removed=removed, llm_calls_purged=purged)
 
     async def run_forever(self) -> None:
         log.info("dispatcher_started", poll_seconds=self.settings.outbox_poll_seconds)

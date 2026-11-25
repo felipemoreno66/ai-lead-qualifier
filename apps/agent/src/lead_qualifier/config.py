@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_SECRET_LENGTH = 16
@@ -54,6 +54,16 @@ class Settings(BaseSettings):
     min_fill_seconds: float = Field(default=2.0, ge=0)
     max_body_bytes: int = Field(default=16 * 1024, ge=1024)
     duplicate_window_minutes: int = Field(default=10, ge=0)
+
+    llm_provider: Literal["fake", "anthropic", "bedrock", "openai"] = "fake"
+    llm_model_default: str = "claude-haiku-5-5"
+    llm_model_draft: str = ""
+    llm_budget_usd: float = Field(default=5.0, ge=0)
+    llm_calls_retention_days: int = Field(default=30, ge=1)
+    llm_max_calls_per_lead: int = Field(default=12, ge=1)
+    anthropic_api_key: SecretStr = SecretStr("")
+    openai_api_key: SecretStr = SecretStr("")
+    aws_region: str = "us-east-1"
 
     @field_validator("enabled_workspaces", "trusted_proxies", mode="before")
     @classmethod

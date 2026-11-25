@@ -86,3 +86,57 @@ dashboard, instead of being retried for hours.
 Public surface: `/api/*` and `/healthz`. Private: `/admin/*` (web server, admin token) and `/internal/*`
 (n8n, its own token); `EXPOSE_ADMIN_API=false` unmounts both. In production the dashboard requires HTTP Basic
 auth and fails closed (503) when credentials are not configured.
+
+## LLM provider layer
+
+`ports/llm.py` defines `LLMProvider` (`generate_structured`, `generate_text`) and the error types.
+Adapters live in `infrastructure/llm/` and stay dumb: they make one call and return typed output.
+
+```mermaid
+flowchart LR
+  G[Graph node] --> V[generate_validated: parse, domain check, up to 2 repairs]
+  V --> R[RecordingProvider: budget guard, llm_calls row, cost]
+  R --> A[Anthropic]
+  R --> B[Bedrock]
+  R --> O[OpenAI skeleton]
+  R --> F[Fake]
+```
+
+- **Anthropic** uses the official SDK with `output_config.format` (JSON schema from the pydantic model)
+  and `output_config.effort`; no `temperature`/`top_p`, no prefill. The SDK retries 429/5xx/connection
+  errors; 400s are never retried. Bedrock reuses it through `AsyncAnthropicBedrockMantle`
+  (`anthropic.`-prefixed model ids) and is not run in CI. OpenAI is a documented skeleton.
+- **Fake** is a pure function of task and input (sha256 seed). Without a handler it synthesises a valid
+  instance of the requested model from its JSON schema; `script=[...]` injects invalid JSON, timeouts
+  or fixed payloads for tests. Its calls cost 0 and never count against the budget.
+- **Repair loop** (`structured.py`): invalid output or a failed domain check is fed back as a user
+  message, at most 2 repairs, then `LLMOutputInvalid`. Each attempt is its own `llm_calls` row.
+- **Cost**: `pricing.yaml` (USD per MTok, `verified_on` date) feeds `PricingTable`; unknown models
+  cost 0 and are flagged `is_estimated`. `RecordingProvider` writes each call in its own transaction,
+  checks the `llm_budget` view against `LLM_BUDGET_USD` before every non-fake call
+  (`BudgetExceeded`) and caps calls per agent run at `LLM_MAX_CALLS_PER_LEAD` (`CallLimitExceeded`).
+- **Budget**: `LLM_BUDGET_USD` is a lifetime cap kept in the append-only `llm_spend` ledger (no
+  foreign keys, so purging `llm_calls` or deleting a lead never lowers it; migration 0004). The guard
+  runs under a Postgres advisory lock, refuses a call when `spent + worst case of this call` passes it
+  and persists a reservation that all processes see until it is settled with the real cost.
+  Settling is fail-closed (runs in `finally`, retried once, falls back to the worst case); reservations
+  never expire, so a crash leaves a conservative charge until an operator reconciles it; `max_tokens` is
+  clamped to 8192. Unknown models are priced at the highest known rate, and `build_provider` refuses
+  to start with a real provider whose model is missing from `pricing.yaml`. Every call needs an
+  `agent_run_id` (`llm_calls.agent_run_id` is NOT NULL, so deleting a lead cascades to its calls).
+- **Reconciling the ledger**: reservations never expire, so a process that crashes between reserving
+  and settling leaves a worst-case charge. Check the provider's usage page, then settle the stuck rows
+  with their real cost: `UPDATE llm_spend SET state='settled', amount_usd=<usd>, settled_at=now()
+  WHERE state='reserved' AND created_at < now() - interval '1 hour' AND id = '<id>';`. `DELETE` and
+  `TRUNCATE` on `llm_spend` are blocked by triggers (migration 0006); a test database can bypass them
+  with `SET LOCAL app.allow_spend_reset = 'on'`. Timeouts and broken connections also keep the worst
+  case, because the provider may have billed a request whose response never arrived. The worst case
+  counts one token per UTF-8 byte of the prompt and schema plus 25%, so non-ASCII text is covered.
+- **PII**: stored requests/responses have emails and phone numbers redacted (only ASCII addresses and numbers of 9+ digits; names and free text are not masked, so retention is the real control) and are purged after
+  `LLM_CALLS_RETENTION_DAYS` by the dispatcher's hourly maintenance. Provider error text is reduced to
+  status code and error type. A failed insert after a paid call is logged with its cost, never lost.
+- **Tables** (migration 0002, 0003): `agent_runs`, `llm_calls`, `messages` (channel-ready: `channel`,
+  `channel_recipient`, nullable `subject`) and the `llm_budget` view.
+
+Deviation from the plan: the call cap counts per agent run, not per lead across runs, because
+`llm_calls` references runs; a re-run gets a fresh allowance and the global budget still applies.
