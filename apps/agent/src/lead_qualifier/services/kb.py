@@ -274,9 +274,17 @@ class KnowledgeBaseService:
         return out
 
     async def retrieve(
-        self, workspace_slug: str, question: str, *, top_k: int = 5, min_similarity: float = 0.3
+        self,
+        workspace_slug: str,
+        question: str,
+        *,
+        top_k: int = 5,
+        min_similarity: float | None = None,
     ) -> list[RetrievedChunk]:
         """Top-k chunks by cosine similarity, best first, dropping those below the threshold."""
+        threshold = (
+            self._embeddings.default_min_similarity if min_similarity is None else min_similarity
+        )
         (vector,) = await self._embed([question])
         distance = kb_chunks.c.embedding.cosine_distance(vector)
         stmt = (
@@ -301,7 +309,7 @@ class KnowledgeBaseService:
         return [
             RetrievedChunk(r.id, r.path, r.title, r.heading_path, r.content, float(r.similarity))
             for r in rows
-            if r.similarity >= min_similarity
+            if r.similarity >= threshold
         ]
 
 
