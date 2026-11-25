@@ -375,3 +375,10 @@ class KbReindexResult(BaseModel):
     removed: int
     skipped: int
     chunks: int
+
+
+class InstanceStatus(BaseModel):
+    """What the dashboard needs to know about this deployment."""
+
+    llm_provider: str
+    demo_mode: bool  # the fake provider is active: replies come from a deterministic stand-in

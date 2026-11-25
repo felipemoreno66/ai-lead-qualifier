@@ -1,0 +1,138 @@
+{
+  "workspace": "northwind-academy",
+  "note": "Fictional demo content for the seeded leads: extracted profile, model-call log and reply drafts as the fake provider would leave them. Applied by `demo_init`, never to a real workspace.",
+  "leads": {
+    "NW-SEED01": {
+      "profile": {
+        "normalized_name": "Mateo Alvarez",
+        "detected_language": "es",
+        "goal_summary": "Quiere cambiar de carrera de ventas a desarrollo web y conseguir su primer empleo como desarrollador.",
+        "questions": ["¿Hay plan de pagos y cuándo empieza la próxima cohorte?"],
+        "injection_suspected": false
+      },
+      "calls": [
+        { "node": "extract", "input_tokens": 612, "output_tokens": 94, "latency_ms": 38 },
+        { "node": "qualify", "input_tokens": 1480, "output_tokens": 311, "latency_ms": 61 },
+        { "node": "draft", "input_tokens": 1215, "output_tokens": 198, "latency_ms": 44 }
+      ],
+      "message": {
+        "language": "es",
+        "status": "draft",
+        "subject": "Tu solicitud a Northwind Academy",
+        "body": "Hola Mateo,\n\nGracias por postularte a Northwind Academy. Según tu solicitud, la mejor opción para ti parece ser el Full Stack Bootcamp: 16 semanas en vivo y online (JavaScript, TypeScript, React, Node.js, PostgreSQL).\n\nCuesta USD 4900, o 6 pagos mensuales de USD 890, así que hay plan de pagos.\n\nLos cupos se llenan rápido, así que lo mejor es hablar esta semana. Agenda una llamada de admisiones de 15 minutos.\n\n— Equipo de Admisiones, Northwind Academy"
+      }
+    },
+    "NW-SEED02": {
+      "profile": {
+        "normalized_name": "Sofia Lindqvist",
+        "detected_language": "en",
+        "goal_summary": "Biostatistician who wants to add Python and LLM application skills.",
+        "questions": ["Does the course cover building retrieval apps?"],
+        "injection_suspected": false
+      },
+      "calls": [
+        { "node": "extract", "input_tokens": 598, "output_tokens": 88, "latency_ms": 35 },
+        { "node": "qualify", "input_tokens": 1455, "output_tokens": 297, "latency_ms": 58 },
+        { "node": "answer", "input_tokens": 2310, "output_tokens": 164, "latency_ms": 72 },
+        { "node": "draft", "input_tokens": 1390, "output_tokens": 205, "latency_ms": 47 }
+      ],
+      "message": {
+        "language": "en",
+        "status": "draft",
+        "subject": "Your application to Northwind Academy",
+        "body": "Hi Sofia,\n\nThank you for applying to Northwind Academy. Your background in statistics is a strong base for the Data & AI Course: a 10-week part-time course covering Python, SQL, pandas, ML basics and LLM apps.\n\nIt costs USD 2400, or 3 monthly payments of USD 850.\n\nSpots fill quickly, so the best next step is to talk this week. Book a 15-minute admissions call.\n\n— Admissions Team, Northwind Academy"
+      }
+    },
+    "NW-SEED03": {
+      "profile": {
+        "normalized_name": "Amara Okafor",
+        "detected_language": "en",
+        "goal_summary": "Maths teacher who wants to build web apps for her students.",
+        "questions": ["Is there a scholarship or a smaller payment plan?"],
+        "injection_suspected": false
+      },
+      "calls": [
+        { "node": "extract", "input_tokens": 604, "output_tokens": 90, "latency_ms": 36 },
+        { "node": "qualify", "input_tokens": 1462, "output_tokens": 302, "latency_ms": 60 },
+        { "node": "answer", "input_tokens": 2288, "output_tokens": 171, "latency_ms": 70 },
+        { "node": "draft", "input_tokens": 1402, "output_tokens": 210, "latency_ms": 49 }
+      ],
+      "message": {
+        "language": "en",
+        "status": "draft",
+        "subject": "Your application to Northwind Academy",
+        "body": "Hi Amara,\n\nThank you for applying to Northwind Academy. Based on your application, the best fit for you looks like the Full Stack Bootcamp: 16 weeks, live and online, covering JavaScript, TypeScript, React, Node.js and PostgreSQL.\n\nIt costs USD 4900, or 6 monthly payments of USD 890.\n\nWe would be glad to answer your questions and help you decide. Book a 15-minute admissions call.\n\n— Admissions Team, Northwind Academy"
+      }
+    },
+    "NW-SEED04": {
+      "profile": {
+        "normalized_name": "Lucas Ferreira",
+        "detected_language": "pt",
+        "goal_summary": "Desenvolvedor júnior que quer um mentor para portfólio e entrevistas.",
+        "questions": ["Can sessions be at night, Brasília time?"],
+        "injection_suspected": false
+      },
+      "calls": [
+        { "node": "extract", "input_tokens": 590, "output_tokens": 92, "latency_ms": 34 },
+        { "node": "qualify", "input_tokens": 1440, "output_tokens": 305, "latency_ms": 57 },
+        { "node": "draft", "input_tokens": 1180, "output_tokens": 192, "latency_ms": 43 }
+      ],
+      "message": {
+        "language": "en",
+        "status": "sent",
+        "edited": true,
+        "subject": "Your 1:1 Mentorship application",
+        "original_body": "Hi Lucas,\n\nThank you for applying to Northwind Academy. The 1:1 Mentorship looks like the best fit: a personal mentor with weekly 60-minute sessions, portfolio and interview prep.\n\nIt costs USD 190 per month.\n\nSpots fill quickly, so the best next step is to talk this week. Book a 15-minute admissions call.\n\n— Admissions Team, Northwind Academy",
+        "body": "Hi Lucas,\n\nThank you for applying to Northwind Academy. The 1:1 Mentorship looks like the best fit: a personal mentor with weekly 60-minute sessions, portfolio and interview prep. Sessions can be scheduled in the evening, so Brasília time works.\n\nIt costs USD 190 per month.\n\nBook a 15-minute admissions call and we will set up your first session.\n\n— Admissions Team, Northwind Academy"
+      }
+    },
+    "NW-SEED05": {
+      "profile": {
+        "normalized_name": "Kenji Watanabe",
+        "detected_language": "en",
+        "goal_summary": "Works in logistics and wants to automate reports with Python and SQL.",
+        "questions": [],
+        "injection_suspected": false
+      },
+      "calls": [
+        { "node": "extract", "input_tokens": 570, "output_tokens": 80, "latency_ms": 33 },
+        { "node": "qualify", "input_tokens": 1420, "output_tokens": 290, "latency_ms": 55 },
+        { "node": "draft", "input_tokens": 1150, "output_tokens": 188, "latency_ms": 42 }
+      ],
+      "message": {
+        "language": "en",
+        "status": "sent",
+        "subject": "Your application to Northwind Academy",
+        "body": "Hi Kenji,\n\nThank you for applying to Northwind Academy. For automating reports with Python and SQL, the Data & AI Course looks like the best fit: 10 weeks, part-time.\n\nIt costs USD 2400, or 3 monthly payments of USD 850.\n\nWe would be glad to answer your questions and help you decide. Book a 15-minute admissions call.\n\n— Admissions Team, Northwind Academy"
+      }
+    },
+    "NW-SEED06": {
+      "profile": {
+        "normalized_name": "Elena Petrova",
+        "detected_language": "en",
+        "goal_summary": "Just curious what the course covers.",
+        "questions": [],
+        "injection_suspected": false
+      },
+      "calls": [
+        { "node": "extract", "input_tokens": 540, "output_tokens": 70, "latency_ms": 31 },
+        { "node": "qualify", "input_tokens": 1390, "output_tokens": 270, "latency_ms": 52 },
+        { "node": "draft", "input_tokens": 1100, "output_tokens": 170, "latency_ms": 40 }
+      ],
+      "message": {
+        "language": "en",
+        "status": "rejected",
+        "review_note": "Browsing only, no intent to enrol. Not worth a personal reply.",
+        "subject": "Your application to Northwind Academy",
+        "body": "Hi Elena,\n\nThank you for applying to Northwind Academy. The Data & AI Course is a 10-week part-time introduction to Python, SQL and machine learning.\n\nThere is no rush: we can help you find the right starting point. Book a 15-minute admissions call.\n\n— Admissions Team, Northwind Academy"
+      }
+    },
+    "NW-SEED07": {
+      "profile": null,
+      "failed": { "node": "qualify", "error_code": "llm_timeout", "latency_ms": 30012 },
+      "calls": [
+        { "node": "extract", "input_tokens": 580, "output_tokens": 86, "latency_ms": 36 }
+      ]
+    }
+  }
+}

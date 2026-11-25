@@ -18,6 +18,7 @@ from lead_qualifier.domain.workspace import PublicWorkspaceConfig, WorkspaceConf
 from lead_qualifier.http.app import create_app
 from lead_qualifier.http.schemas import (
     AgentRunOut,
+    InstanceStatus,
     KbChatEntryOut,
     LeadDetail,
     LeadList,
@@ -54,6 +55,7 @@ def main() -> None:
     _write(schemas / "lead-detail.schema.json", LeadDetail.model_json_schema())
     _write(schemas / "metrics.schema.json", MetricsOut.model_json_schema())
     _write(schemas / "retrigger-result.schema.json", RetriggerResult.model_json_schema())
+    _write(schemas / "instance-status.schema.json", InstanceStatus.model_json_schema())
     _write(schemas / "review-request.schema.json", TypeAdapter(ReviewRequest).json_schema())
     _write(schemas / "review-result.schema.json", ReviewResult.model_json_schema())
     _write(schemas / "agent-runs.schema.json", TypeAdapter(list[AgentRunOut]).json_schema())

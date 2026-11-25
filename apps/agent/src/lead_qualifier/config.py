@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     send_max_attempts: int = Field(default=3, ge=1)
     send_stale_minutes: int = Field(default=15, ge=1)
 
+    # Load the fictional Northwind demo data on first start (``demo_init``); never in production.
+    demo_seed: bool = False
     llm_provider: Literal["fake", "anthropic", "bedrock", "openai"] = "fake"
     llm_model_default: str = "claude-haiku-5-5"
     llm_model_draft: str = ""
