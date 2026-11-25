@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "CitationOut": {
+      "properties": {
+        "chunk_id": {
+          "format": "uuid",
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "document_path": {
+          "title": "Document Path",
+          "type": "string"
+        },
+        "document_title": {
+          "title": "Document Title",
+          "type": "string"
+        },
+        "heading_path": {
+          "title": "Heading Path",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "document_path",
+        "document_title",
+        "heading_path",
+        "quote"
+      ],
+      "title": "CitationOut",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "answer": {
+      "title": "Answer",
+      "type": "string"
+    },
+    "citations": {
+      "items": {
+        "$ref": "#/$defs/CitationOut"
+      },
+      "title": "Citations",
+      "type": "array"
+    },
+    "covered": {
+      "title": "Covered",
+      "type": "boolean"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "question": {
+      "title": "Question",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "question",
+    "answer",
+    "covered",
+    "citations",
+    "created_at"
+  ],
+  "title": "KbChatEntryOut",
+  "type": "object"
+}

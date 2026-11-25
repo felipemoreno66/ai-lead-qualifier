@@ -10,3 +10,4 @@ services:
       # Hashed bag-of-words embeddings: no model download in CI; the low threshold suits them.
       EMBEDDINGS_PROVIDER: fake
       KB_MIN_SIMILARITY: "0.1"
+      KB_ASK_PER_HOUR: "1000"

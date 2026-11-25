@@ -25,6 +25,7 @@ APP_TABLES = {
     "kb_chunks",
     "lead_answers",
     "answer_citations",
+    "kb_queries",
 }
 
 

@@ -198,8 +198,8 @@ and the Playwright suite, all without secrets.
    Remaining: one real-provider eval run.
 2. **Knowledge base with citations** (RAG) over your own Markdown. Built: the fictional Northwind KB, the
    ingestion pipeline and the answer node (questions in an application are answered from the KB with
-   validated citations, or marked as not covered; see [architecture](docs/architecture.md)). Next: the
-   dashboard chat and a retrieval eval.
+   validated citations, or marked as not covered), the dashboard's "Ask the docs" page and a RAG eval
+   (see [architecture](docs/architecture.md)). Remaining: a real-provider eval run and the private KB.
 3. **Metrics and keyless demo polish**, deployment notes.
 4. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta
    WhatsApp Cloud API and n8n, with a separate opt-in from the lead.

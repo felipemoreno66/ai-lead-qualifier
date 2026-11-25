@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, List } from "lucide-react";
+import { FileText, List, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -8,12 +8,17 @@ type Props = { applyHref: string | null };
 
 export function AppHeader({ applyHref }: Props) {
   const pathname = usePathname();
-  const onLeads = pathname.startsWith("/dashboard");
+  const onAsk = pathname.startsWith("/dashboard/ask");
+  const onLeads = pathname.startsWith("/dashboard") && !onAsk;
   const links = (
     <>
       <Link href="/dashboard" aria-current={onLeads ? "page" : undefined}>
         <List className="ic" strokeWidth={1.6} aria-hidden="true" />
         <span>Leads</span>
+      </Link>
+      <Link href="/dashboard/ask" aria-current={onAsk ? "page" : undefined}>
+        <MessageCircle className="ic" strokeWidth={1.6} aria-hidden="true" />
+        <span>Ask</span>
       </Link>
       {applyHref && (
         <Link href={applyHref}>

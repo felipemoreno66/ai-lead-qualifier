@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     embeddings_cache_dir: Path = Path(".cache/fastembed")
     embeddings_warm_on_startup: bool = False
     kb_reindex_timeout_seconds: float = Field(default=900.0, gt=0)
+    kb_queries_retention_days: int = Field(default=30, ge=1)
+    kb_ask_per_hour: int = Field(default=60, ge=1)
     kb_top_k: int = Field(default=5, ge=1, le=20)
     # None = the embedding model's own default (``Embeddings.default_min_similarity``).
     kb_min_similarity: float | None = Field(default=None, ge=0, le=1)

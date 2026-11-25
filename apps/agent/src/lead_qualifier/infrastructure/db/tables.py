@@ -43,6 +43,7 @@ LEAD_EVENT_TYPES = (
 OUTBOX_STATUSES = ("pending", "processing", "delivered", "dead")
 OUTBOX_EVENT_TYPES = ("lead.created", "message.approved")
 AGENT_RUN_STATUSES = ("running", "interrupted", "completed", "failed")
+AGENT_RUN_KINDS = ("qualify", "kb_chat")
 MESSAGE_STATUSES = ("draft", "approved", "sending", "rejected", "sent", "failed")
 MESSAGE_CHANNELS = ("email", "whatsapp")
 
@@ -158,9 +159,10 @@ agent_runs = Table(
     "agent_runs",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
-    Column(
-        "lead_id", UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
-    ),
+    # NULL for runs that belong to no lead (``kind = 'kb_chat'``, the dashboard's "Ask the docs").
+    Column("lead_id", UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE")),
+    Column("kind", Text, nullable=False, server_default="qualify"),
+    Column("workspace_slug", Text, ForeignKey("workspaces.slug")),
     Column("thread_id", Text, nullable=False),
     Column("run_number", Integer, nullable=False),
     Column("status", Text, nullable=False, server_default="running"),
@@ -174,6 +176,8 @@ agent_runs = Table(
     UniqueConstraint("thread_id", name="uq_agent_runs_thread_id"),
     UniqueConstraint("lead_id", "run_number", name="uq_agent_runs_lead_run"),
     CheckConstraint(_in("status", AGENT_RUN_STATUSES), name="ck_agent_runs_status"),
+    CheckConstraint(_in("kind", AGENT_RUN_KINDS), name="ck_agent_runs_kind"),
+    CheckConstraint("kind <> 'qualify' OR lead_id IS NOT NULL", name="ck_agent_runs_qualify_lead"),
 )
 
 llm_calls = Table(
@@ -335,4 +339,18 @@ answer_citations = Table(
     Column("heading_path", Text, nullable=False),
     Column("quote", Text, nullable=False),
     UniqueConstraint("answer_id", "position", name="uq_answer_citations_answer_position"),
+)
+
+kb_queries = Table(
+    "kb_queries",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("workspace_slug", Text, ForeignKey("workspaces.slug"), nullable=False),
+    Column("agent_run_id", UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL")),
+    Column("question", Text, nullable=False),
+    Column("answer", Text, nullable=False),
+    Column("covered", Boolean, nullable=False),
+    Column("citations", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Index("ix_kb_queries_workspace_created", "workspace_slug", "created_at"),
 )

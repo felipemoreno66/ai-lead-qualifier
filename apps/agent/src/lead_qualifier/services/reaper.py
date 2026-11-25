@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -15,6 +15,7 @@ from lead_qualifier.ports.clock import Clock
 
 log = get_logger("reaper")
 REASON = "interrupted: the qualification run did not finish"
+KB_CHAT_REASON = "interrupted: the question was not answered"
 
 
 async def reap_stale_runs(engine: AsyncEngine, clock: Clock, max_age: timedelta) -> int:
@@ -66,9 +67,25 @@ async def reap_stale_runs(engine: AsyncEngine, clock: Clock, max_age: timedelta)
             reaped += 1
         except StatusConflict:
             continue  # the run finished in the meantime
+    reaped += await _reap_kb_chat(engine, now, max_age)
     if reaped:
         log.warning("stale_runs_reaped", count=reaped)
     return reaped
+
+
+async def _reap_kb_chat(engine: AsyncEngine, now: datetime, max_age: timedelta) -> int:
+    """Fail "Ask the docs" runs stuck in ``running`` (they have no lead to look at)."""
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            sa.update(agent_runs)
+            .where(
+                agent_runs.c.kind == "kb_chat",
+                agent_runs.c.status == "running",
+                agent_runs.c.started_at < now - max_age,
+            )
+            .values(status="failed", finished_at=now, error=KB_CHAT_REASON)
+        )
+    return int(result.rowcount)
 
 
 async def report_stale_sending(engine: AsyncEngine, clock: Clock, max_age: timedelta) -> int:

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from lead_qualifier.domain.draft_guard import has_unsafe_chars
 
@@ -66,6 +66,20 @@ class KbAnswerOut(BaseModel):
     answer: str
     covered: bool
     citations: list[CitationOut]
+
+
+class KbAskRequest(BaseModel):
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+    language: str | None = Field(default=None, pattern=r"^[a-z]{2}$")
+
+
+class KbChatEntryOut(BaseModel):
+    id: uuid.UUID
+    question: str
+    answer: str
+    covered: bool
+    citations: list[CitationOut]
+    created_at: datetime
 
 
 class LeadEventOut(BaseModel):

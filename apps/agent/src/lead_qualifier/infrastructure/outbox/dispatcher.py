@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.config import Settings
 from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
+from lead_qualifier.infrastructure.db.kb_chat import KbChatRepository
 from lead_qualifier.infrastructure.db.repositories import (
     LeadRepository,
     OutboxRepository,
@@ -130,8 +131,10 @@ class OutboxDispatcher:
         self._last_purge = now
         async with self.engine.begin() as conn:
             removed = await RateLimitRepository(conn).purge_before(now - RATE_LIMIT_RETENTION)
-            purged = await LlmCallRepository(conn).purge_before(
-                now - timedelta(days=self.settings.llm_calls_retention_days)
+            cutoff = now - timedelta(days=self.settings.llm_calls_retention_days)
+            purged = await LlmCallRepository(conn).purge_before(cutoff)
+            await KbChatRepository(conn).purge_before(
+                now - timedelta(days=self.settings.kb_queries_retention_days)
             )
         threads = 0
         if self.checkpointer is not None:
