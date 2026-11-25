@@ -13,9 +13,8 @@ pytestmark = pytest.mark.integration
 
 
 def demo_settings(make_settings, **overrides):  # type: ignore[no-untyped-def]
-    return make_settings(
-        demo_seed=True, embeddings_provider="fake", kb_min_similarity=0.1, **overrides
-    )
+    # No explicit threshold: the demo switch alone must make fake embeddings answer.
+    return make_settings(demo_seed=True, embeddings_provider="fake", **overrides)
 
 
 async def scalar(db: AsyncEngine, sql: str) -> int:
@@ -64,12 +63,25 @@ async def test_it_loads_leads_drafts_runs_and_answers_once(make_settings, db):
     assert await scalar(db, "SELECT count(*) FROM kb_queries") == 3
 
 
-async def test_it_never_asks_a_real_provider(make_settings, db, monkeypatch):
-    report = await run(
-        demo_settings(make_settings, llm_provider="anthropic", anthropic_api_key="x" * 20)
+async def test_it_refuses_a_real_provider_or_a_hidden_admin_api(make_settings, db):
+    real = demo_settings(make_settings, llm_provider="anthropic", anthropic_api_key="x" * 20)
+    with pytest.raises(SeedRefused, match="LLM_PROVIDER=fake"):
+        await run(real)
+    with pytest.raises(SeedRefused, match="EXPOSE_ADMIN_API"):
+        await run(demo_settings(make_settings, expose_admin_api=False))
+    assert await scalar(db, "SELECT count(*) FROM leads") == 0
+
+
+async def test_fake_embeddings_alone_get_a_usable_threshold(make_settings):
+    s = make_settings(demo_seed=True, embeddings_provider="fake")
+    assert s.kb_min_similarity == 0.1
+    assert make_settings(embeddings_provider="fake").kb_min_similarity is None
+    assert (
+        make_settings(
+            demo_seed=True, embeddings_provider="fake", kb_min_similarity=0.5
+        ).kb_min_similarity
+        == 0.5
     )
-    assert "demo questions skipped" in report[2]
-    assert await scalar(db, "SELECT count(*) FROM kb_queries") == 0
 
 
 async def test_it_refuses_production(make_settings, db):

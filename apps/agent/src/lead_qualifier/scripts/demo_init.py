@@ -31,7 +31,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.agent.prompts import PROMPT_VERSIONS
 from lead_qualifier.config import Settings, get_settings
-from lead_qualifier.domain.errors import AppError
 from lead_qualifier.infrastructure.db.engine import create_engine
 from lead_qualifier.infrastructure.db.tables import (
     agent_runs,
@@ -54,7 +53,6 @@ from lead_qualifier.workspaces.loader import load_workspaces
 
 log = get_logger("demo_init")
 DEMO_CONTENT_FILE = Path(__file__).resolve().parents[5] / "db" / "seeds" / "northwind_demo.json"
-DEMO_MODEL = "claude-haiku-5-5"  # recorded next to provider "fake": it is the configured default
 DEMO_QUESTIONS = (
     "How much does the Data & AI Course cost, and is there a payment plan?",
     "Can I get a refund if I change my mind?",
@@ -69,7 +67,9 @@ def load_content(path: Path = DEMO_CONTENT_FILE) -> dict[str, Any]:
     return data
 
 
-async def apply_lead_content(engine: AsyncEngine, content: dict[str, Any]) -> int:
+async def apply_lead_content(
+    engine: AsyncEngine, content: dict[str, Any], model: str = "claude-haiku-5-5"
+) -> int:
     """Add a run, its model calls, the draft and the review trail to each seeded lead (once)."""
     applied = 0
     for reference, item in content["leads"].items():
@@ -90,12 +90,15 @@ async def apply_lead_content(engine: AsyncEngine, content: dict[str, Any]) -> in
             )
             if known.first() is not None:
                 continue
-            await _add_run(conn, dict(lead), item)
+            await _add_run(conn, dict(lead), item, model)
             applied += 1
     return applied
 
 
-async def _add_run(conn: Any, lead: dict[str, Any], item: dict[str, Any]) -> None:
+async def _add_run(conn: Any, lead: dict[str, Any], item: dict[str, Any], model: str) -> None:
+    # Coupled to the schema and to the review service: statuses below must be valid enums of
+    # ``agent_runs``/``messages`` and agree with the lead's seeded status (a draft belongs to a
+    # ``pending_review`` lead, a sent message to a ``sent`` one). ``test_demo_content`` pins it.
     started = lead["created_at"] + timedelta(minutes=2)
     failed = item.get("failed")
     calls = list(item["calls"])
@@ -129,7 +132,7 @@ async def _add_run(conn: Any, lead: dict[str, Any], item: dict[str, Any]) -> Non
             "agent_run_id": run_id,
             "node": c["node"],
             "provider": "fake",
-            "model": DEMO_MODEL,
+            "model": model,
             "attempt": 1,
             "input_tokens": c["input_tokens"],
             "output_tokens": c["output_tokens"],
@@ -147,7 +150,7 @@ async def _add_run(conn: Any, lead: dict[str, Any], item: dict[str, Any]) -> Non
                 "agent_run_id": run_id,
                 "node": failed["node"],
                 "provider": "fake",
-                "model": DEMO_MODEL,
+                "model": model,
                 "attempt": 1,
                 "input_tokens": 0,
                 "output_tokens": 0,
@@ -257,6 +260,10 @@ async def run(settings: Settings, *, reset: bool = False) -> list[str]:
         return ["DEMO_SEED is not true: nothing to do"]
     if settings.app_env == "production":
         raise SeedRefused("Refusing to load demo data when APP_ENV=production.")
+    if settings.llm_provider != "fake":
+        raise SeedRefused("Refusing to load demo data unless LLM_PROVIDER=fake.")
+    if not settings.expose_admin_api:
+        raise SeedRefused("Refusing to load demo data when EXPOSE_ADMIN_API=false (not a demo).")
     registry = load_workspaces(
         settings.workspaces_dir, app_env=settings.app_env, enabled=frozenset({DEMO_WORKSPACE})
     )
@@ -273,13 +280,15 @@ async def run(settings: Settings, *, reset: bool = False) -> list[str]:
             reset=reset,
         )
         report.append(f"leads: created {result.created}, already present {result.skipped}")
-        applied = await apply_lead_content(engine, load_content())
+        applied = await apply_lead_content(engine, load_content(), settings.llm_model_default)
         report.append(f"drafts and run logs: {applied} added")
         try:
             report.append(await ingest_and_ask(engine, settings))
-        except (AppError, Exception) as exc:
+        except Exception as exc:
+            log.exception("demo_kb_step_failed")
             report.append(
-                f"knowledge base NOT loaded ({type(exc).__name__}). Retry with "
+                f"knowledge base NOT loaded ({type(exc).__name__}; the traceback is in the log). "
+                "Retry with "
                 "`docker compose run --rm agent python -m lead_qualifier.scripts.ingest_kb "
                 "northwind-academy`, or set DEMO_EMBEDDINGS=fake to skip the model download."
             )

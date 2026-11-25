@@ -105,6 +105,14 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _demo_fake_embeddings_threshold(self) -> Settings:
+        # Offline demo embeddings score lower than a real model's: without this,
+        # DEMO_EMBEDDINGS=fake alone would leave every question "not covered".
+        if self.demo_seed and self.embeddings_provider == "fake" and self.kb_min_similarity is None:
+            object.__setattr__(self, "kb_min_similarity", 0.1)
+        return self
+
+    @model_validator(mode="after")
     def _fill_or_require_secrets(self) -> Settings:
         names = ("admin_api_token", "n8n_api_token", "n8n_webhook_secret", "ip_hash_secret")
         for name in names:

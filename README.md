@@ -1,12 +1,14 @@
 # AI Lead Qualifier
 
-Open-source, self-hostable mini CRM for small businesses. Prospects apply through a form,
-the lead is saved first and handed to an orchestrator (n8n, optional), and an operator sees every
-lead ranked by priority in a dashboard. The AI qualification agent, knowledge-base answers and
-approve-before-send drafting are described in [Roadmap](#roadmap); a person always approves every reply.
+Open-source, self-hostable mini CRM for small businesses. Prospects apply through a form, the lead is
+saved first, an AI agent scores it against your own criteria and drafts a reply in the prospect's
+language (answering their questions from your documents, with citations), and **a person approves
+every reply before anything is sent**. All data in this repository is fictional (Northwind Academy).
 
-> **Status: Phase 2 (qualification agent).** Public form, safe intake API, transactional outbox, n8n
-> integration, LangGraph qualification and drafting, and a dashboard where you review every reply. All data in this repository is fictional (Northwind Academy).
+> **Status:** phases 1 to 3 are built (intake, qualification, drafting with human review, knowledge
+> base and "Ask the docs"), plus a metrics page and a keyless demo (`docker compose up`, no keys). Not
+> built yet: runs with a real model provider (the evals support them but none has been recorded),
+> public deployment, a private instance with a login, and WhatsApp. See [Roadmap](#roadmap).
 
 ![Lead awaiting review: draft reply, score explanation and run log](docs/screenshots/review-desktop.png)
 
@@ -59,6 +61,15 @@ heavy and their "AI" is a black box.
 - **Qualification eval**: ten labelled fictional leads in [evals/qualification](evals/qualification/README.md),
   run in CI with the fake provider (`make eval`); a capped real-provider run is documented and opt-in. Fake-provider results verify the plumbing and the
   scoring code, not model accuracy: only a real-provider run measures that.
+- **Knowledge base and "Ask the docs"**: Markdown documents are chunked, embedded locally (fastembed,
+  no key) and stored in pgvector. The answer node answers a prospect's questions only from retrieved
+  chunks and validates every citation against them, otherwise it says the documentation does not cover
+  it. The dashboard's Ask page gives the operator the same answers with their sources and quotes, and logs them.
+- **RAG eval**: 15 questions with labelled answers, citations and unanswerable cases in
+  [evals/rag](evals/rag/README.md) (`make eval-rag`). With the fake provider it checks retrieval and
+  citation plumbing, not answer quality.
+- **Keyless demo**: `docker compose up` loads fictional Northwind data, with the fake provider and no
+  accounts (see [Quick start](#quick-start-no-keys-no-accounts)).
 - **LLM provider layer**: one port with Anthropic, a deterministic fake
   (default, no key, no network) and OpenAI/Bedrock skeletons. Every call is recorded with its token
   cost, and `LLM_BUDGET_USD` blocks real providers once spent.
@@ -120,11 +131,19 @@ cp .env.example .env
 docker compose up
 ```
 
+> **This is a demo configuration, not a deployment.** It uses published development secrets, has no
+> login and loads fake data. For anything reachable by other people set `APP_ENV=production`: the agent
+> then rejects the development secrets, the dashboard requires `DASHBOARD_USER` and `DASHBOARD_PASSWORD`,
+> and the demo data loader refuses to run. See [Security notes](#security-notes).
+
 That is the whole setup. On the first start the stack builds, applies the migrations and a one-shot
 `demo-init` service loads the fictional Northwind Academy data: 20 leads, reply drafts, agent run
-logs, the knowledge base (embedded locally) and a few answered questions. Everything uses the
-deterministic **fake LLM provider**, so nothing is billed and no key is needed. The dashboard says so in a
-"Demo mode" banner.
+logs, the knowledge base (embedded locally) and a few answered questions. No key is needed and
+nothing is billed: the **fake LLM provider** is deterministic and free. The dashboard says so in a
+"Demo mode" banner. Be aware of what is real: the seeded leads, their drafts, profiles and run logs are
+pre-written sample fixtures; only the sample "Ask the docs" answers and every lead you submit yourself go
+through the actual pipeline (with the fake provider standing in for the model, so replies are templated,
+not intelligent).
 
 | URL | What |
 |---|---|
@@ -135,14 +154,17 @@ deterministic **fake LLM provider**, so nothing is billed and no key is needed. 
 
 ![Apply, qualify, approve, email in Mailpit](docs/demo-flow.webp)
 
-- **First run:** about 3 minutes on a typical laptop and connection (image build about 2 minutes, then
-  the knowledge base needs one more minute while a small embedding model, about 90 MB, downloads
-  once into a Docker volume). The dashboard is usable as soon as the leads are loaded; Ask the docs and
+- **First run:** about 3 minutes measured on an 8 GB Linux server with a fast connection in Nov 2026
+  (image build about 2 minutes, then about one more minute for the knowledge base while a small
+  embedding model, about 90 MB, downloads once into a Docker volume). Yours will vary. The dashboard is usable as soon as the leads are loaded; Ask the docs and
   its sample answers appear when `demo-init` finishes (`docker compose logs demo-init`). Later starts
   take seconds.
-- **Memory:** about 1.1 GB for the whole stack while the embedding model is loaded (agent limit 1 GB).
-- **Low bandwidth:** `DEMO_EMBEDDINGS=fake KB_MIN_SIMILARITY=0.1 docker compose up` skips the model
-  download and uses offline stand-in embeddings (Ask works, answers are less precise).
+- **Memory:** about 0.5 GB in use at rest in that measurement; the agent is limited to 1 GB because the
+  embedding step needs the headroom, and the container limits add up to about 3 GB.
+- **Low bandwidth:** `DEMO_EMBEDDINGS=fake docker compose up` skips the model download and uses offline
+  stand-in embeddings (Ask works, retrieval is less precise).
+- **If the knowledge base step fails** (for example no network), the rest of the demo still works and
+  `docker compose logs demo-init` prints the exact retry command.
 - **Start empty instead:** `DEMO_SEED=false docker compose up`. Demo data is never loaded when
   `APP_ENV=production` and never for another workspace than `northwind-academy`.
 - **Reset the demo leads:** `make seed-reset` (leads only) or `docker compose run --rm agent python -m lead_qualifier.scripts.demo_init --reset`
@@ -173,7 +195,7 @@ Stop everything with `docker compose down` (add `-v` to delete the database and 
 On a phone: [leads](docs/screenshots/leads-mobile.png), [lead](docs/screenshots/review-mobile.png),
 [Ask](docs/screenshots/ask-mobile.png), [metrics](docs/screenshots/metrics-mobile.png).
 
-## Security notes (Phase 1)
+## Security notes
 
 - **There is no login locally.** The dashboard and its `/bff/*` routes are open on `127.0.0.1`; do not
   publish those ports to a network. A real operator login arrives in Phase 4 (private instance).
@@ -215,7 +237,7 @@ must be set to at least 16 characters or the agent refuses to start.
 | `RATE_*`, `TRUSTED_PROXIES` | Rate limits and proxy trust for `X-Forwarded-For` |
 | `EXPOSE_ADMIN_API` | `false` stops mounting `/admin` and `/internal` (default `true`) |
 | `DEMO_SEED` | Load the Northwind demo data on first start (compose default `true`; ignored in production) |
-| `DEMO_EMBEDDINGS` | `fake` skips the embedding model download for the demo (also set `KB_MIN_SIMILARITY=0.1`) |
+| `DEMO_EMBEDDINGS` | `fake` skips the embedding model download for the demo (a usable similarity threshold is applied for you) |
 | `TRUST_FORWARDED_HOST` | `true` only behind a reverse proxy you control: the web app then believes `X-Forwarded-Host` for its same-origin check |
 | `DASHBOARD_USER`, `DASHBOARD_PASSWORD` | Basic-auth credentials, required when `APP_ENV=production` |
 
@@ -225,7 +247,7 @@ must be set to at least 16 characters or the agent refuses to start.
 make test                      # agent (needs Docker for Testcontainers) and web (Vitest)
 cd apps/agent && uv run pytest # needs Docker, or set TEST_DATABASE_URL
 pnpm --filter web test         # unit tests
-pnpm --filter web e2e          # Playwright; needs the stack from "Run it" plus the seed (use `make seed-reset`)
+pnpm --filter web e2e          # Playwright; needs the CI stack up (see ci.yml) and `make seed-reset` for pristine demo data
 make eval                      # qualification eval, fake provider, offline
 ```
 
@@ -234,14 +256,16 @@ and the Playwright suite, all without secrets.
 
 ## Roadmap
 
-1. ~~Qualification agent~~ (built): LangGraph graph (extract, score against your criteria, draft in the
-   lead's language), fake provider for keyless use, human approve/edit/reject before any email is sent.
-   Remaining: one real-provider eval run.
-2. **Knowledge base with citations** (RAG) over your own Markdown. Built: the fictional Northwind KB, the
-   ingestion pipeline and the answer node (questions in an application are answered from the KB with
-   validated citations, or marked as not covered), the dashboard's "Ask the docs" page and a RAG eval
-   (see [architecture](docs/architecture.md)). Remaining: a real-provider eval run and the private KB.
-3. **Metrics and keyless demo polish**, deployment notes.
+Built: intake and outbox, qualification, drafting with human review, email delivery (SMTP, optionally
+through n8n), knowledge base with citations, "Ask the docs", metrics, the keyless demo.
+
+Remaining:
+
+1. **Real-provider runs**: record one run of each eval ([qualification](evals/qualification/README.md),
+   [RAG](evals/rag/README.md)) with a real model within its small spending cap.
+2. **Public deployment** of the demo (hosts not chosen yet).
+3. **Private instance with a login** for a real business (today the dashboard is protected by HTTP Basic
+   auth in production only), and that business's own knowledge base.
 4. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta
    WhatsApp Cloud API and n8n, with a separate opt-in from the lead.
 

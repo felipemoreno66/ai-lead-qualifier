@@ -116,8 +116,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Start the stack (inline orchestrator, no API keys)
         run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build --wait
-      - name: Seed the demo workspace
-        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml run --rm agent python -m lead_qualifier.scripts.seed
+      - name: Wait for the demo-init service (seed data, drafts, knowledge base) to exit 0
+        run: timeout 300 docker compose -f docker-compose.yml -f docker-compose.ci.yml wait demo-init
       - run: pnpm --filter web exec playwright install --with-deps chromium
       - run: pnpm --filter web e2e
       - uses: actions/upload-artifact@v4

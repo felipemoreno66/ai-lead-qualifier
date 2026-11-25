@@ -7,7 +7,7 @@ test.describe("Keyless demo on first open", () => {
   test("says plainly that replies come from a stand-in", async ({ page }) => {
     await page.goto("/dashboard");
     const bar = page.getByRole("note").filter({ hasText: "Demo mode" });
-    await expect(bar).toContainText("deterministic stand-in, not a real model");
+    await expect(bar).toContainText("no real AI calls");
   });
 
   test("a pending lead already has a draft, a score explanation and a run log", async ({ page }) => {
@@ -23,7 +23,7 @@ test.describe("Keyless demo on first open", () => {
     await expect(log).toContainText("fake");
   });
 
-  test("sent, rejected and failed leads each tell their story", async ({ page }) => {
+  test("sent, rejected and failed leads each tell their story (read-only, any order)", async ({ page }) => {
     await page.goto("/dashboard");
     await page.getByRole("link", { name: "Lucas Ferreira" }).click();
     await expect(page.locator(".letter .badge")).toContainText("Sent");
@@ -31,7 +31,7 @@ test.describe("Keyless demo on first open", () => {
     await page.goto("/dashboard");
     await page.getByRole("link", { name: "Elena Petrova" }).click();
     await expect(page.getByText("Not worth a personal reply.")).toBeAttached();
-    await page.goto("/dashboard?status=error");
+    await page.goto("/dashboard?q=priya");
     await page.getByRole("link", { name: "Priya Nair" }).click();
     await page.getByText("Agent run log").click();
     await expect(page.locator("#runlog")).toContainText("qualify failed: llm_timeout");
