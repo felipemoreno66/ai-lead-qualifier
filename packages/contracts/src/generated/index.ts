@@ -10,6 +10,7 @@ export * from "./review-request.zod";
 export * from "./review-result.zod";
 export * from "./agent-runs.zod";
 export * from "./metrics.zod";
+export * from "./instance-status.zod";
 export * from "./kb-chat-entry.zod";
 export * from "./kb-chat-entries.zod";
 export type { components, paths } from "./api-types";

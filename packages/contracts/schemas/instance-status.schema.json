@@ -1,0 +1,19 @@
+{
+  "description": "What the dashboard needs to know about this deployment.",
+  "properties": {
+    "demo_mode": {
+      "title": "Demo Mode",
+      "type": "boolean"
+    },
+    "llm_provider": {
+      "title": "Llm Provider",
+      "type": "string"
+    }
+  },
+  "required": [
+    "llm_provider",
+    "demo_mode"
+  ],
+  "title": "InstanceStatus",
+  "type": "object"
+}

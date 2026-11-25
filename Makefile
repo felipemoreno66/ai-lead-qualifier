@@ -28,7 +28,7 @@ seed:
 	docker compose run --rm agent python -m lead_qualifier.scripts.seed
 
 seed-reset:
-	docker compose run --rm agent python -m lead_qualifier.scripts.seed --reset
+	docker compose run --rm agent python -m lead_qualifier.scripts.demo_init --reset
 
 e2e: seed-reset
 	pnpm --filter web e2e

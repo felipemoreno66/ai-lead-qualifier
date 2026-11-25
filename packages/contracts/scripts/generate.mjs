@@ -34,6 +34,7 @@ const targets = [
   ["review-result.schema.json", "review-result.zod.ts", "reviewResultSchema"],
   ["agent-runs.schema.json", "agent-runs.zod.ts", "agentRunsSchema"],
   ["metrics.schema.json", "metrics.zod.ts", "metricsSchema"],
+  ["instance-status.schema.json", "instance-status.zod.ts", "instanceStatusSchema"],
   ["kb-chat-entry.schema.json", "kb-chat-entry.zod.ts", "kbChatEntrySchema"],
   ["kb-chat-entries.schema.json", "kb-chat-entries.zod.ts", "kbChatEntriesSchema"],
 ];

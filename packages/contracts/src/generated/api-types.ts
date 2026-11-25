@@ -187,6 +187,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/admin/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Instance Status */
+    get: operations["instance_status_admin_status_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/admin/workspaces": {
     parameters: {
       query?: never;
@@ -559,6 +576,16 @@ export interface components {
     HTTPValidationError: {
       /** Detail */
       detail?: components["schemas"]["ValidationError"][];
+    };
+    /**
+     * InstanceStatus
+     * @description What the dashboard needs to know about this deployment.
+     */
+    InstanceStatus: {
+      /** Demo Mode */
+      demo_mode: boolean;
+      /** Llm Provider */
+      llm_provider: string;
     };
     /** KbAnswerOut */
     KbAnswerOut: {
@@ -1577,6 +1604,37 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["OutboxEventOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  instance_status_admin_status_get: {
+    parameters: {
+      query?: never;
+      header?: {
+        authorization?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InstanceStatus"];
         };
       };
       /** @description Validation Error */

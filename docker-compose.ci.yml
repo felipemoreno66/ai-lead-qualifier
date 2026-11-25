@@ -1,13 +1,18 @@
 # CI overrides: inline orchestration, relaxed rate limits for the e2e suite. No API keys needed.
+# Hashed bag-of-words embeddings: no model download in CI (the demo threshold default applies).
+x-ci-kb: &ci-kb
+  EMBEDDINGS_PROVIDER: fake
+  KB_ASK_PER_HOUR: "1000"
+
 services:
   agent:
     environment:
+      <<: *ci-kb
       ORCHESTRATOR: inline
       RATE_IP_PER_MINUTE: "1000"
       RATE_IP_PER_HOUR: "10000"
       RATE_WORKSPACE_PER_HOUR: "10000"
       RATE_EMAIL_PER_DAY: "1000"
-      # Hashed bag-of-words embeddings: no model download in CI; the low threshold suits them.
-      EMBEDDINGS_PROVIDER: fake
-      KB_MIN_SIMILARITY: "0.1"
-      KB_ASK_PER_HOUR: "1000"
+  demo-init:
+    environment:
+      <<: *ci-kb

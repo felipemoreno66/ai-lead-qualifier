@@ -18,6 +18,7 @@ from lead_qualifier.http.auth import require_admin
 from lead_qualifier.http.deps import EngineDep, KbChatDep, KbDep, RegistryDep, SettingsDep
 from lead_qualifier.http.schemas import (
     AgentRunOut,
+    InstanceStatus,
     KbAskRequest,
     KbChatEntryOut,
     KbReindexResult,
@@ -60,6 +61,13 @@ def _split(values: list[str], allowed: set[str], name: str) -> list[str]:
             errors=[{"loc": ["query", name], "msg": "invalid"}],
         )
     return items
+
+
+@router.get("/status", response_model=InstanceStatus)
+async def instance_status(settings: SettingsDep) -> InstanceStatus:
+    return InstanceStatus(
+        llm_provider=settings.llm_provider, demo_mode=settings.llm_provider == "fake"
+    )
 
 
 @router.get("/workspaces", response_model=list[WorkspaceSummary])

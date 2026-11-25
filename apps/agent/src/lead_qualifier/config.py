@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     send_max_attempts: int = Field(default=3, ge=1)
     send_stale_minutes: int = Field(default=15, ge=1)
 
+    # Load the fictional Northwind demo data on first start (``demo_init``); never in production.
+    demo_seed: bool = False
     llm_provider: Literal["fake", "anthropic", "bedrock", "openai"] = "fake"
     llm_model_default: str = "claude-haiku-5-5"
     llm_model_draft: str = ""
@@ -100,6 +102,14 @@ class Settings(BaseSettings):
                 "SMTP_USERNAME is set but neither SMTP_STARTTLS nor SMTP_SSL is on: "
                 "credentials would cross the network in clear text"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _demo_fake_embeddings_threshold(self) -> Settings:
+        # Offline demo embeddings score lower than a real model's: without this,
+        # DEMO_EMBEDDINGS=fake alone would leave every question "not covered".
+        if self.demo_seed and self.embeddings_provider == "fake" and self.kb_min_similarity is None:
+            object.__setattr__(self, "kb_min_similarity", 0.1)
         return self
 
     @model_validator(mode="after")

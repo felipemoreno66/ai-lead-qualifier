@@ -116,8 +116,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Start the stack (inline orchestrator, no API keys)
         run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build --wait
-      - name: Seed the demo workspace
-        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml run --rm agent python -m lead_qualifier.scripts.seed
+      - name: Wait for the demo-init service (seed data, drafts, knowledge base) to exit 0
+        # `docker compose wait` errors when the container has already exited, so poll its state instead.
+        run: |
+          cid=$(docker compose -f docker-compose.yml -f docker-compose.ci.yml ps -a -q demo-init)
+          for _ in $(seq 1 150); do
+            state=$(docker inspect -f '{{.State.Status}}' "$cid")
+            [ "$state" = "exited" ] && break
+            sleep 2
+          done
+          code=$(docker inspect -f '{{.State.ExitCode}}' "$cid")
+          echo "demo-init state=$state exit=$code"
+          test "$state" = "exited" && test "$code" = "0"
       - run: pnpm --filter web exec playwright install --with-deps chromium
       - run: pnpm --filter web e2e
       - uses: actions/upload-artifact@v4

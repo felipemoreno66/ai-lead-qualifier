@@ -454,6 +454,25 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InstanceStatus": {
+        "description": "What the dashboard needs to know about this deployment.",
+        "properties": {
+          "demo_mode": {
+            "title": "Demo Mode",
+            "type": "boolean"
+          },
+          "llm_provider": {
+            "title": "Llm Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "llm_provider",
+          "demo_mode"
+        ],
+        "title": "InstanceStatus",
+        "type": "object"
+      },
       "KbAnswerOut": {
         "properties": {
           "answer": {
@@ -3167,6 +3186,55 @@
           }
         },
         "summary": "List Outbox",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/status": {
+      "get": {
+        "operationId": "instance_status_admin_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Instance Status",
         "tags": [
           "admin"
         ]
