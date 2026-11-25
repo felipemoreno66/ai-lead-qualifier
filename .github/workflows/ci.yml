@@ -33,7 +33,7 @@ jobs:
       - run: uv run pytest --cov --cov-report=term-missing
       - name: Qualification eval (fake provider, no keys)
         run: uv run python ../../evals/qualification/run.py
-      - name: RAG eval (fake provider and embeddings: plumbing check, no keys)
+      - name: "RAG eval (fake provider and embeddings: plumbing check, no keys)"
         run: uv run python ../../evals/rag/run.py
 
   web:
