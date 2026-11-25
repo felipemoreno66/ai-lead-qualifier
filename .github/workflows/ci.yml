@@ -55,6 +55,10 @@ jobs:
   security:
     name: Security (secrets, n8n export check)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # gitleaks-action lists the PR's commits, which a private repository only allows with this scope.
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
