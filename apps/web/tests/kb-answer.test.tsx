@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Answer } from "@/features/kb/answer";
+import { Answer, announcement } from "@/features/kb/answer";
 import type { KbEntry } from "@/lib/api/schemas";
 
 const base: KbEntry = {
@@ -21,14 +21,15 @@ const base: KbEntry = {
 };
 
 describe("Answer", () => {
-  it("shows the text and each source with its quote behind a disclosure", () => {
+  it("shows the text and each source with the passage it rests on", () => {
     render(<Answer entry={base} />);
     expect(screen.getByText("It costs USD 4,900.")).toBeInTheDocument();
     const sources = screen.getByRole("list", { name: "Sources" });
     expect(within(sources).getByText("Pricing")).toBeInTheDocument();
     expect(within(sources).getByText("Pricing > Bootcamp")).toBeInTheDocument();
-    expect(within(sources).getByText(/The bootcamp costs USD 4,900\./)).toBeInTheDocument();
-    expect(sources.querySelector("details")).not.toHaveAttribute("open");
+    expect(within(sources).getByText(/The bootcamp costs USD 4,900\./)).toBeVisible();
+    expect(sources.querySelector("details")).toBeNull();
+    expect(sources.querySelector("a")).toBeNull(); // titles are not links, so they are not styled as links
     expect(screen.queryByText("Not in the docs")).not.toBeInTheDocument();
   });
 
@@ -39,12 +40,13 @@ describe("Answer", () => {
           ...base,
           covered: false,
           citations: [],
-          answer: "Not covered in our documentation — the team will reply personally",
+          answer: "I couldn't find this in the documents, so I won't guess.",
         }}
       />,
     );
     expect(screen.getByText("Not in the docs")).toBeInTheDocument();
-    expect(screen.getByText(/Not covered in our documentation/)).toBeInTheDocument();
+    expect(screen.getByText(/I couldn't find this in the documents/)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing was guessed/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Sources" })).not.toBeInTheDocument();
   });
 
@@ -53,5 +55,14 @@ describe("Answer", () => {
     const { container } = render(<Answer entry={{ ...base, citations: [evil] }} />);
     expect(container.querySelector("img")).toBeNull();
     expect(screen.getByText(/<img src=x/)).toBeInTheDocument();
+  });
+});
+
+describe("announcement", () => {
+  it("says what happened in one short sentence", () => {
+    expect(announcement(base)).toBe("Answer ready, 1 source.");
+    const two = { ...base, citations: [...base.citations, base.citations[0]] };
+    expect(announcement(two)).toBe("Answer ready, 2 sources.");
+    expect(announcement({ ...base, covered: false, citations: [] })).toBe("Not in the documents.");
   });
 });

@@ -1,12 +1,12 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send } from "lucide-react";
+import { ChevronDown, Send } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { ApiError } from "@/lib/api/client";
 import type { KbEntry } from "@/lib/api/schemas";
 import { formatDateTimeUtc } from "@/lib/format";
-import { Answer } from "./answer";
+import { Answer, announcement } from "./answer";
 import { askDocs, fetchRecentQuestions, recentKey } from "./queries";
 
 type Turn = { key: number; question: string; entry?: KbEntry; error?: string };
@@ -56,6 +56,21 @@ export function AskView({ slug, workspaceName }: { slug: string; workspaceName: 
     if (!busy && counter.current > 0) input.current?.focus();
   }, [busy]);
 
+  const last = turns[turns.length - 1];
+  const status = !last
+    ? ""
+    : last.entry
+      ? announcement(last.entry)
+      : last.error
+        ? last.error
+        : "Looking through the documents…";
+
+  // Keep the newest turn clear of the sticky form and the tab bar.
+  const newest = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (turns.length > 0) newest.current?.scrollIntoView({ block: "nearest" });
+  }, [turns]);
+
   const history = recent.data?.filter((e) => !turns.some((t) => t.entry?.id === e.id)) ?? [];
   return (
     <>
@@ -66,27 +81,28 @@ export function AskView({ slug, workspaceName }: { slug: string; workspaceName: 
         </p>
       </div>
       <div className="chat">
-        <div className="thread" aria-live="polite" aria-busy={busy}>
+        <p className="sr" role="status">
+          {status}
+        </p>
+        <div className="thread">
           {turns.length === 0 && (
             <p className="muted empty">
               Ask about programs, prices, payment plans, scholarships or the schedule.
             </p>
           )}
-          {turns.map((turn) => (
-            <div className="turn" key={turn.key}>
+          {turns.map((turn, index) => (
+            <div className="turn" key={turn.key} ref={index === turns.length - 1 ? newest : undefined}>
               <div className="msg q">
                 <p>{turn.question}</p>
               </div>
               {turn.entry ? (
                 <Answer entry={turn.entry} />
               ) : turn.error ? (
-                <div className="notice bad" role="alert">
+                <div className="notice bad">
                   <p>{turn.error}</p>
                 </div>
               ) : (
-                <p className="muted pending" role="status">
-                  Looking through the documents…
-                </p>
+                <p className="muted pending">Looking through the documents…</p>
               )}
             </div>
           ))}
@@ -101,7 +117,7 @@ export function AskView({ slug, workspaceName }: { slug: string; workspaceName: 
             value={text}
             maxLength={MAX_LENGTH}
             autoComplete="off"
-            placeholder="Ask about programs, prices, schedule…"
+            placeholder="Ask about prices, plans…"
             onChange={(e) => setText(e.target.value)}
           />
           <button className="btn primary" type="submit" disabled={busy || text.trim().length < 3}>
@@ -117,7 +133,11 @@ export function AskView({ slug, workspaceName }: { slug: string; workspaceName: 
               Recent questions could not be loaded.
             </p>
           ) : history.length === 0 ? (
-            <p className="muted">{recent.isPending ? "Loading…" : "No earlier questions yet."}</p>
+            <p className="muted">
+              {recent.isPending
+                ? "Loading…"
+                : "Nothing asked yet. Questions you ask here are kept for review, newest first."}
+            </p>
           ) : (
             <ul>
               {history.map((entry) => (
@@ -126,9 +146,13 @@ export function AskView({ slug, workspaceName }: { slug: string; workspaceName: 
                     <summary>
                       <span>{entry.question}</span>
                       <span className={`mini ${entry.covered ? "ok" : "warn"}`}>
-                        {entry.covered ? "Answered" : "Not in the docs"}
+                        {entry.covered
+                          ? `Answered, ${entry.citations.length} ${entry.citations.length === 1 ? "source" : "sources"}`
+                          : "Not in the docs"}
                       </span>
                       <span className="muted num">{formatDateTimeUtc(entry.created_at)}</span>
+                      <ChevronDown className="ic chev" aria-hidden="true" />
+                      <span className="sr">, show answer</span>
                     </summary>
                     <Answer entry={entry} />
                   </details>
