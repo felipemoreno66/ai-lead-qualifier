@@ -196,8 +196,15 @@ NOT_COVERED = {
 }
 
 
-def not_covered_text(language: str) -> str:
-    return NOT_COVERED.get(language, NOT_COVERED["en"])
+# What the operator reads in "Ask the docs": no promise of a reply, since no one is writing back.
+NOT_COVERED_CHAT = {
+    "en": "I couldn't find this in the documents, so I won't guess.",
+    "es": "No encontré esto en los documentos, así que no voy a adivinar.",
+}
+
+
+def not_covered_text(language: str, texts: dict[str, str] = NOT_COVERED) -> str:
+    return texts.get(language, texts["en"])
 
 
 def _squash(text: str) -> str:
@@ -264,7 +271,10 @@ def _resolve(item: Any, chunks: list[RetrievedChunk]) -> list[ResolvedCitation]:
 
 
 async def answer_questions(
-    deps: GraphDeps, questions: list[str], language: str
+    deps: GraphDeps,
+    questions: list[str],
+    language: str,
+    refusal: dict[str, str] = NOT_COVERED,
 ) -> list[AnswerResult]:
     """Answer questions from the knowledge base, with validated citations (raises ``LLMError``).
 
@@ -309,7 +319,7 @@ async def answer_questions(
                 # a fact we may not put in an email (foreign link, unknown price...) is not used
                 answers.append(
                     AnswerResult(
-                        question=question, answer=not_covered_text(language), covered=False
+                        question=question, answer=not_covered_text(language, refusal), covered=False
                     )
                 )
                 continue
@@ -323,7 +333,9 @@ async def answer_questions(
             )
         else:
             answers.append(
-                AnswerResult(question=question, answer=not_covered_text(language), covered=False)
+                AnswerResult(
+                    question=question, answer=not_covered_text(language, refusal), covered=False
+                )
             )
     return answers
 
