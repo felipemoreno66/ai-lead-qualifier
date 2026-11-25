@@ -74,3 +74,4 @@ def test_empty_values_in_the_environment_fall_back_to_defaults(monkeypatch):
         monkeypatch.setenv(name, "")
     settings = Settings(_env_file=None)
     assert settings.embeddings_provider == "fastembed" and settings.kb_top_k == 5
+    assert settings.kb_min_similarity is None

@@ -22,6 +22,9 @@ class FastEmbeddings:
     # rest, so chunks stay well below that (the chunker over-counts to keep a safety margin).
     max_chunk_tokens = 120
     chunk_overlap_tokens = 20
+    # Swept on the Northwind eval (see evals/rag/README.md): 0.4 to 0.6 refuse every unanswerable
+    # question with no false refusals, 0.3 answers them all, 0.65 starts refusing real questions.
+    default_min_similarity = 0.45
 
     def __init__(self, cache_dir: Path) -> None:
         self._cache_dir = cache_dir

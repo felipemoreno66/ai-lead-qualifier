@@ -53,7 +53,6 @@ HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
 DEFAULT_MODEL = "claude-haiku-5-5"
 DEFAULT_TOP_K = 5
-DEFAULT_MIN_SIMILARITY = 0.3
 NOT_COVERED_PREFIX = "Not covered in our documentation"
 
 
@@ -71,10 +70,12 @@ def _load_qualification_eval() -> Any:
 class InMemoryRetriever:
     """Chunks the knowledge base like the ingest does and ranks them by cosine similarity."""
 
-    def __init__(self, embeddings: Embeddings, top_k: int, min_similarity: float) -> None:
+    def __init__(self, embeddings: Embeddings, top_k: int, min_similarity: float | None) -> None:
         self._embeddings = embeddings
         self._top_k = top_k
-        self._min_similarity = min_similarity
+        self.min_similarity = (
+            embeddings.default_min_similarity if min_similarity is None else min_similarity
+        )
         self._chunks: list[tuple[RetrievedChunk, list[float]]] = []
         self._cache: dict[str, list[RetrievedChunk]] = {}
 
@@ -116,7 +117,7 @@ class InMemoryRetriever:
                 c.chunk_id, c.document_path, c.document_title, c.heading_path, c.content, score
             )
             for score, c in scored[: self._top_k]
-            if score >= self._min_similarity
+            if score >= self.min_similarity
         ]
 
 
@@ -329,7 +330,7 @@ async def main(args: argparse.Namespace) -> int:
         except qual.EvalBudgetExceeded as exc:
             stopped = str(exc)
             break
-    summary = summarize(results) | {"top_k": args.top_k, "min_similarity": args.min_similarity}
+    summary = summarize(results) | {"top_k": args.top_k, "min_similarity": retriever.min_similarity}
     report = markdown(results, summary, provider=args.provider, embeddings=args.embeddings)
     print(f"{chunks} chunks indexed.\n")
     print(report)
@@ -380,7 +381,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--dataset", default=str(HERE / "northwind.yaml"))
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
-    parser.add_argument("--min-similarity", type=float, default=DEFAULT_MIN_SIMILARITY)
+    parser.add_argument(
+        "--min-similarity",
+        type=float,
+        help="similarity threshold (default: the embedding model's own default)",
+    )
     parser.add_argument("--min-accuracy", type=float, help="fail below this answer accuracy")
     parser.add_argument("--min-refusal", type=float, help="fail below this refusal correctness")
     parser.add_argument("--min-precision", type=float, help="fail below this citation precision")

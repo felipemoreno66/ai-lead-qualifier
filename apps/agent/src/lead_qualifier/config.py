@@ -85,7 +85,8 @@ class Settings(BaseSettings):
     kb_queries_retention_days: int = Field(default=30, ge=1)
     kb_ask_per_hour: int = Field(default=60, ge=1)
     kb_top_k: int = Field(default=5, ge=1, le=20)
-    kb_min_similarity: float = Field(default=0.3, ge=0, le=1)
+    # None = the embedding model's own default (``Embeddings.default_min_similarity``).
+    kb_min_similarity: float | None = Field(default=None, ge=0, le=1)
 
     @field_validator("enabled_workspaces", "trusted_proxies", mode="before")
     @classmethod
