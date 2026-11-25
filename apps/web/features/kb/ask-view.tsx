@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Send } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ApiError } from "@/lib/api/client";
 import type { KbEntry } from "@/lib/api/schemas";
 import { formatDateTimeUtc } from "@/lib/format";
@@ -47,9 +47,14 @@ export function AskView({ slug, workspaceName }: { slug: string; workspaceName: 
       setTurns((all) => all.map((t) => (t.key === key ? { ...t, error: problemText(error) } : t)));
     } finally {
       setBusy(false);
-      input.current?.focus();
     }
   }
+
+  // The Ask button is disabled while a request runs, which drops focus; hand it back to the input
+  // once the answer has landed so the next question can be typed straight away.
+  useEffect(() => {
+    if (!busy && counter.current > 0) input.current?.focus();
+  }, [busy]);
 
   const history = recent.data?.filter((e) => !turns.some((t) => t.entry?.id === e.id)) ?? [];
   return (
