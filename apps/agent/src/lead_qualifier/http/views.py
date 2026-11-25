@@ -8,7 +8,9 @@ from lead_qualifier.domain.scoring import JUDGMENT_VALUE, Judgment
 from lead_qualifier.domain.workspace import FieldType, WorkspaceConfig
 from lead_qualifier.http.schemas import (
     AnswerOut,
+    CitationOut,
     CriterionBreakdown,
+    KbAnswerOut,
     LeadDetail,
     LeadEventOut,
     MessageOut,
@@ -90,6 +92,7 @@ def lead_detail(
     outbox: list[dict[str, Any]],
     config: WorkspaceConfig | None,
     drafts: list[dict[str, Any]] | None = None,
+    kb_answers: list[dict[str, Any]] | None = None,
 ) -> LeadDetail:
     product_name = None
     if config and lead["recommended_product"]:
@@ -132,6 +135,16 @@ def lead_detail(
         workspace_name=config.profile.name if config else lead["workspace_slug"],
         recommended_product_name=product_name,
         answers=answers_view(config, lead["answers"]),
+        kb_answers=[
+            KbAnswerOut(
+                **{k: a[k] for k in ("question", "answer", "covered")},
+                citations=[
+                    CitationOut(**{k: c[k] for k in CitationOut.model_fields})
+                    for c in a["citations"]
+                ],
+            )
+            for a in kb_answers or []
+        ],
         events=[LeadEventOut(**{k: e[k] for k in LeadEventOut.model_fields}) for e in events],
         outbox=[OutboxEventOut(**{k: o[k] for k in OutboxEventOut.model_fields}) for o in outbox],
         messages=[MessageOut(**{k: m[k] for k in MessageOut.model_fields}) for m in drafts or []],

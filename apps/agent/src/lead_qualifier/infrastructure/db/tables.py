@@ -299,3 +299,40 @@ kb_chunks = Table(
         postgresql_ops={"embedding": "vector_cosine_ops"},
     ),
 )
+
+lead_answers = Table(
+    "lead_answers",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "lead_id", UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
+    ),
+    Column("agent_run_id", UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL")),
+    Column("position", SmallInteger, nullable=False),
+    Column("question", Text, nullable=False),
+    Column("answer", Text, nullable=False),
+    Column("covered", Boolean, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    UniqueConstraint("lead_id", "position", name="uq_lead_answers_lead_position"),
+)
+
+# chunk_id has no foreign key on purpose: re-ingesting the knowledge base replaces its chunks, and
+# the citation keeps the source path, heading and quote as they were when the answer was given.
+answer_citations = Table(
+    "answer_citations",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "answer_id",
+        UUID(as_uuid=True),
+        ForeignKey("lead_answers.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("position", SmallInteger, nullable=False),
+    Column("chunk_id", UUID(as_uuid=True), nullable=False),
+    Column("document_path", Text, nullable=False),
+    Column("document_title", Text, nullable=False),
+    Column("heading_path", Text, nullable=False),
+    Column("quote", Text, nullable=False),
+    UniqueConstraint("answer_id", "position", name="uq_answer_citations_answer_position"),
+)

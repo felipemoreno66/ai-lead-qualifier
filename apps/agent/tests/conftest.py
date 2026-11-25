@@ -111,6 +111,7 @@ def make_settings(migrated_url: str):
             "migrations_dir": AGENT_DIR / "migrations",
             "enabled_workspaces": "northwind-academy",
             "dispatcher_enabled": False,
+            "embeddings_provider": "fake",
             "min_fill_seconds": 0,
             "admin_api_token": "test-admin-token-123456",
             "n8n_api_token": "test-n8n-token-1234567",

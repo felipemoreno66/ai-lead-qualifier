@@ -30,6 +30,7 @@ from lead_qualifier.http.schemas import (
 from lead_qualifier.http.views import interest_label, lead_detail
 from lead_qualifier.infrastructure.db.repositories import (
     SORTS,
+    AnswerRepository,
     LeadFilters,
     LeadRepository,
     OutboxRepository,
@@ -118,6 +119,7 @@ async def get_lead(lead_id: uuid.UUID, registry: RegistryDep, engine: EngineDep)
             raise NotFound("Unknown lead.")
         events = await leads.events(lead_id)
         outbox = await OutboxRepository(conn).for_lead(lead_id)
+        kb_answers = await AnswerRepository(conn).for_lead(lead_id)
         drafts = [
             dict(m)
             for m in (
@@ -131,7 +133,7 @@ async def get_lead(lead_id: uuid.UUID, registry: RegistryDep, engine: EngineDep)
             .all()
         ]
     ws = registry.get(lead["workspace_slug"])
-    return lead_detail(lead, events, outbox, ws.config if ws else None, drafts)
+    return lead_detail(lead, events, outbox, ws.config if ws else None, drafts, kb_answers)
 
 
 @router.get("/leads/{lead_id}/runs", response_model=list[AgentRunOut])

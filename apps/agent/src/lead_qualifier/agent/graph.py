@@ -18,26 +18,35 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command, interrupt
 
 from lead_qualifier.agent.models import (
+    AnswerOutput,
+    AnswerResult,
     DraftOutput,
     LeadInput,
     LeadProfile,
     QualificationOutput,
     QualificationResult,
+    ResolvedCitation,
 )
 from lead_qualifier.agent.prompts import (
+    ANSWER_SYSTEM,
     DRAFT_SYSTEM,
     EXTRACT_SYSTEM,
     QUALIFY_SYSTEM,
     render_draft_context,
+    render_kb_answers,
+    render_kb_context,
     render_lead_profile,
+    render_lead_questions,
     render_lead_submission,
     render_operator_feedback,
     render_workspace_context,
 )
-from lead_qualifier.domain.draft_guard import check_draft_detailed
+from lead_qualifier.domain.draft_guard import answer_problems, check_draft_detailed
+from lead_qualifier.domain.kb_chunker import plain_text
 from lead_qualifier.domain.scoring import compute_score, tier_for
 from lead_qualifier.domain.workspace import Tier, WorkspaceConfig
 from lead_qualifier.infrastructure.llm.structured import generate_validated
+from lead_qualifier.ports.knowledge import KnowledgeRetriever, RetrievedChunk
 from lead_qualifier.ports.llm import ChatMessage, LLMError, LLMProvider, StructuredRequest
 
 MAX_REASON_CHARS = 300
@@ -50,6 +59,7 @@ class QualifyState(TypedDict, total=False):
     lead: LeadInput
     profile: LeadProfile
     result: QualificationResult
+    kb_answers: list[AnswerResult]
     draft: DraftOutput
     draft_language: str
     guard_problems: list[str]
@@ -74,6 +84,7 @@ class GraphDeps:
     agent_run_id: UUID
     model_for: Callable[[str], str]
     send: SendGateway | None = None
+    knowledge: KnowledgeRetriever | None = None
 
 
 GENERIC_REASONS = {
@@ -179,6 +190,147 @@ async def qualify_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict
     }
 
 
+NOT_COVERED = {
+    "en": "Not covered in our documentation — the team will reply personally",
+    "es": "No está cubierto en nuestra documentación — el equipo te responderá personalmente",
+}
+
+
+def not_covered_text(language: str) -> str:
+    return NOT_COVERED.get(language, NOT_COVERED["en"])
+
+
+def _squash(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+MIN_QUOTE_CHARS = 15
+MIN_QUOTE_WORDS = 3
+
+
+def _answer_check(
+    items: list[tuple[str, list[RetrievedChunk]]],
+) -> Callable[[AnswerOutput], None]:
+    """Domain check: one item per question; every citation names a chunk retrieved for that very
+    question and quotes it verbatim, and a covered answer needs at least one citation."""
+
+    def check(output: AnswerOutput) -> None:
+        if len(output.answers) != len(items):
+            raise ValueError(
+                f"answers must have exactly {len(items)} items, got {len(output.answers)}"
+            )
+        for number, (item, (question, chunks)) in enumerate(
+            zip(output.answers, items, strict=True), 1
+        ):
+            by_id = {str(c.chunk_id): c for c in chunks}
+            if _squash(item.question) != _squash(question):
+                raise ValueError(f"item {number}: question must be copied exactly as given")
+            if item.covered and not (item.answer.strip() and item.citations):
+                raise ValueError(f"item {number}: a covered answer needs text and a citation")
+            if not item.covered and item.citations:
+                raise ValueError(f"item {number}: an answer that is not covered has no citations")
+            for citation in item.citations:
+                chunk = by_id.get(citation.chunk_id)
+                if chunk is None:
+                    raise ValueError(
+                        f"item {number}: chunk_id {citation.chunk_id!r} is not one of its excerpts"
+                    )
+                quote = _squash(citation.quote)
+                if len(quote) < MIN_QUOTE_CHARS and len(quote.split()) < MIN_QUOTE_WORDS:
+                    raise ValueError(
+                        f"item {number}: a quote must be a meaningful passage "
+                        f"(at least {MIN_QUOTE_CHARS} characters or {MIN_QUOTE_WORDS} words)"
+                    )
+                if quote not in _squash(plain_text(chunk.content)):
+                    raise ValueError(
+                        f"item {number}: the quote does not appear word for word in the excerpt"
+                    )
+
+    return check
+
+
+def _resolve(item: Any, chunks: list[RetrievedChunk]) -> list[ResolvedCitation]:
+    by_id = {str(c.chunk_id): c for c in chunks}
+    return [
+        ResolvedCitation(
+            chunk_id=c.chunk_id,
+            quote=c.quote,
+            document_path=by_id[c.chunk_id].document_path,
+            document_title=by_id[c.chunk_id].document_title,
+            heading_path=by_id[c.chunk_id].heading_path,
+        )
+        for c in item.citations
+    ]
+
+
+async def answer_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[str, Any]:
+    """Answer the lead's questions from the knowledge base, with validated citations.
+
+    Questions with nothing retrieved above the similarity threshold never reach the model: they are
+    answered with the fixed "not covered" text in code.
+    """
+    deps = runtime.context
+    config = deps.workspace
+    questions = state["profile"].questions
+    language = state["profile"].detected_language
+    retrieved: list[list[RetrievedChunk]] = []
+    for question in questions:
+        retrieved.append(await deps.knowledge.retrieve(question) if deps.knowledge else [])
+    asked = [(q, chunks) for q, chunks in zip(questions, retrieved, strict=True) if chunks]
+    items: list[Any] = []
+    if asked:
+        request = StructuredRequest(
+            task="answer",
+            system=ANSWER_SYSTEM,
+            messages=[
+                ChatMessage(
+                    "user",
+                    "\n".join(
+                        [render_lead_questions([q for q, _ in asked]), render_kb_context(asked)]
+                    ),
+                )
+            ],
+            output_model=AnswerOutput,
+            model=deps.model_for("answer"),
+            max_tokens=2000,
+            effort="low",
+            node="answer",
+            agent_run_id=deps.agent_run_id,
+        )
+        try:
+            result = await generate_validated(deps.provider, request, validate=_answer_check(asked))
+        except LLMError as exc:
+            return _error(exc)
+        items = list(result.value.answers)
+    by_question = {q: (item, chunks) for (q, chunks), item in zip(asked, items, strict=True)}
+    answers: list[AnswerResult] = []
+    for question in questions:
+        found = by_question.get(question)
+        if found is not None and found[0].covered:
+            item, chunks = found
+            if answer_problems(config, item.answer):
+                # a fact we may not put in an email (foreign link, unknown price...) is not used
+                answers.append(
+                    AnswerResult(
+                        question=question, answer=not_covered_text(language), covered=False
+                    )
+                )
+                continue
+            answers.append(
+                AnswerResult(
+                    question=question,
+                    answer=item.answer.strip(),
+                    covered=True,
+                    citations=_resolve(item, chunks),
+                )
+            )
+        else:
+            answers.append(
+                AnswerResult(question=question, answer=not_covered_text(language), covered=False)
+            )
+    return {"kb_answers": answers}
+
+
 def _draft_language(state: QualifyState, workspace: WorkspaceConfig) -> str:
     detected = state["profile"].detected_language
     return detected if detected in workspace.languages.supported else workspace.languages.default
@@ -193,6 +345,8 @@ async def draft_node(state: QualifyState, runtime: Runtime[GraphDeps]) -> dict[s
         render_lead_submission(state["lead"]),
         render_lead_profile(state["profile"]),
     ]
+    if state.get("kb_answers"):
+        parts.append(render_kb_answers(state["kb_answers"]))
     # Only the fixed problem codes go back to the model, never text that may echo lead input.
     feedback = (
         [f"fix these problems: {', '.join(state['guard_codes'])}"]
@@ -280,18 +434,26 @@ def _after_node(next_node: str) -> Callable[[QualifyState], str]:
     return route
 
 
+def _after_qualify(state: QualifyState) -> str:
+    if "error" in state:
+        return END
+    return "answer" if state["profile"].questions else "draft"
+
+
 @lru_cache(maxsize=8)
 def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> Any:
     graph = StateGraph(QualifyState, context_schema=GraphDeps)
     graph.add_node("extract", extract_node)
     graph.add_node("qualify", qualify_node)
+    graph.add_node("answer", answer_node)
     graph.add_node("draft", draft_node)
     graph.add_node("validate_draft", validate_draft_node)
     graph.add_node("human_review", human_review_node)
     graph.add_node("request_send", request_send_node)
     graph.add_edge(START, "extract")
     graph.add_conditional_edges("extract", _after_node("qualify"), ["qualify", END])
-    graph.add_conditional_edges("qualify", _after_node("draft"), ["draft", END])
+    graph.add_conditional_edges("qualify", _after_qualify, ["answer", "draft", END])
+    graph.add_conditional_edges("answer", _after_node("draft"), ["draft", END])
     graph.add_conditional_edges("draft", _after_node("validate_draft"), ["validate_draft", END])
     graph.add_conditional_edges("validate_draft", _after_validate, ["draft", "human_review"])
     graph.add_conditional_edges("human_review", _after_review, ["request_send", "draft", END])

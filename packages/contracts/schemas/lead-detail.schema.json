@@ -41,6 +41,40 @@
       "title": "AnswerOut",
       "type": "object"
     },
+    "CitationOut": {
+      "properties": {
+        "chunk_id": {
+          "format": "uuid",
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "document_path": {
+          "title": "Document Path",
+          "type": "string"
+        },
+        "document_title": {
+          "title": "Document Title",
+          "type": "string"
+        },
+        "heading_path": {
+          "title": "Heading Path",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "document_path",
+        "document_title",
+        "heading_path",
+        "quote"
+      ],
+      "title": "CitationOut",
+      "type": "object"
+    },
     "CriterionBreakdown": {
       "description": "One scored criterion: what was judged, the points it earned and the evidence.",
       "properties": {
@@ -83,6 +117,37 @@
         "evidence"
       ],
       "title": "CriterionBreakdown",
+      "type": "object"
+    },
+    "KbAnswerOut": {
+      "properties": {
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/CitationOut"
+          },
+          "title": "Citations",
+          "type": "array"
+        },
+        "covered": {
+          "title": "Covered",
+          "type": "boolean"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question",
+        "answer",
+        "covered",
+        "citations"
+      ],
+      "title": "KbAnswerOut",
       "type": "object"
     },
     "LeadEventOut": {
@@ -445,6 +510,13 @@
       "title": "Injection Suspected",
       "type": "boolean"
     },
+    "kb_answers": {
+      "items": {
+        "$ref": "#/$defs/KbAnswerOut"
+      },
+      "title": "Kb Answers",
+      "type": "array"
+    },
     "locale": {
       "anyOf": [
         {
@@ -631,6 +703,7 @@
     "qualified_at",
     "sent_at",
     "answers",
+    "kb_answers",
     "events",
     "outbox",
     "messages"

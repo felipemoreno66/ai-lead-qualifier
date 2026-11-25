@@ -42,6 +42,22 @@ export const leadDetailSchema = z.object({
   ),
   id: z.string().uuid(),
   injection_suspected: z.boolean().default(false),
+  kb_answers: z.array(
+    z.object({
+      answer: z.string(),
+      citations: z.array(
+        z.object({
+          chunk_id: z.string().uuid(),
+          document_path: z.string(),
+          document_title: z.string(),
+          heading_path: z.string(),
+          quote: z.string(),
+        }),
+      ),
+      covered: z.boolean(),
+      question: z.string(),
+    }),
+  ),
   locale: z.union([z.string(), z.null()]),
   messages: z.array(
     z.object({

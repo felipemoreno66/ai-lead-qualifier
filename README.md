@@ -196,9 +196,10 @@ and the Playwright suite, all without secrets.
 1. ~~Qualification agent~~ (built): LangGraph graph (extract, score against your criteria, draft in the
    lead's language), fake provider for keyless use, human approve/edit/reject before any email is sent.
    Remaining: one real-provider eval run.
-2. **Knowledge base with citations** (RAG) over your own Markdown. Built so far: the fictional
-   Northwind KB and the ingestion pipeline (see [architecture](docs/architecture.md#knowledge-base-ingestion-m32));
-   answering with citations and the dashboard chat are next.
+2. **Knowledge base with citations** (RAG) over your own Markdown. Built: the fictional Northwind KB, the
+   ingestion pipeline and the answer node (questions in an application are answered from the KB with
+   validated citations, or marked as not covered; see [architecture](docs/architecture.md)). Next: the
+   dashboard chat and a retrieval eval.
 3. **Metrics and keyless demo polish**, deployment notes.
 4. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta
    WhatsApp Cloud API and n8n, with a separate opt-in from the lead.

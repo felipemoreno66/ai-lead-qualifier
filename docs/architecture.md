@@ -310,3 +310,23 @@ admin token) reads `workspaces/<slug>/<knowledge_base.path>/*.md` and stores chu
   compares vectors of the active model and returns the top-k above a minimum cosine similarity.
 - `knowledge_base.path` must be a relative folder without `..`.
 
+## Answer node (M3.3)
+
+Graph order: `extract -> qualify -> answer -> draft -> validate_draft -> human_review`. `answer` runs only when
+`extract` found questions (`profile.questions`).
+
+- **Retrieval**: each question goes through `KnowledgeBaseService.retrieve` (`KB_TOP_K`, `KB_MIN_SIMILARITY`).
+  A question with nothing above the threshold never reaches the model: it gets the fixed text
+  "Not covered in our documentation — the team will reply personally" (Spanish equivalent for `es`).
+- **Structured output**: one item per question with `answer`, `covered` and `citations [{chunk_id, quote}]`.
+  The domain check requires that the item repeats its question, that every `chunk_id` was retrieved for that
+  very question, and that the quote (at least 15 characters or 3 words) appears word for word in the chunk
+  text as a reader sees it (markdown, links and table pipes removed). Violations go through the usual repair loop (2 repairs), then fail the run.
+- **Untrusted text**: questions and chunk text are JSON-encoded with angle brackets escaped and wrapped in
+  `<lead_questions>` and `<kb_context>`; the prompts tell the model they are data.
+- **Draft**: receives `<kb_answers>` and may state facts only from covered answers or the workspace config;
+  for uncovered questions it says the team will reply personally. A covered answer that contains a link, email,
+  price or placeholder the draft guard would reject is downgraded to not covered. The draft guard is unchanged.
+- **Storage** (migration `0011`): `lead_answers` and `answer_citations` (deleted with the lead). Citations
+  keep source path, heading and quote and have no foreign key to `kb_chunks`, so re-ingesting the knowledge
+  base never breaks them. `GET /admin/leads/{id}` returns them as `kb_answers`.

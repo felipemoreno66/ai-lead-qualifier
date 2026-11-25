@@ -19,16 +19,18 @@ from lead_qualifier.config import Settings
 from lead_qualifier.domain.errors import Conflict, NotFound, RateLimited
 from lead_qualifier.domain.lead import LeadStatus, LeadTrigger, next_status
 from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
-from lead_qualifier.infrastructure.db.repositories import LeadRepository
+from lead_qualifier.infrastructure.db.repositories import AnswerRepository, LeadRepository
 from lead_qualifier.infrastructure.db.tables import agent_runs, llm_calls, messages
 from lead_qualifier.infrastructure.llm.router import model_for
 from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.clock import Clock
+from lead_qualifier.ports.knowledge import KnowledgeRetriever
 from lead_qualifier.ports.llm import LLMProvider
+from lead_qualifier.services.kb import KnowledgeBaseService, WorkspaceRetriever
 from lead_qualifier.workspaces.loader import WorkspaceRegistry
 
 log = get_logger("qualify")
-GRAPH_VERSION = "qualify-draft-review@1"
+GRAPH_VERSION = "qualify-answer-draft-review@1"
 STARTABLE = {LeadStatus.NEW: LeadTrigger.QUALIFY_STARTED, LeadStatus.ERROR: LeadTrigger.RETRY}
 
 
@@ -52,6 +54,7 @@ class QualifyService:
         provider: LLMProvider,
         clock: Clock,
         checkpointer: PostgresCheckpointer,
+        kb: KnowledgeBaseService | None = None,
     ) -> None:
         self.engine = engine
         self.settings = settings
@@ -59,6 +62,7 @@ class QualifyService:
         self.provider = provider
         self.clock = clock
         self.checkpointer = checkpointer
+        self.kb = kb
         self.send_gateway: SendGateway | None = None
 
     def attach_send_gateway(self, gateway: SendGateway) -> None:
@@ -94,6 +98,17 @@ class QualifyService:
             agent_run_id=run_id,
             model_for=lambda task: model_for(self.settings, task),
             send=self.send_gateway,
+            knowledge=self._retriever(workspace),
+        )
+
+    def _retriever(self, workspace: Any) -> KnowledgeRetriever | None:
+        if self.kb is None or not workspace.knowledge_base.enabled:
+            return None
+        return WorkspaceRetriever(
+            self.kb,
+            workspace.slug,
+            top_k=self.settings.kb_top_k,
+            min_similarity=self.settings.kb_min_similarity,
         )
 
     async def _thread_id(self, run_id: uuid.UUID) -> str:
@@ -227,6 +242,10 @@ class QualifyService:
             ).scalar_one() + 1
             lead_row = await leads.get(lead_id)
             assert lead_row is not None
+            # a re-run without questions must not keep the previous run's answers
+            await AnswerRepository(conn).replace_for_lead(
+                lead_id, run_id, state.get("kb_answers", []), now
+            )
             await conn.execute(
                 sa.insert(messages).values(
                     lead_id=lead_id,

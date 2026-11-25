@@ -14,6 +14,7 @@ import json
 import re
 from typing import Any
 
+from lead_qualifier.domain.kb_chunker import plain_text
 from lead_qualifier.infrastructure.llm.fake import Handler
 from lead_qualifier.ports.llm import StructuredRequest
 
@@ -103,12 +104,11 @@ _BUDGET_UPPER = {"lt-500": 500, "500-2500": 2500, "2500-5000": 5000, "gt-5000": 
 _HOURS_UPPER = {"lt-5h": 5, "5-10h": 10, "10-20h": 20, "gt-20h": 40}
 
 
-def _tag(content: str, name: str) -> dict[str, Any]:
+def _tag(content: str, name: str) -> Any:
     match = re.search(rf"<{name}>\n(.*?)\n</{name}>", content, re.DOTALL)
     if match is None:
         raise ValueError(f"prompt has no <{name}> block")
-    data: dict[str, Any] = json.loads(match.group(1))
-    return data
+    return json.loads(match.group(1))
 
 
 def _text(lead: dict[str, Any], *, include_free_text: bool = True) -> str:
@@ -244,6 +244,42 @@ def qualify(req: StructuredRequest[Any]) -> dict[str, Any]:
     return {"criteria": criteria, "recommended_product": product["id"], "reasons": reasons}
 
 
+_CITE_MAX = 300
+
+
+def _plain_quote(content: str) -> str:
+    """The first prose line of a chunk as plain text (the form quotes are checked against). A line
+    too short to be a meaningful quote is replaced by the start of the whole chunk."""
+    lines = [plain_text(ln) for ln in content.splitlines() if ln.strip() and not ln.startswith("|")]
+    line = lines[0] if lines else plain_text(content)
+    if len(line) < 15 and len(line.split()) < 3:
+        line = plain_text(content)
+    return line[:_CITE_MAX].strip()
+
+
+def answer(req: StructuredRequest[Any]) -> dict[str, Any]:
+    """Quote the best excerpt of each question (the first one, best first). Deterministic."""
+    items = _tag(req.messages[0].content, "kb_context")
+    answers = []
+    for item in items:
+        excerpts = item.get("excerpts") or []
+        if not excerpts:
+            answers.append(
+                {"question": item["question"], "answer": "", "covered": False, "citations": []}
+            )
+            continue
+        quote = plain = _plain_quote(excerpts[0]["text"])
+        answers.append(
+            {
+                "question": item["question"],
+                "answer": plain,
+                "covered": True,
+                "citations": [{"chunk_id": excerpts[0]["id"], "quote": quote}],
+            }
+        )
+    return {"answers": answers}
+
+
 _COPY: dict[str, dict[str, str]] = {
     "en": {
         "subject": "Your application to {business}",
@@ -275,6 +311,26 @@ _COPY: dict[str, dict[str, str]] = {
 }
 
 
+_MAX_ANSWERS_IN_DRAFT = 2
+_MAX_ANSWER_CHARS = 200
+_TEAM_REPLIES = {
+    "en": "The team will reply personally to your other questions.",
+    "es": "El equipo te responderá personalmente tus otras preguntas.",
+}
+
+
+def _answer_lines(content: str, language: str) -> list[str]:
+    """Covered answers (shortened) and one sentence for the questions the docs do not cover."""
+    if "<kb_answers>" not in content:
+        return []
+    answers = _tag(content, "kb_answers")
+    covered = [a["answer"] for a in answers if a["covered"]][:_MAX_ANSWERS_IN_DRAFT]
+    lines = [a[:_MAX_ANSWER_CHARS].rstrip() for a in covered]
+    if len(covered) < len(answers):
+        lines.append(_TEAM_REPLIES.get(language, _TEAM_REPLIES["en"]))
+    return lines
+
+
 def draft(req: StructuredRequest[Any]) -> dict[str, Any]:
     """A short templated email in the lead's language. It never quotes free text from the lead."""
     content = req.messages[0].content
@@ -293,6 +349,7 @@ def draft(req: StructuredRequest[Any]) -> dict[str, Any]:
     if price.get("amount") is not None:
         key = "price" if price.get("note") else "price_plain"
         parts.append(copy[key].format(amount=price["amount"], note=price.get("note")))
+    parts.extend(_answer_lines(content, ctx["language"]))
     parts.append(copy[f"next_{ctx['tier']}"])
     parts.append(copy["close"].format(cta=ctx["call_to_action"].rstrip(".")))
     signature = copy.get("signature")
@@ -305,4 +362,9 @@ def draft(req: StructuredRequest[Any]) -> dict[str, Any]:
     }
 
 
-FAKE_HANDLERS: dict[str, Handler] = {"extract": extract, "qualify": qualify, "draft": draft}
+FAKE_HANDLERS: dict[str, Handler] = {
+    "extract": extract,
+    "qualify": qualify,
+    "answer": answer,
+    "draft": draft,
+}

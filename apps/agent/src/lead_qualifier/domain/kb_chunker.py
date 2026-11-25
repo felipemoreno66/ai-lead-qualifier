@@ -45,6 +45,19 @@ def count_tokens(text: str) -> int:
     return total
 
 
+_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_MARKUP = re.compile(
+    r"\*\*|__|`|^\s{0,3}#{1,6}\s+|^\s*[-*+]\s+|^\s*\|?[-:| ]+\|?\s*$", re.MULTILINE
+)
+
+
+def plain_text(markdown: str) -> str:
+    """Chunk text as a reader sees it: links reduced to their label, no emphasis, bullets, heading
+    marks or table pipes. Quotes are checked against this form."""
+    text = _MARKUP.sub(" ", _LINK.sub(r"\1", markdown)).replace("|", " ")
+    return " ".join(text.split())
+
+
 def document_title(markdown: str, fallback: str) -> str:
     match = re.search(r"^#\s+(.+?)\s*$", markdown, re.MULTILINE)
     return match.group(1) if match else fallback

@@ -378,6 +378,22 @@ export interface components {
        */
       override: boolean;
     };
+    /** CitationOut */
+    CitationOut: {
+      /**
+       * Chunk Id
+       * Format: uuid
+       */
+      chunk_id: string;
+      /** Document Path */
+      document_path: string;
+      /** Document Title */
+      document_title: string;
+      /** Heading Path */
+      heading_path: string;
+      /** Quote */
+      quote: string;
+    };
     /**
      * CriterionBreakdown
      * @description One scored criterion: what was judged, the points it earned and the evidence.
@@ -455,6 +471,17 @@ export interface components {
       /** Detail */
       detail?: components["schemas"]["ValidationError"][];
     };
+    /** KbAnswerOut */
+    KbAnswerOut: {
+      /** Answer */
+      answer: string;
+      /** Citations */
+      citations: components["schemas"]["CitationOut"][];
+      /** Covered */
+      covered: boolean;
+      /** Question */
+      question: string;
+    };
     /** KbReindexResult */
     KbReindexResult: {
       /** Added */
@@ -520,6 +547,8 @@ export interface components {
        * @default false
        */
       injection_suspected: boolean;
+      /** Kb Answers */
+      kb_answers: components["schemas"]["KbAnswerOut"][];
       /** Locale */
       locale: string | null;
       /** Messages */

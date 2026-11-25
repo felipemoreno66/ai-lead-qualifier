@@ -53,6 +53,21 @@ class AnswerOut(BaseModel):
     display: str
 
 
+class CitationOut(BaseModel):
+    chunk_id: uuid.UUID
+    document_path: str
+    document_title: str
+    heading_path: str
+    quote: str
+
+
+class KbAnswerOut(BaseModel):
+    question: str
+    answer: str
+    covered: bool
+    citations: list[CitationOut]
+
+
 class LeadEventOut(BaseModel):
     id: uuid.UUID
     type: str
@@ -116,6 +131,7 @@ class LeadDetail(BaseModel):
     qualified_at: datetime | None
     sent_at: datetime | None
     answers: list[AnswerOut]
+    kb_answers: list[KbAnswerOut]
     events: list[LeadEventOut]
     outbox: list[OutboxEventOut]
     messages: list[MessageOut]
