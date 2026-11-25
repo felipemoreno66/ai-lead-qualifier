@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -37,11 +38,13 @@ LEAD_EVENT_TYPES = (
     "reviewed",
     "retriggered",
     "email_sent",
+    "injection_suspected",
 )
 OUTBOX_STATUSES = ("pending", "processing", "delivered", "dead")
 OUTBOX_EVENT_TYPES = ("lead.created", "message.approved")
 AGENT_RUN_STATUSES = ("running", "interrupted", "completed", "failed")
-MESSAGE_STATUSES = ("draft", "approved", "rejected", "sent", "failed")
+AGENT_RUN_KINDS = ("qualify", "kb_chat")
+MESSAGE_STATUSES = ("draft", "approved", "sending", "rejected", "sent", "failed")
 MESSAGE_CHANNELS = ("email", "whatsapp")
 
 
@@ -156,9 +159,10 @@ agent_runs = Table(
     "agent_runs",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
-    Column(
-        "lead_id", UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
-    ),
+    # NULL for runs that belong to no lead (``kind = 'kb_chat'``, the dashboard's "Ask the docs").
+    Column("lead_id", UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE")),
+    Column("kind", Text, nullable=False, server_default="qualify"),
+    Column("workspace_slug", Text, ForeignKey("workspaces.slug")),
     Column("thread_id", Text, nullable=False),
     Column("run_number", Integer, nullable=False),
     Column("status", Text, nullable=False, server_default="running"),
@@ -172,6 +176,8 @@ agent_runs = Table(
     UniqueConstraint("thread_id", name="uq_agent_runs_thread_id"),
     UniqueConstraint("lead_id", "run_number", name="uq_agent_runs_lead_run"),
     CheckConstraint(_in("status", AGENT_RUN_STATUSES), name="ck_agent_runs_status"),
+    CheckConstraint(_in("kind", AGENT_RUN_KINDS), name="ck_agent_runs_kind"),
+    CheckConstraint("kind <> 'qualify' OR lead_id IS NOT NULL", name="ck_agent_runs_qualify_lead"),
 )
 
 llm_calls = Table(
@@ -225,6 +231,10 @@ messages = Table(
     Column("reviewed_at", DateTime(timezone=True)),
     Column("sent_at", DateTime(timezone=True)),
     Column("provider_message_id", Text),
+    Column("short_body", Text),
+    Column("send_started_at", DateTime(timezone=True)),
+    Column("send_attempts", Integer, nullable=False, server_default="0"),
+    Column("guard_warnings", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
     UniqueConstraint("lead_id", "version", name="uq_messages_lead_version"),
     CheckConstraint(_in("status", MESSAGE_STATUSES), name="ck_messages_status"),
     CheckConstraint(_in("channel", MESSAGE_CHANNELS), name="ck_messages_channel"),
@@ -246,4 +256,101 @@ llm_spend = Table(
     Column("settled_at", DateTime(timezone=True)),
     CheckConstraint(_in("state", ("reserved", "settled")), name="ck_llm_spend_state"),
     Index("ix_llm_spend_run", "agent_run_id"),
+)
+
+KB_EMBEDDING_MODELS = (
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "openai/text-embedding-3-small@384",
+    "fake-hash-384",
+)
+
+kb_documents = Table(
+    "kb_documents",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("workspace_slug", Text, ForeignKey("workspaces.slug"), nullable=False),
+    Column("path", Text, nullable=False),
+    Column("title", Text, nullable=False),
+    Column("content_sha256", Text, nullable=False),
+    Column("ingested_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    UniqueConstraint("workspace_slug", "path", name="uq_kb_documents_workspace_path"),
+)
+
+kb_chunks = Table(
+    "kb_chunks",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "document_id",
+        UUID(as_uuid=True),
+        ForeignKey("kb_documents.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("chunk_index", Integer, nullable=False),
+    Column("heading_path", Text, nullable=False, server_default=""),
+    Column("content", Text, nullable=False),
+    Column("token_count", Integer, nullable=False),
+    Column("embedding", Vector(384), nullable=False),
+    Column("embedding_model", Text, nullable=False),
+    UniqueConstraint("document_id", "chunk_index", name="uq_kb_chunks_document_index"),
+    CheckConstraint(
+        _in("embedding_model", KB_EMBEDDING_MODELS), name="ck_kb_chunks_embedding_model"
+    ),
+    Index(
+        "ix_kb_chunks_embedding_hnsw",
+        "embedding",
+        postgresql_using="hnsw",
+        postgresql_ops={"embedding": "vector_cosine_ops"},
+    ),
+)
+
+lead_answers = Table(
+    "lead_answers",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "lead_id", UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
+    ),
+    Column("agent_run_id", UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL")),
+    Column("position", SmallInteger, nullable=False),
+    Column("question", Text, nullable=False),
+    Column("answer", Text, nullable=False),
+    Column("covered", Boolean, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    UniqueConstraint("lead_id", "position", name="uq_lead_answers_lead_position"),
+)
+
+# chunk_id has no foreign key on purpose: re-ingesting the knowledge base replaces its chunks, and
+# the citation keeps the source path, heading and quote as they were when the answer was given.
+answer_citations = Table(
+    "answer_citations",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column(
+        "answer_id",
+        UUID(as_uuid=True),
+        ForeignKey("lead_answers.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("position", SmallInteger, nullable=False),
+    Column("chunk_id", UUID(as_uuid=True), nullable=False),
+    Column("document_path", Text, nullable=False),
+    Column("document_title", Text, nullable=False),
+    Column("heading_path", Text, nullable=False),
+    Column("quote", Text, nullable=False),
+    UniqueConstraint("answer_id", "position", name="uq_answer_citations_answer_position"),
+)
+
+kb_queries = Table(
+    "kb_queries",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("workspace_slug", Text, ForeignKey("workspaces.slug"), nullable=False),
+    Column("agent_run_id", UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL")),
+    Column("question", Text, nullable=False),
+    Column("answer", Text, nullable=False),
+    Column("covered", Boolean, nullable=False),
+    Column("citations", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Index("ix_kb_queries_workspace_created", "workspace_slug", "created_at"),
 )

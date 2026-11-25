@@ -1,0 +1,67 @@
+# RAG eval set for the fictional Northwind Academy knowledge base (workspaces/northwind-academy).
+# Each case is one question a prospect might write.
+#   answerable: false      the documentation does not cover it; the right behaviour is to refuse
+#   keywords               rubric: every group must match; a group matches when ANY of its words
+#                          appears in the answer (case-insensitive), so groups hold synonyms
+#   sources                documents that may legitimately be cited (any of them is fine)
+workspace: northwind-academy
+cases:
+  - id: bootcamp-price
+    question: How much does the Full Stack Bootcamp cost?
+    keywords: [["4,900", "4900"]]
+    sources: [02-pricing-and-payment-plans.md, 07-faq.md, 01-programs-overview.md]
+  - id: course-installments
+    question: Can I pay for the Data & AI Course in monthly installments?
+    keywords: [["3 monthly", "three monthly"], ["850"]]
+    sources: [02-pricing-and-payment-plans.md, 07-faq.md]
+  - id: bootcamp-duration
+    question: How long is the Full Stack Bootcamp and how many hours per week does it take?
+    keywords: [["16 weeks", "16-week"], ["20 hours", "20 h"]]
+    sources: [01-programs-overview.md, 05-schedule-and-format.md, 07-faq.md]
+  - id: mentorship-price
+    question: What does the 1:1 Mentorship cost per month?
+    keywords: [["USD 190", "190 per month", "$190"]]
+    sources: [02-pricing-and-payment-plans.md, 07-faq.md, 01-programs-overview.md]
+  - id: refund-window
+    question: Can I get a refund if I leave the bootcamp after the first week?
+    keywords: [["14 days", "14 day"]]
+    sources: [06-refund-policy.md]
+  - id: scholarship-how
+    question: How do I apply for a scholarship?
+    keywords: [["application form", "regular application", "statement"]]
+    sources: [03-scholarships.md]
+  - id: admissions-steps
+    question: What are the steps of the admissions process?
+    keywords: [["apply", "application"], ["call"]]
+    sources: [04-admissions-process.md]
+  - id: countries
+    question: Which countries can I apply from?
+    keywords: [["sanctioned"]]
+    sources: [04-admissions-process.md, 07-faq.md]
+  - id: bootcamp-topics
+    question: Which technologies are taught in the Full Stack Bootcamp?
+    keywords: [["React"], ["PostgreSQL"]]
+    sources: [01-programs-overview.md]
+  - id: live-or-recorded
+    question: Are the classes live or recorded?
+    keywords: [["live"]]
+    sources: [05-schedule-and-format.md, 07-faq.md]
+  - id: es-course-price
+    language: es
+    question: ¿Cuánto cuesta el Data & AI Course?
+    keywords: [["2,400", "2.400", "2 400", "2400"]]
+    sources: [02-pricing-and-payment-plans.md, 07-faq.md, 01-programs-overview.md]
+  - id: es-bootcamp-hours
+    language: es
+    question: ¿Cuántas horas por semana necesito para el Full Stack Bootcamp?
+    keywords: [["20 horas", "20 hours", "20 h"]]
+    sources: [01-programs-overview.md, 05-schedule-and-format.md, 07-faq.md]
+  - id: no-job-guarantee
+    answerable: false
+    question: Do you guarantee me a job after I graduate?
+  - id: no-visa
+    answerable: false
+    question: Can you sponsor my work visa?
+  - id: no-company-invoicing
+    answerable: false
+    question: Can my employer pay by purchase order and receive an invoice in the company's name?

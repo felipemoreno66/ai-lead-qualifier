@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import uuid
 from datetime import timedelta
 from typing import Any
 
@@ -104,7 +105,11 @@ async def test_success_marks_delivered_signs_the_body_and_sends_no_pii(db, make_
     assert handled == 1 and route.call_count == 1
     request = route.calls.last.request
     assert request.headers["x-signature"] == sign(
-        request.content, SECRET, request.headers["x-timestamp"]
+        request.content,
+        SECRET,
+        request.headers["x-timestamp"],
+        method="POST",
+        path="/webhook/lead-created",
     )
     assert abs(int(request.headers["x-timestamp"]) - time.time()) < 60
     assert request.headers["x-event-id"] == str(event_id)
@@ -312,3 +317,42 @@ async def test_old_rate_limit_windows_are_purged(db, make_settings):
 async def test_unknown_event_type_is_a_publish_error():
     with pytest.raises(PublishError):
         await n8n().publish({"event_type": "nope", "event_id": "x"})
+
+
+@respx.mock
+async def test_message_approved_goes_to_its_own_webhook_with_ids_only(db, make_settings):
+    clock = FakeClock()
+    lead_id, _ = await create_lead_with_event(db, clock, n=7)
+    message_id = uuid.uuid4()
+    async with db.begin() as conn:
+        await conn.execute(text("UPDATE outbox_events SET status = 'delivered'"))
+        await OutboxRepository(conn).enqueue(
+            event_type="message.approved",
+            aggregate_id=message_id,
+            lead_id=lead_id,
+            payload={
+                "lead": {
+                    "id": str(lead_id),
+                    "workspace": "northwind-academy",
+                    "reference": "NW-D0007",
+                },
+                "message": {"id": str(message_id), "channel": "email", "version": 1},
+            },
+            idempotency_key=f"message:{message_id}:send",
+            now=clock.now(),
+        )
+    route = respx.post("http://n8n.test:5678/webhook/message-approved").mock(
+        return_value=httpx.Response(200, json={"ok": True})
+    )
+    assert await make_dispatcher(db, make_settings, clock, n8n()).run_once() == 1
+    request = route.calls.last.request
+    sent = json.loads(request.content)
+    assert sent["event_type"] == "message.approved" and sent["message"]["channel"] == "email"
+    assert request.headers["x-signature"] == sign(
+        request.content,
+        SECRET,
+        request.headers["x-timestamp"],
+        method="POST",
+        path="/webhook/message-approved",
+    )
+    assert "a7@example.com" not in request.content.decode()

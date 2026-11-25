@@ -16,7 +16,18 @@ from lead_qualifier.config import Settings
 from lead_qualifier.domain.lead_intake import LeadSubmission
 from lead_qualifier.domain.workspace import PublicWorkspaceConfig, WorkspaceConfig, to_public
 from lead_qualifier.http.app import create_app
-from lead_qualifier.http.schemas import LeadDetail, LeadList, RetriggerResult, WorkspaceSummary
+from lead_qualifier.http.schemas import (
+    AgentRunOut,
+    InstanceStatus,
+    KbChatEntryOut,
+    LeadDetail,
+    LeadList,
+    MetricsOut,
+    RetriggerResult,
+    ReviewRequest,
+    ReviewResult,
+    WorkspaceSummary,
+)
 from lead_qualifier.workspaces.loader import load_workspaces
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -42,7 +53,14 @@ def main() -> None:
     _write(schemas / "lead-submission.schema.json", LeadSubmission.model_json_schema())
     _write(schemas / "lead-list.schema.json", LeadList.model_json_schema())
     _write(schemas / "lead-detail.schema.json", LeadDetail.model_json_schema())
+    _write(schemas / "metrics.schema.json", MetricsOut.model_json_schema())
     _write(schemas / "retrigger-result.schema.json", RetriggerResult.model_json_schema())
+    _write(schemas / "instance-status.schema.json", InstanceStatus.model_json_schema())
+    _write(schemas / "review-request.schema.json", TypeAdapter(ReviewRequest).json_schema())
+    _write(schemas / "review-result.schema.json", ReviewResult.model_json_schema())
+    _write(schemas / "agent-runs.schema.json", TypeAdapter(list[AgentRunOut]).json_schema())
+    _write(schemas / "kb-chat-entry.schema.json", KbChatEntryOut.model_json_schema())
+    _write(schemas / "kb-chat-entries.schema.json", TypeAdapter(list[KbChatEntryOut]).json_schema())
     _write(
         schemas / "workspace-summaries.schema.json",
         TypeAdapter(list[WorkspaceSummary]).json_schema(),

@@ -9,6 +9,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.config import Settings
+from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
+from lead_qualifier.infrastructure.db.kb_chat import KbChatRepository
 from lead_qualifier.infrastructure.db.repositories import (
     LeadRepository,
     OutboxRepository,
@@ -19,22 +21,31 @@ from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.clock import Clock
 from lead_qualifier.ports.events import AuthRejectedError, EventPublisher, PermanentPublishError
 from lead_qualifier.services.outbox import envelope
+from lead_qualifier.services.reaper import reap_stale_runs, report_stale_sending
 
 log = get_logger("dispatcher")
 AUTH_REJECTED_MAX_ATTEMPTS = 3
 PURGE_EVERY = timedelta(hours=1)
+REAP_EVERY = timedelta(minutes=1)
 RATE_LIMIT_RETENTION = timedelta(days=2)
 
 
 class OutboxDispatcher:
     def __init__(
-        self, engine: AsyncEngine, publisher: EventPublisher, clock: Clock, settings: Settings
+        self,
+        engine: AsyncEngine,
+        publisher: EventPublisher,
+        clock: Clock,
+        settings: Settings,
+        checkpointer: PostgresCheckpointer | None = None,
     ) -> None:
+        self.checkpointer = checkpointer
         self.engine = engine
         self.publisher = publisher
         self.clock = clock
         self.settings = settings
         self._last_purge = clock.now()
+        self._last_reap = clock.now() - REAP_EVERY
 
     async def run_once(self) -> int:
         """Claim and deliver one batch. Returns how many events were handled."""
@@ -114,6 +125,18 @@ class OutboxDispatcher:
             error_type=error.split(":", 1)[0],
         )
 
+    async def reap_stale_runs(self) -> None:
+        now = self.clock.now()
+        if now - self._last_reap < REAP_EVERY:
+            return
+        self._last_reap = now
+        await reap_stale_runs(
+            self.engine, self.clock, timedelta(minutes=self.settings.agent_run_timeout_minutes)
+        )
+        await report_stale_sending(
+            self.engine, self.clock, timedelta(minutes=self.settings.send_stale_minutes)
+        )
+
     async def purge_rate_limits(self) -> None:
         now = self.clock.now()
         if now - self._last_purge < PURGE_EVERY:
@@ -121,10 +144,22 @@ class OutboxDispatcher:
         self._last_purge = now
         async with self.engine.begin() as conn:
             removed = await RateLimitRepository(conn).purge_before(now - RATE_LIMIT_RETENTION)
-            purged = await LlmCallRepository(conn).purge_before(
-                now - timedelta(days=self.settings.llm_calls_retention_days)
+            cutoff = now - timedelta(days=self.settings.llm_calls_retention_days)
+            purged = await LlmCallRepository(conn).purge_before(cutoff)
+            await KbChatRepository(conn).purge_before(
+                now - timedelta(days=self.settings.kb_queries_retention_days)
             )
-        log.info("rate_limits_purged", removed=removed, llm_calls_purged=purged)
+        threads = 0
+        if self.checkpointer is not None:
+            threads = await self.checkpointer.purge_stale_threads(
+                self.engine, now, timedelta(days=self.settings.llm_calls_retention_days)
+            )
+        log.info(
+            "rate_limits_purged",
+            removed=removed,
+            llm_calls_purged=purged,
+            checkpoint_threads=threads,
+        )
 
     async def run_forever(self) -> None:
         log.info("dispatcher_started", poll_seconds=self.settings.outbox_poll_seconds)
@@ -132,6 +167,7 @@ class OutboxDispatcher:
             try:
                 handled = await self.run_once()
                 await self.purge_rate_limits()
+                await self.reap_stale_runs()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:

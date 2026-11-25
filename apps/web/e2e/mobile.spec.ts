@@ -8,6 +8,7 @@ for (const path of [
   `/w/${SLUG}/apply`,
   `/privacy/${SLUG}`,
   "/dashboard",
+  "/dashboard/metrics",
   "/dashboard?status=bogus&page=999&minScore=abc",
   "/dashboard/leads/00000000-0000-0000-0000-000000000000",
 ]) {
@@ -39,6 +40,7 @@ test.describe("mobile list layout", () => {
     const chip = await page.getByRole("button", { name: "New", exact: true }).boundingBox();
     expect(chip?.height).toBeGreaterThanOrEqual(44);
     // The whole row is the tap target: tapping its right edge opens the lead.
+    await page.locator("table.leads tbody tr").first().scrollIntoViewIfNeeded();
     const first = await page.locator("table.leads tbody tr").first().boundingBox();
     await page.mouse.click(first!.x + first!.width - 8, first!.y + first!.height / 2);
     await expect(page).toHaveURL(/\/dashboard\/leads\//);

@@ -112,6 +112,8 @@ async def test_preflight_from_an_allowed_origin_gets_cors_headers(make_client):
                 },
             )
             assert response.status_code == 204
+            assert response.content == b""  # a 204 has no body (not the JSON "null")
+            assert response.headers.get("content-type") is None
             assert response.headers["access-control-allow-origin"] == origin
             assert response.headers["access-control-allow-methods"] == "GET, POST, OPTIONS"
             assert response.headers["access-control-allow-headers"] == "content-type"

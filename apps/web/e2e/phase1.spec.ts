@@ -33,13 +33,12 @@ test.describe("Phase 1: apply and see the lead in the dashboard", () => {
 
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Who should you reply to first?" })).toBeVisible();
-    await page.getByRole("button", { name: "New", exact: true }).click();
-    await expect(page).toHaveURL(/status=new/);
+    // No status filter here: inline orchestration moves the lead from new to pending_review within
+    // a couple of seconds, so any single status would be a race.
     await page.getByLabel("Search by name or email").fill(EMAIL);
     await expect(page).toHaveURL(/q=eve/);
     const row = page.getByRole("link", { name: NAME });
     await expect(row).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Not scored yet" })).toBeVisible();
 
     await row.click();
     await expect(page.getByRole("heading", { level: 1, name: NAME })).toBeVisible();
@@ -56,7 +55,16 @@ test.describe("Phase 1: apply and see the lead in the dashboard", () => {
       )
       .toBeGreaterThan(0);
     await expect(page.getByText("Delivered at")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Why this score" })).toHaveCount(0);
+    // Inline orchestration qualifies the lead within a second or two of delivery.
+    await expect
+      .poll(
+        async () => {
+          await page.reload();
+          return page.getByRole("heading", { name: "Why this score" }).count();
+        },
+        { timeout: 30_000, intervals: [1000, 2000, 3000] },
+      )
+      .toBeGreaterThan(0);
 
     await page.getByRole("button", { name: "Delete this lead" }).click();
     await page.getByRole("button", { name: "Delete permanently" }).click();
@@ -81,8 +89,8 @@ test.describe("Phase 1: apply and see the lead in the dashboard", () => {
   test("a failed lead shows its reason and can be re-queued", async ({ page }) => {
     await page.goto("/dashboard?status=error");
     await page.getByRole("link", { name: "Priya Nair" }).click();
-    await expect(page.getByText("llm_timeout")).toBeVisible();
-    await page.getByRole("button", { name: "Re-trigger" }).first().click();
+    await expect(page.locator(".errbox code")).toContainText("llm_timeout");
+    await page.getByRole("button", { name: "Retry", exact: true }).first().click();
     await expect(page.getByText("Queued again", { exact: false }).first()).toBeVisible();
   });
 

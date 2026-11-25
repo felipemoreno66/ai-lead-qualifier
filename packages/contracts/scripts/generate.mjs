@@ -30,6 +30,13 @@ const targets = [
   ["lead-detail.schema.json", "lead-detail.zod.ts", "leadDetailSchema"],
   ["retrigger-result.schema.json", "retrigger-result.zod.ts", "retriggerResultSchema"],
   ["workspace-summaries.schema.json", "workspace-summaries.zod.ts", "workspaceSummariesSchema"],
+  ["review-request.schema.json", "review-request.zod.ts", "reviewRequestSchema"],
+  ["review-result.schema.json", "review-result.zod.ts", "reviewResultSchema"],
+  ["agent-runs.schema.json", "agent-runs.zod.ts", "agentRunsSchema"],
+  ["metrics.schema.json", "metrics.zod.ts", "metricsSchema"],
+  ["instance-status.schema.json", "instance-status.zod.ts", "instanceStatusSchema"],
+  ["kb-chat-entry.schema.json", "kb-chat-entry.zod.ts", "kbChatEntrySchema"],
+  ["kb-chat-entries.schema.json", "kb-chat-entries.zod.ts", "kbChatEntriesSchema"],
 ];
 
 for (const [input, output, name] of targets) {

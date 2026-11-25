@@ -153,8 +153,8 @@ async def test_delete_removes_the_lead_and_everything_related(make_client, db, s
             assert n == 0
 
 
-async def submit(client, email: str = "retry@example.com") -> str:
-    response = await client.post(URL, json=body(fields={"email": email}))
+async def submit(client, email: str = "retry@example.com", **fields: str) -> str:
+    response = await client.post(URL, json=body(fields={"email": email, **fields}))
     assert response.status_code == 202
     return response.json()["reference"]
 
@@ -250,7 +250,15 @@ async def test_end_to_end_inline_delivery_after_intake(make_client):
         await client.app.state.dispatcher.run_once()
         lead_id = await lead_id_for(client, "inline@")
         detail = (await client.get(f"/admin/leads/{lead_id}", headers=AUTH)).json()
-    assert [e["type"] for e in detail["events"]] == ["submitted", "outbox_delivered"]
+    assert [e["type"] for e in detail["events"]] == [
+        "submitted",
+        "status_changed",
+        "status_changed",
+        "outbox_delivered",
+    ]
+    assert detail["status"] == "pending_review"  # graph ran inline and drafted a reply
+    assert detail["messages"][0]["status"] == "draft"
+    assert detail["score"] is not None and detail["tier"] in {"hot", "warm", "cold"}
     assert detail["outbox"][0]["status"] == "delivered"
     assert datetime.fromisoformat(detail["created_at"]).tzinfo is not None
     assert UTC

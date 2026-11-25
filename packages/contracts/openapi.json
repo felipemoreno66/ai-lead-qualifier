@@ -26,6 +26,91 @@
         "title": "AckResult",
         "type": "object"
       },
+      "AgentRunOut": {
+        "properties": {
+          "calls": {
+            "items": {
+              "$ref": "#/components/schemas/LlmCallOut"
+            },
+            "title": "Calls",
+            "type": "array"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "graph_version": {
+            "title": "Graph Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "run_number": {
+            "title": "Run Number",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total_cost_usd": {
+            "title": "Total Cost Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "run_number",
+          "status",
+          "graph_version",
+          "started_at",
+          "finished_at",
+          "duration_ms",
+          "total_cost_usd",
+          "error",
+          "calls"
+        ],
+        "title": "AgentRunOut",
+        "type": "object"
+      },
       "AnswerOut": {
         "properties": {
           "display": {
@@ -65,6 +150,249 @@
           "display"
         ],
         "title": "AnswerOut",
+        "type": "object"
+      },
+      "ApproveReview": {
+        "properties": {
+          "action": {
+            "const": "approve",
+            "title": "Action",
+            "type": "string"
+          },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ApproveReview",
+        "type": "object"
+      },
+      "CitationOut": {
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "document_path": {
+            "title": "Document Path",
+            "type": "string"
+          },
+          "document_title": {
+            "title": "Document Title",
+            "type": "string"
+          },
+          "heading_path": {
+            "title": "Heading Path",
+            "type": "string"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_path",
+          "document_title",
+          "heading_path",
+          "quote"
+        ],
+        "title": "CitationOut",
+        "type": "object"
+      },
+      "CostMetrics": {
+        "properties": {
+          "ask_questions": {
+            "title": "Ask Questions",
+            "type": "integer"
+          },
+          "ask_total_usd": {
+            "title": "Ask Total Usd",
+            "type": "number"
+          },
+          "avg_per_lead_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Per Lead Usd"
+          },
+          "budget_usd": {
+            "title": "Budget Usd",
+            "type": "number"
+          },
+          "leads_with_runs": {
+            "title": "Leads With Runs",
+            "type": "integer"
+          },
+          "lifetime_spent_usd": {
+            "title": "Lifetime Spent Usd",
+            "type": "number"
+          },
+          "llm_calls": {
+            "title": "Llm Calls",
+            "type": "integer"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "total_usd": {
+            "title": "Total Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "total_usd",
+          "avg_per_lead_usd",
+          "leads_with_runs",
+          "llm_calls",
+          "providers",
+          "ask_total_usd",
+          "ask_questions",
+          "lifetime_spent_usd",
+          "budget_usd"
+        ],
+        "title": "CostMetrics",
+        "type": "object"
+      },
+      "CriterionBreakdown": {
+        "description": "One scored criterion: what was judged, the points it earned and the evidence.",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "judgment": {
+            "enum": [
+              "met",
+              "partial",
+              "unmet"
+            ],
+            "title": "Judgment",
+            "type": "string"
+          },
+          "max_points": {
+            "title": "Max Points",
+            "type": "number"
+          },
+          "points": {
+            "title": "Points",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "judgment",
+          "points",
+          "max_points",
+          "evidence"
+        ],
+        "title": "CriterionBreakdown",
+        "type": "object"
+      },
+      "DayCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "count"
+        ],
+        "title": "DayCount",
+        "type": "object"
+      },
+      "DeliveryOut": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "status",
+          "changed"
+        ],
+        "title": "DeliveryOut",
+        "type": "object"
+      },
+      "EditReview": {
+        "description": "Edit and approve: the operator's text replaces the draft (the original is kept).",
+        "properties": {
+          "action": {
+            "const": "edit",
+            "title": "Action",
+            "type": "string"
+          },
+          "body": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "maxLength": 150,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "action",
+          "body"
+        ],
+        "title": "EditReview",
         "type": "object"
       },
       "FieldOption": {
@@ -126,6 +454,169 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InstanceStatus": {
+        "description": "What the dashboard needs to know about this deployment.",
+        "properties": {
+          "demo_mode": {
+            "title": "Demo Mode",
+            "type": "boolean"
+          },
+          "llm_provider": {
+            "title": "Llm Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "llm_provider",
+          "demo_mode"
+        ],
+        "title": "InstanceStatus",
+        "type": "object"
+      },
+      "KbAnswerOut": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationOut"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "covered": {
+            "title": "Covered",
+            "type": "boolean"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer",
+          "covered",
+          "citations"
+        ],
+        "title": "KbAnswerOut",
+        "type": "object"
+      },
+      "KbAskRequest": {
+        "properties": {
+          "language": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "question": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "KbAskRequest",
+        "type": "object"
+      },
+      "KbChatEntryOut": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationOut"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "covered": {
+            "title": "Covered",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "question",
+          "answer",
+          "covered",
+          "citations",
+          "created_at"
+        ],
+        "title": "KbChatEntryOut",
+        "type": "object"
+      },
+      "KbReindexResult": {
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "chunks": {
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "removed": {
+            "title": "Removed",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          },
+          "workspace": {
+            "title": "Workspace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "added",
+          "updated",
+          "unchanged",
+          "removed",
+          "skipped",
+          "chunks"
+        ],
+        "title": "KbReindexResult",
+        "type": "object"
+      },
       "LeadAccepted": {
         "properties": {
           "received": {
@@ -151,6 +642,13 @@
               "$ref": "#/components/schemas/AnswerOut"
             },
             "title": "Answers",
+            "type": "array"
+          },
+          "breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/CriterionBreakdown"
+            },
+            "title": "Breakdown",
             "type": "array"
           },
           "consent_at": {
@@ -216,6 +714,18 @@
             "title": "Id",
             "type": "string"
           },
+          "injection_suspected": {
+            "default": false,
+            "title": "Injection Suspected",
+            "type": "boolean"
+          },
+          "kb_answers": {
+            "items": {
+              "$ref": "#/components/schemas/KbAnswerOut"
+            },
+            "title": "Kb Answers",
+            "type": "array"
+          },
           "locale": {
             "anyOf": [
               {
@@ -226,6 +736,13 @@
               }
             ],
             "title": "Locale"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
+            },
+            "title": "Messages",
+            "type": "array"
           },
           "name": {
             "title": "Name",
@@ -272,6 +789,13 @@
               }
             ],
             "title": "Qualified At"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
           },
           "recommended_product": {
             "anyOf": [
@@ -341,6 +865,11 @@
             ],
             "title": "Tier"
           },
+          "tier_capped": {
+            "default": false,
+            "title": "Tier Capped",
+            "type": "boolean"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -374,6 +903,8 @@
           "recommended_product",
           "recommended_product_name",
           "qualification",
+          "breakdown",
+          "reasons",
           "detected_language",
           "error_reason",
           "created_at",
@@ -381,8 +912,10 @@
           "qualified_at",
           "sent_at",
           "answers",
+          "kb_answers",
           "events",
-          "outbox"
+          "outbox",
+          "messages"
         ],
         "title": "LeadDetail",
         "type": "object"
@@ -605,6 +1138,433 @@
           "group"
         ],
         "title": "LeadListItem",
+        "type": "object"
+      },
+      "LlmCallOut": {
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "node": {
+            "title": "Node",
+            "type": "string"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "node",
+          "provider",
+          "model",
+          "attempt",
+          "input_tokens",
+          "output_tokens",
+          "latency_ms",
+          "cost_usd",
+          "success",
+          "error_code",
+          "prompt_version",
+          "created_at"
+        ],
+        "title": "LlmCallOut",
+        "type": "object"
+      },
+      "MessageContent": {
+        "description": "An approved message as n8n needs it to send. Served on the private, authenticated API.",
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "deliverable": {
+            "title": "Deliverable",
+            "type": "boolean"
+          },
+          "from_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Address"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "lead_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Id"
+          },
+          "message_id_header": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id Header"
+          },
+          "recipient": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "id",
+          "deliverable",
+          "status"
+        ],
+        "title": "MessageContent",
+        "type": "object"
+      },
+      "MessageOut": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "channel_recipient": {
+            "title": "Channel Recipient",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "edited_by_operator": {
+            "title": "Edited By Operator",
+            "type": "boolean"
+          },
+          "guard_warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Guard Warnings",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "original_body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Body"
+          },
+          "review_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "short_body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Body"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "language",
+          "channel",
+          "channel_recipient",
+          "subject",
+          "body",
+          "short_body",
+          "status",
+          "edited_by_operator",
+          "original_body",
+          "review_note",
+          "guard_warnings",
+          "created_at",
+          "reviewed_at",
+          "sent_at"
+        ],
+        "title": "MessageOut",
+        "type": "object"
+      },
+      "MetricsOut": {
+        "properties": {
+          "by_status": {
+            "items": {
+              "$ref": "#/components/schemas/StatusCount"
+            },
+            "title": "By Status",
+            "type": "array"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostMetrics"
+          },
+          "first_day": {
+            "format": "date",
+            "title": "First Day",
+            "type": "string"
+          },
+          "last_day": {
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          },
+          "leads_per_day": {
+            "items": {
+              "$ref": "#/components/schemas/DayCount"
+            },
+            "title": "Leads Per Day",
+            "type": "array"
+          },
+          "score_histogram": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreBucket"
+            },
+            "title": "Score Histogram",
+            "type": "array"
+          },
+          "tier_split": {
+            "items": {
+              "$ref": "#/components/schemas/TierCount"
+            },
+            "title": "Tier Split",
+            "type": "array"
+          },
+          "tier_thresholds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierThresholds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "time_to_qualify": {
+            "$ref": "#/components/schemas/TimeToQualify"
+          },
+          "total_leads": {
+            "title": "Total Leads",
+            "type": "integer"
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace"
+          }
+        },
+        "required": [
+          "workspace",
+          "first_day",
+          "last_day",
+          "total_leads",
+          "by_status",
+          "score_histogram",
+          "tier_split",
+          "time_to_qualify",
+          "leads_per_day",
+          "cost"
+        ],
+        "title": "MetricsOut",
         "type": "object"
       },
       "OutboxEventOut": {
@@ -862,6 +1822,127 @@
         "title": "PublicWorkspaceConfig",
         "type": "object"
       },
+      "QualifyResult": {
+        "properties": {
+          "agent_run_id": {
+            "format": "uuid",
+            "title": "Agent Run Id",
+            "type": "string"
+          },
+          "error_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Reason"
+          },
+          "lead_id": {
+            "format": "uuid",
+            "title": "Lead Id",
+            "type": "string"
+          },
+          "recommended_product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended Product"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          }
+        },
+        "required": [
+          "lead_id",
+          "agent_run_id",
+          "status"
+        ],
+        "title": "QualifyResult",
+        "type": "object"
+      },
+      "RegenerateReview": {
+        "properties": {
+          "action": {
+            "const": "regenerate",
+            "title": "Action",
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "RegenerateReview",
+        "type": "object"
+      },
+      "RejectReview": {
+        "properties": {
+          "action": {
+            "const": "reject",
+            "title": "Action",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "RejectReview",
+        "type": "object"
+      },
       "RetriggerResult": {
         "properties": {
           "attempt": {
@@ -879,6 +1960,243 @@
           "attempt"
         ],
         "title": "RetriggerResult",
+        "type": "object"
+      },
+      "ReviewResult": {
+        "properties": {
+          "error_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Reason"
+          },
+          "lead_id": {
+            "format": "uuid",
+            "title": "Lead Id",
+            "type": "string"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lead_id",
+          "status",
+          "message_id"
+        ],
+        "title": "ReviewResult",
+        "type": "object"
+      },
+      "ScoreBucket": {
+        "description": "Leads scoring ``min_score..max_score``, split by the tier stored on each lead.",
+        "properties": {
+          "cold": {
+            "title": "Cold",
+            "type": "integer"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "hot": {
+            "title": "Hot",
+            "type": "integer"
+          },
+          "max_score": {
+            "title": "Max Score",
+            "type": "integer"
+          },
+          "min_score": {
+            "title": "Min Score",
+            "type": "integer"
+          },
+          "warm": {
+            "title": "Warm",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min_score",
+          "max_score",
+          "count",
+          "hot",
+          "warm",
+          "cold"
+        ],
+        "title": "ScoreBucket",
+        "type": "object"
+      },
+      "SendFailedCallback": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id"
+        ],
+        "title": "SendFailedCallback",
+        "type": "object"
+      },
+      "SentCallback": {
+        "properties": {
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "provider_message_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Message Id"
+          }
+        },
+        "required": [
+          "message_id"
+        ],
+        "title": "SentCallback",
+        "type": "object"
+      },
+      "StatusCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "count"
+        ],
+        "title": "StatusCount",
+        "type": "object"
+      },
+      "TierCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "tier": {
+            "enum": [
+              "hot",
+              "warm",
+              "cold",
+              "unscored"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tier",
+          "count"
+        ],
+        "title": "TierCount",
+        "type": "object"
+      },
+      "TierThresholds": {
+        "properties": {
+          "hot_min": {
+            "title": "Hot Min",
+            "type": "integer"
+          },
+          "warm_min": {
+            "title": "Warm Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hot_min",
+          "warm_min"
+        ],
+        "title": "TierThresholds",
+        "type": "object"
+      },
+      "TimeToQualify": {
+        "description": "Seconds from application to the first qualification (``qualified_at - created_at``).",
+        "properties": {
+          "avg_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Seconds"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "p50_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Seconds"
+          },
+          "p90_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P90 Seconds"
+          }
+        },
+        "required": [
+          "count",
+          "avg_seconds",
+          "p50_seconds",
+          "p90_seconds"
+        ],
+        "title": "TimeToQualify",
         "type": "object"
       },
       "ValidationError": {
@@ -970,6 +2288,218 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/kb/{slug}/ask": {
+      "post": {
+        "description": "Answer one question from the workspace's documents, with sources or \"not covered\".",
+        "operationId": "ask_knowledge_base_admin_kb__slug__ask_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KbAskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KbChatEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ask Knowledge Base",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/kb/{slug}/queries": {
+      "get": {
+        "operationId": "recent_kb_queries_admin_kb__slug__queries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/KbChatEntryOut"
+                  },
+                  "title": "Response Recent Kb Queries Admin Kb  Slug  Queries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recent Kb Queries",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/kb/{slug}/reindex": {
+      "post": {
+        "description": "Re-read the workspace's Markdown files; unchanged documents are skipped unless forced.",
+        "operationId": "reindex_knowledge_base_admin_kb__slug__reindex_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KbReindexResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reindex Knowledge Base",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/leads": {
       "get": {
         "operationId": "list_leads_admin_leads_get",
@@ -1327,6 +2857,265 @@
         ]
       }
     },
+    "/admin/leads/{lead_id}/review": {
+      "post": {
+        "description": "Approve, edit, reject or regenerate the pending draft. 409 when the lead is not in review.",
+        "operationId": "review_lead_admin_leads__lead_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lead_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lead Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "approve": "#/components/schemas/ApproveReview",
+                    "edit": "#/components/schemas/EditReview",
+                    "regenerate": "#/components/schemas/RegenerateReview",
+                    "reject": "#/components/schemas/RejectReview"
+                  },
+                  "propertyName": "action"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ApproveReview"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EditReview"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RejectReview"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RegenerateReview"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Lead",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/leads/{lead_id}/runs": {
+      "get": {
+        "description": "Agent runs of a lead with their model calls (tokens, latency, cost, prompt version).",
+        "operationId": "lead_runs_admin_leads__lead_id__runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lead_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lead Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentRunOut"
+                  },
+                  "title": "Response Lead Runs Admin Leads  Lead Id  Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lead Runs",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/metrics": {
+      "get": {
+        "description": "Counts, score distribution, time to qualify, spend and leads per day for a UTC day range\n(default: the last 30 days).",
+        "operationId": "metrics_admin_metrics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metrics",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/outbox": {
       "get": {
         "operationId": "list_outbox_admin_outbox_get",
@@ -1397,6 +3186,55 @@
           }
         },
         "summary": "List Outbox",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/status": {
+      "get": {
+        "operationId": "instance_status_admin_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Instance Status",
         "tags": [
           "admin"
         ]
@@ -1618,6 +3456,328 @@
           }
         },
         "summary": "Ack Event",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/leads/{lead_id}/qualify": {
+      "post": {
+        "description": "Run the qualification graph. A failed run answers 200 with ``status: error``.",
+        "operationId": "qualify_lead_internal_leads__lead_id__qualify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lead_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lead Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualifyResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Qualify Lead",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/messages/{message_id}/claim": {
+      "post": {
+        "description": "Hand an approved message to n8n for sending and mark it ``sending`` so it is sent once.",
+        "operationId": "claim_message_internal_messages__message_id__claim_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageContent"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Message",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/messages/{message_id}/send-failed": {
+      "post": {
+        "operationId": "message_send_failed_internal_messages__message_id__send_failed_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-timestamp",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Timestamp"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-signature",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Signature"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendFailedCallback"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Message Send Failed",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/messages/{message_id}/sent": {
+      "post": {
+        "operationId": "message_sent_internal_messages__message_id__sent_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-timestamp",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Timestamp"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-signature",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Signature"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SentCallback"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Message Sent",
         "tags": [
           "internal"
         ]

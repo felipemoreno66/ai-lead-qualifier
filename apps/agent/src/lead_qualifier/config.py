@@ -16,7 +16,9 @@ KNOWN_DEFAULT_PREFIX = "local-dev-"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", case_sensitive=False, env_ignore_empty=True
+    )
 
     app_env: Literal["local", "test", "production"] = "local"
     log_level: str = "INFO"
@@ -55,20 +57,60 @@ class Settings(BaseSettings):
     max_body_bytes: int = Field(default=16 * 1024, ge=1024)
     duplicate_window_minutes: int = Field(default=10, ge=0)
 
+    smtp_host: str = "localhost"
+    smtp_port: int = Field(default=1025, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_starttls: bool = False
+    smtp_ssl: bool = False
+    send_max_attempts: int = Field(default=3, ge=1)
+    send_stale_minutes: int = Field(default=15, ge=1)
+
+    # Load the fictional Northwind demo data on first start (``demo_init``); never in production.
+    demo_seed: bool = False
     llm_provider: Literal["fake", "anthropic", "bedrock", "openai"] = "fake"
     llm_model_default: str = "claude-haiku-5-5"
     llm_model_draft: str = ""
     llm_budget_usd: float = Field(default=5.0, ge=0)
+    agent_run_timeout_minutes: int = Field(default=10, ge=1)
+    qualify_max_runs_per_day: int = Field(default=5, ge=1)
     llm_calls_retention_days: int = Field(default=30, ge=1)
     llm_max_calls_per_lead: int = Field(default=12, ge=1)
     anthropic_api_key: SecretStr = SecretStr("")
     openai_api_key: SecretStr = SecretStr("")
     aws_region: str = "us-east-1"
 
+    embeddings_provider: Literal["fastembed", "openai", "fake"] = "fastembed"
+    embeddings_cache_dir: Path = Path(".cache/fastembed")
+    embeddings_warm_on_startup: bool = False
+    kb_reindex_timeout_seconds: float = Field(default=900.0, gt=0)
+    kb_queries_retention_days: int = Field(default=30, ge=1)
+    kb_ask_per_hour: int = Field(default=60, ge=1)
+    kb_top_k: int = Field(default=5, ge=1, le=20)
+    # None = the embedding model's own default (``Embeddings.default_min_similarity``).
+    kb_min_similarity: float | None = Field(default=None, ge=0, le=1)
+
     @field_validator("enabled_workspaces", "trusted_proxies", mode="before")
     @classmethod
     def _strip(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _smtp_credentials_need_tls(self) -> Settings:
+        if self.smtp_username and not (self.smtp_starttls or self.smtp_ssl):
+            raise ValueError(
+                "SMTP_USERNAME is set but neither SMTP_STARTTLS nor SMTP_SSL is on: "
+                "credentials would cross the network in clear text"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _demo_fake_embeddings_threshold(self) -> Settings:
+        # Offline demo embeddings score lower than a real model's: without this,
+        # DEMO_EMBEDDINGS=fake alone would leave every question "not covered".
+        if self.demo_seed and self.embeddings_provider == "fake" and self.kb_min_similarity is None:
+            object.__setattr__(self, "kb_min_similarity", 0.1)
+        return self
 
     @model_validator(mode="after")
     def _fill_or_require_secrets(self) -> Settings:

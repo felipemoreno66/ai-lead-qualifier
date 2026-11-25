@@ -1,0 +1,45 @@
+"""Optional OpenAI embeddings (text-embedding-3-small, shortened to 384 dimensions).
+
+Not used by default and never called by the test suite.
+"""
+
+from __future__ import annotations
+
+import httpx
+
+from lead_qualifier.ports.embeddings import EMBEDDING_DIMENSION
+
+OPENAI_MODEL = "text-embedding-3-small"
+OPENAI_MODEL_ID = f"openai/{OPENAI_MODEL}@{EMBEDDING_DIMENSION}"
+OPENAI_URL = "https://api.openai.com/v1/embeddings"
+
+
+class OpenAIEmbeddings:
+    model_id = OPENAI_MODEL_ID
+    dimension = EMBEDDING_DIMENSION
+    max_chunk_tokens = 500  # the API accepts up to 8,191 tokens per input
+    chunk_overlap_tokens = 50
+    default_min_similarity = 0.3  # not swept: re-run the RAG eval before relying on it
+
+    def __init__(self, api_key: str, *, timeout: float = 30.0) -> None:
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY is required when EMBEDDINGS_PROVIDER=openai")
+        self._api_key = api_key
+        self._timeout = timeout
+
+    def warm(self) -> None:
+        return None
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        response = httpx.post(
+            OPENAI_URL,
+            headers={"Authorization": f"Bearer {self._api_key}"},
+            json={"model": OPENAI_MODEL, "input": texts, "dimensions": self.dimension},
+            timeout=self._timeout,
+            follow_redirects=False,
+        )
+        response.raise_for_status()
+        rows = sorted(response.json()["data"], key=lambda r: r["index"])
+        return [[float(x) for x in r["embedding"]] for r in rows]

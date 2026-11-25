@@ -19,11 +19,13 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from lead_qualifier.config import Settings, get_settings
 from lead_qualifier.infrastructure.db.engine import create_engine
 from lead_qualifier.infrastructure.db.repositories import LeadRepository, OutboxRepository
+from lead_qualifier.infrastructure.db.tables import leads as leads_table
 from lead_qualifier.ports.clock import Clock, SystemClock
 from lead_qualifier.services.workspace_sync import sync_workspaces
 from lead_qualifier.workspaces.loader import WorkspaceRegistry, load_workspaces
@@ -71,6 +73,7 @@ async def seed(
     clock: Clock,
     ip_hash_secret: str,
     seed_file: Path = DEFAULT_SEED_FILE,
+    reset: bool = False,
 ) -> SeedResult:
     _guard(workspace, app_env)
     loaded = registry.get(workspace)
@@ -83,6 +86,13 @@ async def seed(
         raise SeedRefused("The seed file does not belong to the demo workspace.")
 
     await sync_workspaces(engine, registry, clock)
+    if reset:  # restore the fictional leads to their seeded state (they are demo data only)
+        async with engine.begin() as conn:
+            await conn.execute(
+                delete(leads_table).where(
+                    leads_table.c.reference.in_([e["reference"] for e in data["leads"]])
+                )
+            )
     now = clock.now()
     created = skipped = 0
     for entry in data["leads"]:
@@ -151,7 +161,7 @@ async def seed(
     return SeedResult(created, skipped)
 
 
-async def _run(settings: Settings, workspace: str) -> SeedResult:
+async def _run(settings: Settings, workspace: str, *, reset: bool = False) -> SeedResult:
     registry = load_workspaces(
         settings.workspaces_dir, app_env=settings.app_env, enabled=settings.enabled_workspace_slugs
     )
@@ -164,6 +174,7 @@ async def _run(settings: Settings, workspace: str) -> SeedResult:
             app_env=settings.app_env,
             clock=SystemClock(),
             ip_hash_secret=settings.ip_hash_secret,
+            reset=reset,
         )
     finally:
         await engine.dispose()
@@ -172,9 +183,12 @@ async def _run(settings: Settings, workspace: str) -> SeedResult:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", default=DEMO_WORKSPACE)
+    parser.add_argument(
+        "--reset", action="store_true", help="recreate the seeded leads in their original state"
+    )
     args = parser.parse_args()
     try:
-        result = asyncio.run(_run(get_settings(), args.workspace))
+        result = asyncio.run(_run(get_settings(), args.workspace, reset=args.reset))
     except SeedRefused as exc:
         raise SystemExit(f"seed: {exc}") from None
     print(f"seed: created {result.created}, already present {result.skipped}")

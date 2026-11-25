@@ -41,6 +41,115 @@
       "title": "AnswerOut",
       "type": "object"
     },
+    "CitationOut": {
+      "properties": {
+        "chunk_id": {
+          "format": "uuid",
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "document_path": {
+          "title": "Document Path",
+          "type": "string"
+        },
+        "document_title": {
+          "title": "Document Title",
+          "type": "string"
+        },
+        "heading_path": {
+          "title": "Heading Path",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "document_path",
+        "document_title",
+        "heading_path",
+        "quote"
+      ],
+      "title": "CitationOut",
+      "type": "object"
+    },
+    "CriterionBreakdown": {
+      "description": "One scored criterion: what was judged, the points it earned and the evidence.",
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "judgment": {
+          "enum": [
+            "met",
+            "partial",
+            "unmet"
+          ],
+          "title": "Judgment",
+          "type": "string"
+        },
+        "max_points": {
+          "title": "Max Points",
+          "type": "number"
+        },
+        "points": {
+          "title": "Points",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "judgment",
+        "points",
+        "max_points",
+        "evidence"
+      ],
+      "title": "CriterionBreakdown",
+      "type": "object"
+    },
+    "KbAnswerOut": {
+      "properties": {
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/CitationOut"
+          },
+          "title": "Citations",
+          "type": "array"
+        },
+        "covered": {
+          "title": "Covered",
+          "type": "boolean"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question",
+        "answer",
+        "covered",
+        "citations"
+      ],
+      "title": "KbAnswerOut",
+      "type": "object"
+    },
     "LeadEventOut": {
       "properties": {
         "actor": {
@@ -99,6 +208,143 @@
         "created_at"
       ],
       "title": "LeadEventOut",
+      "type": "object"
+    },
+    "MessageOut": {
+      "properties": {
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "channel": {
+          "title": "Channel",
+          "type": "string"
+        },
+        "channel_recipient": {
+          "title": "Channel Recipient",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "edited_by_operator": {
+          "title": "Edited By Operator",
+          "type": "boolean"
+        },
+        "guard_warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Guard Warnings",
+          "type": "array"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "original_body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Original Body"
+        },
+        "review_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Review Note"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reviewed At"
+        },
+        "sent_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sent At"
+        },
+        "short_body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Short Body"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Subject"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "language",
+        "channel",
+        "channel_recipient",
+        "subject",
+        "body",
+        "short_body",
+        "status",
+        "edited_by_operator",
+        "original_body",
+        "review_note",
+        "guard_warnings",
+        "created_at",
+        "reviewed_at",
+        "sent_at"
+      ],
+      "title": "MessageOut",
       "type": "object"
     },
     "OutboxEventOut": {
@@ -189,6 +435,13 @@
       "title": "Answers",
       "type": "array"
     },
+    "breakdown": {
+      "items": {
+        "$ref": "#/$defs/CriterionBreakdown"
+      },
+      "title": "Breakdown",
+      "type": "array"
+    },
     "consent_at": {
       "format": "date-time",
       "title": "Consent At",
@@ -252,6 +505,18 @@
       "title": "Id",
       "type": "string"
     },
+    "injection_suspected": {
+      "default": false,
+      "title": "Injection Suspected",
+      "type": "boolean"
+    },
+    "kb_answers": {
+      "items": {
+        "$ref": "#/$defs/KbAnswerOut"
+      },
+      "title": "Kb Answers",
+      "type": "array"
+    },
     "locale": {
       "anyOf": [
         {
@@ -262,6 +527,13 @@
         }
       ],
       "title": "Locale"
+    },
+    "messages": {
+      "items": {
+        "$ref": "#/$defs/MessageOut"
+      },
+      "title": "Messages",
+      "type": "array"
     },
     "name": {
       "title": "Name",
@@ -308,6 +580,13 @@
         }
       ],
       "title": "Qualified At"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
     },
     "recommended_product": {
       "anyOf": [
@@ -377,6 +656,11 @@
       ],
       "title": "Tier"
     },
+    "tier_capped": {
+      "default": false,
+      "title": "Tier Capped",
+      "type": "boolean"
+    },
     "updated_at": {
       "format": "date-time",
       "title": "Updated At",
@@ -410,6 +694,8 @@
     "recommended_product",
     "recommended_product_name",
     "qualification",
+    "breakdown",
+    "reasons",
     "detected_language",
     "error_reason",
     "created_at",
@@ -417,8 +703,10 @@
     "qualified_at",
     "sent_at",
     "answers",
+    "kb_answers",
     "events",
-    "outbox"
+    "outbox",
+    "messages"
   ],
   "title": "LeadDetail",
   "type": "object"

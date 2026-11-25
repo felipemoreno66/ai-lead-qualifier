@@ -154,6 +154,8 @@ describe("BFF routes in production", () => {
     const one = await import("@/app/bff/leads/[id]/route");
     const re = await import("@/app/bff/leads/[id]/retrigger/route");
     const ws = await import("@/app/bff/workspaces/route");
+    const review = await import("@/app/bff/leads/[id]/review/route");
+    const runs = await import("@/app/bff/leads/[id]/runs/route");
     const bare = new Request("http://web/bff/leads");
     const withNext = Object.assign(bare, { nextUrl: new URL(bare.url) }) as never;
     const mutate = { "x-requested-with": "lead-qualifier" };
@@ -163,8 +165,13 @@ describe("BFF routes in production", () => {
       await one.DELETE(new Request(`http://web/bff/leads/${id}`, { method: "DELETE", headers: mutate }), ctx),
       await re.POST(new Request(`http://web/bff/leads/${id}/retrigger`, { method: "POST", headers: mutate }), ctx),
       await ws.GET(new Request("http://web/bff/workspaces")),
+      await review.POST(
+        new Request(`http://web/bff/leads/${id}/review`, { method: "POST", headers: mutate, body: "{}" }),
+        ctx,
+      ),
+      await runs.GET(new Request(`http://web/bff/leads/${id}/runs`), ctx),
     ];
-    expect(responses.map((r) => r.status)).toEqual([401, 401, 401, 401, 401]);
+    expect(responses.map((r) => r.status)).toEqual([401, 401, 401, 401, 401, 401, 401]);
     expect(fetchSpy).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });

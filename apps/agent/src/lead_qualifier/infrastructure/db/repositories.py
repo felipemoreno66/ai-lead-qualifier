@@ -13,11 +13,16 @@ from sqlalchemy import Select, and_, case, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from lead_qualifier.agent.models import AnswerResult
 from lead_qualifier.domain.errors import Conflict
 from lead_qualifier.domain.lead import LeadStatus
 from lead_qualifier.infrastructure.db.tables import (
+    agent_runs,
+    answer_citations,
+    lead_answers,
     lead_events,
     leads,
+    llm_calls,
     outbox_events,
     rate_limit_hits,
     workspaces,
@@ -166,6 +171,29 @@ class LeadRepository:
             .order_by(lead_events.c.created_at, lead_events.c.id)
         )
         return [_row(r) for r in (await self.conn.execute(stmt)).mappings()]
+
+    async def runs_with_calls(self, lead_id: uuid.UUID) -> list[Row]:
+        """Runs of a lead, oldest first, each with its model calls under ``calls``."""
+        runs = [
+            _row(r)
+            for r in (
+                await self.conn.execute(
+                    select(agent_runs)
+                    .where(agent_runs.c.lead_id == lead_id)
+                    .order_by(agent_runs.c.run_number)
+                )
+            ).mappings()
+        ]
+        calls: dict[uuid.UUID, list[Row]] = {r["id"]: [] for r in runs}
+        if runs:
+            stmt = (
+                select(llm_calls)
+                .where(llm_calls.c.agent_run_id.in_(calls))
+                .order_by(llm_calls.c.created_at, llm_calls.c.id)
+            )
+            for call in (await self.conn.execute(stmt)).mappings():
+                calls[call["agent_run_id"]].append(_row(call))
+        return [{**r, "calls": calls[r["id"]]} for r in runs]
 
     async def counts_by_workspace(self) -> dict[str, dict[str, int]]:
         stmt = select(leads.c.workspace_slug, leads.c.status, func.count()).group_by(
@@ -435,3 +463,81 @@ __all__ = [
     "StatusConflict",
     "WorkspaceRepository",
 ]
+
+
+class AnswerRepository:
+    """Answers to a lead's questions with their citations."""
+
+    def __init__(self, conn: AsyncConnection) -> None:
+        self.conn = conn
+
+    async def replace_for_lead(
+        self,
+        lead_id: uuid.UUID,
+        run_id: uuid.UUID,
+        answers: Sequence[AnswerResult],
+        now: datetime,
+    ) -> None:
+        """The latest run's answers replace the earlier ones (a re-run answers afresh)."""
+        await self.conn.execute(delete(lead_answers).where(lead_answers.c.lead_id == lead_id))
+        for position, item in enumerate(answers):
+            answer_id = (
+                await self.conn.execute(
+                    lead_answers.insert()
+                    .values(
+                        lead_id=lead_id,
+                        agent_run_id=run_id,
+                        position=position,
+                        question=item.question,
+                        answer=item.answer,
+                        covered=item.covered,
+                        created_at=now,
+                    )
+                    .returning(lead_answers.c.id)
+                )
+            ).scalar_one()
+            if item.citations:
+                await self.conn.execute(
+                    answer_citations.insert(),
+                    [
+                        {
+                            "answer_id": answer_id,
+                            "position": i,
+                            "chunk_id": uuid.UUID(c.chunk_id),
+                            "document_path": c.document_path,
+                            "document_title": c.document_title,
+                            "heading_path": c.heading_path,
+                            "quote": c.quote,
+                        }
+                        for i, c in enumerate(item.citations)
+                    ],
+                )
+
+    async def for_lead(self, lead_id: uuid.UUID) -> list[Row]:
+        """Answers in question order, each with its ``citations`` list."""
+        rows = (
+            (
+                await self.conn.execute(
+                    select(lead_answers)
+                    .where(lead_answers.c.lead_id == lead_id)
+                    .order_by(lead_answers.c.position)
+                )
+            )
+            .mappings()
+            .all()
+        )
+        out: list[Row] = []
+        for row in rows:
+            cites = (
+                (
+                    await self.conn.execute(
+                        select(answer_citations)
+                        .where(answer_citations.c.answer_id == row["id"])
+                        .order_by(answer_citations.c.position)
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            out.append({**row, "citations": [dict(c) for c in cites]})
+        return out

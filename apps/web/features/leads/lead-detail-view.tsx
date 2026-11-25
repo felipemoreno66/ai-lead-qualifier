@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, RotateCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { z } from "zod";
-import { StatusBadge, TierLabel } from "@/components/status-badge";
+import { useState } from "react";
+import { StatusBadge } from "@/components/status-badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,24 +19,22 @@ import {
 import { bffMutate } from "@/lib/api/client";
 import type { LeadDetail } from "@/lib/api/schemas";
 import { countryName, formatDateTime, formatDateTimeUtc } from "@/lib/format";
-import { describeEvent, humanize } from "./event-text";
+import { deliveredMessage, earlierVersions, errorSummary, pendingDraft, profileSummary } from "@/lib/leads/review";
+import { DraftReview, EarlierDrafts, MessageLetter } from "./draft-review";
+import { describeEvent } from "./event-text";
+import { QualificationCard, QualificationSummary } from "./qualification-card";
+import { RunsLog } from "./runs-log";
 import { fetchLead, leadKey } from "./queries";
 
-const qualificationSchema = z.object({
-  criteria: z.array(
-    z.object({ id: z.string(), judgment: z.string(), evidence: z.string() }),
-  ),
-});
-
-const JUDGMENT: Record<string, string> = {
-  met: "Met",
-  partial: "Partial",
-  unmet: "Not met",
-  unknown: "Unknown",
-};
+const IN_FLIGHT = new Set(["new", "qualifying", "approved"]);
 
 export function LeadDetailView({ id }: { id: string }) {
-  const query = useQuery({ queryKey: leadKey(id), queryFn: () => fetchLead(id) });
+  const query = useQuery({
+    queryKey: leadKey(id),
+    queryFn: () => fetchLead(id),
+    // The agent works in the background: follow the lead until it settles on a status that waits for a person.
+    refetchInterval: (q) => (q.state.data && IN_FLIGHT.has(q.state.data.status) ? 2000 : false),
+  });
   if (query.isError)
     return (
       <section className="errbox" role="alert">
@@ -83,7 +81,11 @@ function Detail({ lead }: { lead: LeadDetail }) {
   const lastOutbox = lead.outbox.at(-1);
   const orchestrationDead = lead.status === "new" && lastOutbox?.status === "dead";
   const canRetrigger = lead.status === "new" || lead.status === "error";
-  const parsedQualification = qualificationSchema.safeParse(lead.qualification);
+  const [notice, setNotice] = useState("");
+  const story = profileSummary(lead.qualification);
+  const draft = lead.status === "pending_review" ? pendingDraft(lead.messages) : undefined;
+  const letter = draft ? undefined : deliveredMessage(lead.messages);
+  const earlier = earlierVersions(lead.messages, draft ?? letter);
 
   return (
     <>
@@ -103,15 +105,26 @@ function Detail({ lead }: { lead: LeadDetail }) {
       </p>
 
       {lead.status === "error" && (
-        <section className="errbox" role="alert" style={{ marginBottom: 32 }}>
+        <section className="errbox" role="alert">
           <AlertTriangle className="ic" aria-hidden="true" />
           <div>
-            <h2>Something went wrong with this lead</h2>
-            <p>
-              {lead.error_reason ? <code>{lead.error_reason}</code> : "No reason was recorded."}
-            </p>
-            <p>Nothing was sent to the applicant. Retry to queue the lead again.</p>
-            <RetriggerButton pending={retrigger.isPending} onClick={() => retrigger.mutate()} primary />
+            <h2>{errorSummary(lead.error_reason).headline}</h2>
+            <p>{errorSummary(lead.error_reason).sentence}</p>
+            {lead.error_reason && (
+              <p className="reason">
+                Reason code: <code>{lead.error_reason}</code>
+              </p>
+            )}
+            <p>Retrying starts a new run. Earlier runs stay in the log.</p>
+            <div className="actions">
+              <RetriggerButton pending={retrigger.isPending} onClick={() => retrigger.mutate()} primary />
+              <a className="btn" href="#runlog">
+                See run log
+              </a>
+              <Link className="btn" href="/dashboard">
+                Back to leads
+              </Link>
+            </div>
             <MutationStatus mutation={retrigger} done="Queued again. It should be picked up within seconds." />
           </div>
         </section>
@@ -125,7 +138,7 @@ function Detail({ lead }: { lead: LeadDetail }) {
             <p>
               The new-lead event could not be delivered after {lastOutbox?.attempts} attempts
               {lastOutbox?.last_error ? ` (${lastOutbox.last_error})` : ""}. The application is
-              safe; re-trigger once the orchestrator is back.
+              safe; retry once the orchestrator is back.
             </p>
             <RetriggerButton pending={retrigger.isPending} onClick={() => retrigger.mutate()} primary />
             <MutationStatus mutation={retrigger} done="Queued again. It should be picked up within seconds." />
@@ -133,7 +146,20 @@ function Detail({ lead }: { lead: LeadDetail }) {
         </section>
       )}
 
-      <section className="section" aria-labelledby="app-h" style={{ marginTop: 0 }}>
+      {story && (
+        <p className="story">
+          Their goal, in short: {story.goal}
+          {story.questions.length > 0 && <> They asked: {story.questions.map((q) => `\u201C${q}\u201D`).join(" ")}</>}
+        </p>
+      )}
+      <p className="status-line ok" role="status" aria-live="polite">
+        {notice}
+      </p>
+      {draft && <QualificationSummary lead={lead} />}
+      {draft && <DraftReview key={draft.id} lead={lead} message={draft} announce={setNotice} />}
+      {letter && <MessageLetter lead={lead} message={letter} />}
+
+      <section className="section" aria-labelledby="app-h">
         <h2 id="app-h">Application</h2>
         <div className="panel">
           <dl className="kv">
@@ -147,36 +173,9 @@ function Detail({ lead }: { lead: LeadDetail }) {
         </div>
       </section>
 
-      {lead.score !== null && (
-        <section className="why" aria-labelledby="why-h">
-          <h2 id="why-h">Why this score</h2>
-          <div className="verdict">
-            <p className="bignum num">{lead.score}</p>
-            <p>
-              out of 100. <TierLabel tier={lead.tier} />.
-              {lead.recommended_product_name && (
-                <>
-                  {" "}
-                  The assistant recommends the <b>{lead.recommended_product_name}</b>.
-                </>
-              )}
-            </p>
-          </div>
-          {parsedQualification.success && (
-            <ol className="criteria">
-              {parsedQualification.data.criteria.map((c) => (
-                <li className={`crit c-${c.judgment}`} key={c.id}>
-                  <div className="crit-h">
-                    <span className="crit-n">{humanize(c.id)}</span>
-                    <span className="crit-l">{JUDGMENT[c.judgment] ?? c.judgment}</span>
-                  </div>
-                  <p>{c.evidence}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-      )}
+      <QualificationCard lead={lead} />
+      <EarlierDrafts messages={earlier} />
+      <RunsLog leadId={lead.id} />
 
       <section className="section" aria-labelledby="timeline-h">
         <h2 id="timeline-h">Timeline</h2>
@@ -188,6 +187,36 @@ function Detail({ lead }: { lead: LeadDetail }) {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section className="section" aria-labelledby="privacy-h">
+        <h2 id="privacy-h">Consent and data</h2>
+        <div className="panel">
+          <p style={{ margin: "0 0 16px" }}>
+            The applicant accepted privacy notice version <b>{lead.consent_notice_version}</b> on{" "}
+            {formatDateTimeUtc(lead.consent_at)}. Source: {lead.source.replace("_", " ")}.
+          </p>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="btn danger" type="button">
+                <Trash2 className="ic" aria-hidden="true" />
+                Delete this lead
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogTitle>Delete {lead.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently removes the application, its timeline and queued events. It cannot
+                be undone.
+              </AlertDialogDescription>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep lead</AlertDialogCancel>
+                <AlertDialogAction onClick={() => remove.mutate()}>Delete permanently</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <MutationStatus mutation={remove} done="Deleted." />
+        </div>
       </section>
 
       <section className="section" aria-labelledby="orch-h">
@@ -222,36 +251,6 @@ function Detail({ lead }: { lead: LeadDetail }) {
           )}
         </div>
       </section>
-
-      <section className="section" aria-labelledby="privacy-h">
-        <h2 id="privacy-h">Consent and data</h2>
-        <div className="panel">
-          <p style={{ margin: "0 0 16px" }}>
-            The applicant accepted privacy notice version <b>{lead.consent_notice_version}</b> on{" "}
-            {formatDateTimeUtc(lead.consent_at)}. Source: {lead.source.replace("_", " ")}.
-          </p>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button className="btn danger" type="button">
-                <Trash2 className="ic" aria-hidden="true" />
-                Delete this lead
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogTitle>Delete {lead.name}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This permanently removes the application, its timeline and queued events. It cannot
-                be undone.
-              </AlertDialogDescription>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep lead</AlertDialogCancel>
-                <AlertDialogAction onClick={() => remove.mutate()}>Delete permanently</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <MutationStatus mutation={remove} done="Deleted." />
-        </div>
-      </section>
     </>
   );
 }
@@ -268,7 +267,7 @@ function RetriggerButton({
   return (
     <button className={`btn${primary ? " primary" : ""}`} type="button" disabled={pending} onClick={onClick}>
       <RotateCcw className="ic" aria-hidden="true" />
-      {pending ? "Queuing" : "Re-trigger"}
+      {pending ? "Queuing" : "Retry"}
     </button>
   );
 }

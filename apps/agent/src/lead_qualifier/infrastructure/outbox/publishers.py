@@ -6,10 +6,13 @@ import hashlib
 import hmac
 import json
 import time
+import uuid
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
 
+from lead_qualifier.domain.errors import Conflict, NotFound
 from lead_qualifier.logging import get_logger
 from lead_qualifier.ports.events import AuthRejectedError, PermanentPublishError, PublishError
 
@@ -21,9 +24,15 @@ WEBHOOK_PATHS = {"lead.created": "lead-created", "message.approved": "message-ap
 PERMANENT_STATUSES = frozenset({400, 403, 404, 410, 422})
 
 
-def sign(body: bytes, secret: str, timestamp: str = "") -> str:
-    """HMAC-SHA256 over ``"<timestamp>."`` + raw body (just the body when no timestamp)."""
-    payload = f"{timestamp}.".encode() + body if timestamp else body
+def sign(body: bytes, secret: str, timestamp: str = "", *, method: str = "", path: str = "") -> str:
+    """HMAC-SHA256 over ``"<timestamp>.<METHOD> <path>."`` + raw body.
+
+    Binding the method and path stops a signed request from being replayed against another
+    endpoint or message id. Without ``path`` the older ``"<timestamp>."`` + body form is used."""
+    prefix = f"{timestamp}." if timestamp else ""
+    if path:
+        prefix += f"{method.upper()} {path}."
+    payload = prefix.encode() + body
     return "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
@@ -55,7 +64,9 @@ class N8nPublisher:
                     "Content-Type": "application/json",
                     "X-Event-ID": event["event_id"],
                     "X-Timestamp": timestamp,
-                    "X-Signature": sign(body, self.secret, timestamp),
+                    "X-Signature": sign(
+                        body, self.secret, timestamp, method="POST", path=f"/webhook/{path}"
+                    ),
                 },
             )
         except httpx.HTTPError as exc:
@@ -74,7 +85,31 @@ class N8nPublisher:
 
 
 class InlinePublisher:
-    """Inline orchestration: nothing external to call. Phase 1 only logs the event."""
+    """Inline orchestration: ``lead.created`` runs the qualification graph in-process and
+    ``message.approved`` sends the email in-process.
+
+    A lead that is no longer qualifiable (already processed, or deleted) is not an error: the
+    event is simply done, which keeps redelivery idempotent. A failed graph run is recorded on the
+    lead (``error``, retryable) and does not fail the event.
+    """
+
+    def __init__(
+        self,
+        qualify: Callable[[uuid.UUID], Awaitable[object]] | None = None,
+        deliver: Callable[[uuid.UUID], Awaitable[object]] | None = None,
+    ) -> None:
+        self._qualify = qualify
+        self._deliver = deliver
 
     async def publish(self, event: dict[str, Any]) -> None:
         log.info("inline_event", event_id=event["event_id"], event_type=event["event_type"])
+        if event["event_type"] == "message.approved" and self._deliver is not None:
+            # Sending is idempotent: a sent message makes a redelivered event a no-op.
+            await self._deliver(uuid.UUID(event["message"]["id"]))
+            return
+        if event["event_type"] != "lead.created" or self._qualify is None:
+            return
+        try:
+            await self._qualify(uuid.UUID(event["lead"]["id"]))
+        except (Conflict, NotFound) as exc:
+            log.info("inline_qualify_skipped", reason=exc.detail)
