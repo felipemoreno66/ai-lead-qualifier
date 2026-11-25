@@ -695,13 +695,13 @@ Jobs (parallel where possible, cached uv/pnpm):
 5. **e2e** (needs 1–2): `docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build --wait` (inline mode, fake provider) → seed → `playwright test` → upload trace/screenshots on failure → `docker compose down -v`.
 6. **docker**: build images (agent, web) to ensure Dockerfiles work (part of e2e job to save minutes).
 
-Branch flow: `main` protected; one PR per phase from `feat/phase-N-*`; Conventional Commits.
+Branch flow: `main` protected; several small PRs per phase (~one per milestone), squash-merged by David; a branch is stacked on the previous one only if that one is not merged yet; Conventional Commits.
 
 ---
 
 ## 11. Milestones
 
-One PR per phase. Each milestone = a few Conventional Commits, ends green in CI.
+Several small PRs per phase (~one per milestone), squash-merged by David; stack on the previous branch only if it is not merged yet. Each milestone = a few Conventional Commits, ends green in CI.
 
 ### Phase 1 — Base MVP (PR #1) — detailed
 
@@ -778,7 +778,7 @@ One PR per phase. Each milestone = a few Conventional Commits, ends green in CI.
 | Next.js 16 / Tailwind v4 / Zod v4 churn vs. examples | Dev friction | Developer consults current docs (Context7) before each UI milestone; versions pinned |
 | Public endpoint abuse | Spam, LLM cost | Rate limits per IP/workspace/email, honeypot, workspace-hourly cap, budget guard; Turnstile as optional follow-up |
 | Leaking real leads into the public repo | Privacy/legal | Separate deployment/DB, seed guards, gitignore rules, gitleaks, demo-only screenshots |
-| Scope creep (CRM features) | Unfinished MVP | Non-goals list; one PR per phase |
+| Scope creep (CRM features) | Unfinished MVP | Non-goals list; small PRs per milestone |
 | Model quality on Spanish drafts with Haiku | Weak demo | Optional `LLM_MODEL_DRAFT=claude-sonnet-5-5` for drafting only; measured in eval |
 
 ### 12.2 Assumptions (taken without explicit confirmation)

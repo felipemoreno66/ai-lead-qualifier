@@ -8,7 +8,6 @@ export function proxy(request: NextRequest) {
     DASHBOARD_USER: process.env.DASHBOARD_USER,
     DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD,
   });
-  if (denied) return denied;
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
@@ -32,10 +31,16 @@ export function proxy(request: NextRequest) {
     "frame-ancestors 'none'",
   ].join("; ");
 
-  const headers = new Headers(request.headers);
-  headers.set("x-nonce", nonce);
-  headers.set("Content-Security-Policy", csp);
-  const response = NextResponse.next({ request: { headers } });
+  let response: Response;
+  if (denied) {
+    // 401/503 from the dashboard guard get the same hardening as any page.
+    response = denied;
+  } else {
+    const headers = new Headers(request.headers);
+    headers.set("x-nonce", nonce);
+    headers.set("Content-Security-Policy", csp);
+    response = NextResponse.next({ request: { headers } });
+  }
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");
