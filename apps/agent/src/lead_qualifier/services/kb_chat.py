@@ -17,7 +17,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
-from lead_qualifier.agent.graph import GraphDeps, answer_questions
+from lead_qualifier.agent.graph import NOT_COVERED_CHAT, GraphDeps, answer_questions
 from lead_qualifier.agent.models import AnswerResult
 from lead_qualifier.agent.prompts import ANSWER_VERSION
 from lead_qualifier.config import Settings
@@ -93,7 +93,7 @@ class KbChatService:
             knowledge=retriever,
         )
         try:
-            (answer,) = await answer_questions(deps, [question], lang)
+            (answer,) = await answer_questions(deps, [question], lang, NOT_COVERED_CHAT)
         except LLMError as exc:
             await self._fail(run_id, started, exc.code)
             raise KbChatUnavailable(exc.code) from exc

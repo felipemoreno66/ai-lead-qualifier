@@ -58,7 +58,7 @@ async def test_a_question_the_docs_do_not_cover_says_so_without_citations(make_c
             await client.post(ASK, json={"question": "Do you sponsor visas?"}, headers=AUTH)
         ).json()
     assert not data["covered"] and data["citations"] == []
-    assert data["answer"].startswith("Not covered in our documentation")
+    assert data["answer"] == "I couldn't find this in the documents, so I won't guess."
 
 
 async def test_a_spanish_question_gets_the_spanish_not_covered_text(make_client, db):
@@ -68,7 +68,7 @@ async def test_a_spanish_question_gets_the_spanish_not_covered_text(make_client,
         await reindex(client)
         body = {"question": "¿Tienen garantía de empleo para los que se gradúan?"}
         data = (await client.post(ASK, json=body, headers=AUTH)).json()
-    assert data["answer"].startswith("No está cubierto en nuestra documentación")
+    assert data["answer"].startswith("No encontré esto en los documentos")
 
 
 async def test_ask_needs_the_admin_token_a_valid_body_and_a_known_workspace(make_client, db):

@@ -36,11 +36,9 @@ test.describe("Phase 3: ask the docs", () => {
     // Focus returns to the input once the answer has landed (before the sources are touched).
     await expect(page.getByLabel("Your question")).toBeFocused();
     const sources = answer.getByRole("list", { name: "Sources" });
-    await expect(sources.locator("summary").first()).toBeVisible();
-    const first = sources.locator("details").first();
-    await expect(first.locator(".cq")).toBeHidden();
-    await first.locator("summary").click();
-    await expect(first.locator(".cq")).toContainText("“");
+    await expect(sources.locator(".cf").first()).toBeVisible();
+    await expect(sources.locator(".cq").first()).toContainText("“");
+    await expect(page.getByRole("status")).toHaveText(/Answer ready, \d+ sources?\./);
 
     // The question is logged and listed after a reload.
     await page.reload();
@@ -55,7 +53,8 @@ test.describe("Phase 3: ask the docs", () => {
     const answer = page.locator(".thread .msg.nodoc");
     await expect(answer).toBeVisible({ timeout: 30_000 });
     await expect(answer).toContainText("Not in the docs");
-    await expect(answer).toContainText("Not covered in our documentation");
+    await expect(answer).toContainText("I couldn't find this in the documents");
+    await expect(page.getByRole("status")).toHaveText("Not in the documents.");
     await expect(answer.getByRole("list", { name: "Sources" })).toHaveCount(0);
   });
 
@@ -74,7 +73,6 @@ test.describe("Phase 3: ask the docs", () => {
     await expect(page.locator(".thread .msg.a").first()).toBeVisible({ timeout: 30_000 });
     await ask(page, "zxqv wxyz plugh");
     await expect(page.locator(".thread .msg.nodoc")).toBeVisible({ timeout: 30_000 });
-    await page.locator(".cite-d summary").first().click();
     const results = await new AxeBuilder({ page }).withTags(WCAG).analyze();
     expect(results.violations).toEqual([]);
   });

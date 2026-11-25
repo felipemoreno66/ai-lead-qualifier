@@ -1,7 +1,14 @@
 import { FileText } from "lucide-react";
 import type { KbEntry } from "@/lib/api/schemas";
 
-/** One answer from the documents: the text, then each source with its quote on demand. */
+/** Short text for the live region: what just happened, in a sentence. */
+export function announcement(entry: KbEntry): string {
+  if (!entry.covered) return "Not in the documents.";
+  const n = entry.citations.length;
+  return `Answer ready, ${n} ${n === 1 ? "source" : "sources"}.`;
+}
+
+/** One answer from the documents: the text, then each source with the passage it rests on. */
 export function Answer({ entry }: { entry: KbEntry }) {
   if (!entry.covered) {
     return (
@@ -10,9 +17,6 @@ export function Answer({ entry }: { entry: KbEntry }) {
           Knowledge base <span className="flag">Not in the docs</span>
         </p>
         <p>{entry.answer}</p>
-        <p className="muted">
-          Nothing in the documents answers this, so no sources are shown and nothing was guessed.
-        </p>
       </div>
     );
   }
@@ -23,19 +27,16 @@ export function Answer({ entry }: { entry: KbEntry }) {
       <ol className="cites" aria-label="Sources">
         {entry.citations.map((c, i) => (
           <li key={`${c.chunk_id}-${i}`}>
-            <details className="cite-d">
-              <summary className="cite">
-                <span className="cn num" aria-hidden="true">
-                  {i + 1}
-                </span>
-                <FileText className="ic" strokeWidth={1.6} aria-hidden="true" />
-                <span className="cf">{c.document_title}</span>
-                {c.heading_path && <span className="ch">{c.heading_path}</span>}
-                <span className="sr">, show the quote</span>
-              </summary>
-              <p className="cq">“{c.quote}”</p>
-              <p className="cs muted">{c.document_path}</p>
-            </details>
+            <p className="cite">
+              <span className="cn num" aria-hidden="true">
+                {i + 1}
+              </span>
+              <FileText className="ic" strokeWidth={1.6} aria-hidden="true" />
+              <span className="cf">{c.document_title}</span>
+              {c.heading_path && <span className="ch">{c.heading_path}</span>}
+            </p>
+            <p className="cq">“{c.quote}”</p>
+            <p className="cs muted">{c.document_path}</p>
           </li>
         ))}
       </ol>
