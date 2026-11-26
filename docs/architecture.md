@@ -116,7 +116,8 @@ flowchart LR
 - `docker-compose.private.yml` merges over `docker-compose.yml`: project `ai-lead-qualifier-private` (own
   database volume), `APP_ENV=production`, `ENABLED_WORKSPACES=david-moreno`, `DEMO_SEED=false`, Mailpit and
   `demo-init` behind a profile nobody enables, other host ports, all bound to 127.0.0.1, required secrets
-  via `${VAR:?}`. A unit test validates the merged config.
+  via `${VAR:?}`. `WORKSPACES_DIR` points at a read-only bind mount of `PRIVATE_WORKSPACES_DIR` (default
+  `data/private/workspaces`, outside git). A unit test validates the merged config.
 - Email: `EMAIL_PROVIDER` selects `SmtpSender` or `ResendSender` behind the same `EmailSender` port; the
   delivery service's claim, retry (transient errors) and permanent-failure semantics are unchanged.
 

@@ -29,8 +29,9 @@ all problems (file, field path, message) if anything is wrong.
 
 `profile.draft: true` lets a workspace carry `TODO(david)` placeholders (the validator rejects them
 otherwise). Draft workspaces are listed in the dashboard but their public form and intake return 404
-unless `ALLOW_DRAFT_WORKSPACES=true`. `workspaces/david-moreno` is such a draft: only the three service
-names are filled in and its knowledge base is empty on purpose.
+unless `ALLOW_DRAFT_WORKSPACES=true`. `workspaces/david-moreno` is such a draft and only the public template of the private instance
+(placeholders, empty knowledge base): the real config lives in a directory outside git, see the README,
+"Private instance".
 
 ## Embedding the form elsewhere
 
