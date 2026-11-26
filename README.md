@@ -133,7 +133,7 @@ docker compose up
 
 > **This is a demo configuration, not a deployment.** It uses published development secrets, has no
 > login and loads fake data. For anything reachable by other people set `APP_ENV=production`: the agent
-> then rejects the development secrets, the dashboard requires `DASHBOARD_USER` and `DASHBOARD_PASSWORD`,
+> then rejects the development secrets, the dashboard requires the operator login (`ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`),
 > and the demo data loader refuses to run. See [Security notes](#security-notes).
 
 That is the whole setup. On the first start the stack builds, applies the migrations and a one-shot
@@ -197,18 +197,19 @@ On a phone: [leads](docs/screenshots/leads-mobile.png), [lead](docs/screenshots/
 
 ## Security notes
 
-- **There is no login locally.** The dashboard and its `/bff/*` routes are open on `127.0.0.1`; do not
-  publish those ports to a network. A real operator login arrives in Phase 4 (private instance).
-- **Production fails closed.** With `APP_ENV=production` the web app serves `/dashboard` and `/bff` only
-  behind HTTP Basic auth (`DASHBOARD_USER`, `DASHBOARD_PASSWORD`); without them it answers 503. The agent
+- **There is no login in the local demo.** Without any `ADMIN_*` variable the dashboard and its `/bff/*`
+  routes are open on `127.0.0.1`; do not publish those ports to a network.
+- **Production fails closed.** With `APP_ENV=production` the web app serves `/dashboard` and `/bff` only to
+  a signed-in operator ([Private instance](#private-instance)); without the login settings it answers 503.
+  A half-filled login (for example an email but no hash) also answers 503, in any environment. The agent
   refuses to start unless `ADMIN_API_TOKEN`, `N8N_API_TOKEN`, `N8N_WEBHOOK_SECRET` and `IP_HASH_SECRET` are
   at least 16 characters and not the `local-dev-*` placeholders from `docker-compose.yml`.
 - **Expose only the public surface.** Put a reverse proxy in front that routes just `/api/*` and `/healthz`
   to the agent. `/admin/*` and `/internal/*` are for the web server and n8n on a private network; set
   `EXPOSE_ADMIN_API=false` on an instance that must not serve them at all. Set `TRUSTED_PROXIES` to the proxy
   CIDRs so rate limits see the real client IP (uvicorn runs with `--no-proxy-headers`).
-- **Basic auth needs TLS.** HTTP Basic credentials travel in clear text, so serve the dashboard only behind
-  HTTPS (reverse proxy) or a private network such as Tailscale.
+- **The login needs TLS.** The session cookie is `Secure` in production, so serve the dashboard over HTTPS or
+  on a private network such as Tailscale (see [Private instance](#private-instance)).
 - **Keep clocks in sync (NTP).** n8n signatures carry a timestamp and are rejected outside a ~5 minute window.
   The dispatcher retries an HTTP 401 three times with backoff, then dead-letters the event with a reason that
   points at the secret and clock sync. After fixing the cause, replay dead events from the dashboard
@@ -216,6 +217,46 @@ On a phone: [leads](docs/screenshots/leads-mobile.png), [lead](docs/screenshots/
 - Personal data never reaches the logs: SQL parameters are hidden and exception messages are withheld.
 - **Embeddings stay local by default** (fastembed). If you set `EMBEDDINGS_PROVIDER=openai`, the text of your
   knowledge-base documents (at ingest) and each lead's questions (at answer time) are sent to OpenAI.
+
+## Private instance
+
+A second deployment of the same code for a real workspace (`david-moreno`), isolated from the public
+Northwind demo: its own Compose project, database volume and ports, `APP_ENV=production`,
+`DEMO_SEED=false` (no seed ever), no Mailpit, a login on the dashboard and real email.
+
+```bash
+cp .env.private.example .env.private     # gitignored; fill every empty value
+pnpm install && pnpm hash-password       # prompts for the password, prints ADMIN_PASSWORD_HASH='...'
+docker compose --env-file .env.private -f docker-compose.yml -f docker-compose.private.yml up -d --build --wait
+```
+
+Dashboard on `http://127.0.0.1:3001`, agent on `127.0.0.1:8001` (change with `PRIVATE_*_PORT`).
+Compose refuses to start while a required secret is missing. Stop it with `docker compose --env-file
+.env.private -f docker-compose.yml -f docker-compose.private.yml down` (add `-v` only to delete its data).
+
+- **Expose the dashboard only on your tailnet.** Serve it through Tailscale (`tailscale serve`, not Funnel)
+  and publish only the public form endpoint `POST /api/leads/david-moreno` (and the privacy notice) to the
+  internet. A private network is the primary control; the login is defence in depth.
+- **Login.** One operator, email and password, with [Better Auth](https://www.better-auth.com). Credentials come
+  from the environment: `ADMIN_PASSWORD_HASH` is an argon2id hash, never the password (a plain value is
+  rejected). The session is an httpOnly, `SameSite=Lax` cookie, `Secure` in production, valid for
+  `ADMIN_SESSION_HOURS`. The operator lives in memory: nothing is stored, a restart signs you out, and
+  changing the password means a new hash and a restart. Failures read the same whatever was wrong.
+- **Brute force.** The body is capped (4 KB) and the password check runs one at a time with a bounded queue
+  (full queue: 429), so guesses per second are limited for the whole instance. A client the trusted proxy
+  identifies (`TRUST_FORWARDED_HOST=true` behind a proxy you control) is also delayed progressively and
+  locked for 15 minutes after repeated failures; unidentified clients only see a short capped delay, so
+  strangers can slow the login but never refuse the right password.
+- **Real email.** `EMAIL_PROVIDER=resend` sends through Resend's HTTP API with `RESEND_API_KEY` and an
+  `EMAIL_FROM` on a domain verified there; replies go to the workspace's `contact_email`. The message id is
+  the idempotency key, 429/5xx/timeouts are retried and other errors fail the message. The key is never
+  logged. It works with the inline orchestrator; with `ORCHESTRATOR=n8n` the n8n workflow sends through SMTP.
+  Locally `EMAIL_PROVIDER=smtp` (default) keeps using Mailpit.
+- **Real data stays out of git.** `.env.private` and `data/private/` are ignored, the repository holds only
+  fictional Northwind data, and a test fails if either path becomes tracked.
+- **The workspace is a draft.** `workspaces/david-moreno/workspace.yaml` has `TODO(david)` placeholders; the
+  public form stays closed until they are filled in and `draft` is `false`. To connect the contact form of your
+  services page, see [docs/connect-external-form.md](docs/connect-external-form.md).
 
 ## Configuration
 
@@ -245,7 +286,10 @@ must be set to at least 16 characters or the agent refuses to start.
 | `DEMO_SEED` | Load the Northwind demo data on first start (compose default `true`; ignored in production) |
 | `DEMO_EMBEDDINGS` | `fake` skips the embedding model download for the demo (a usable similarity threshold is applied for you) |
 | `TRUST_FORWARDED_HOST` | `true` only behind a reverse proxy you control: the web app then believes `X-Forwarded-Host` for its same-origin check |
-| `DASHBOARD_USER`, `DASHBOARD_PASSWORD` | Basic-auth credentials, required when `APP_ENV=production` |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | Single operator login; the hash is argon2id from `pnpm hash-password`. Required when `APP_ENV=production` |
+| `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | Signs the session cookie (32+ characters); public URL of the web app |
+| `ADMIN_SESSION_HOURS` | How long a sign-in lasts (default 12) |
+| `EMAIL_PROVIDER`, `EMAIL_FROM`, `RESEND_API_KEY` | `smtp` (default, Mailpit) or `resend`; sender address; Resend API key (secret) |
 
 ## Tests
 
@@ -270,8 +314,8 @@ Remaining:
 1. **Real-provider runs**: record one run of each eval ([qualification](evals/qualification/README.md),
    [RAG](evals/rag/README.md)) with a real model within its small spending cap.
 2. **Public deployment** of the demo (hosts not chosen yet).
-3. **Private instance with a login** for a real business (today the dashboard is protected by HTTP Basic
-   auth in production only), and that business's own knowledge base.
+3. **The private instance's own content**: the `david-moreno` workspace is a draft until its services,
+   prices and privacy notice are filled in (see [Private instance](#private-instance)).
 4. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta
    WhatsApp Cloud API and n8n, with a separate opt-in from the lead.
 
