@@ -1,5 +1,7 @@
 # Architecture (Phase 1)
 
+Design decisions and their trade-offs are recorded in [docs/adr/](adr/README.md).
+
 ## Layers (apps/agent)
 
 `http` (routers, schemas, middleware) -> `services` (use cases) -> `domain` (pure models: workspace
