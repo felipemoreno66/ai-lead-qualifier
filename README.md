@@ -125,7 +125,7 @@ Playwright, GitHub Actions.
 
 ## Live demo
 
-> **Live demo: _URL to be added_** (`https://<machine>.<tailnet>.ts.net`, filled in once it is published).
+> **Live demo: https://hit667366.taild6f011.ts.net** (only up while the author's server is on).
 
 The demo is a fictional school (Northwind Academy) with an open dashboard: browse leads, approve, edit or
 reject drafts, ask the docs and try the public form. Honest limits: it runs on the author's own home
