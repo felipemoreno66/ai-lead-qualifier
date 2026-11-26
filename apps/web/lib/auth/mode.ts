@@ -18,6 +18,17 @@ export type AuthEnv = {
 export type AuthMode = "off" | "session" | "unconfigured";
 
 export const MIN_AUTH_SECRET_LENGTH = 32;
+const MIN_DISTINCT_SECRET_CHARS = 10;
+const PLACEHOLDER = /change.?me|placeholder|local-dev|example|your[-_ ]|secret[-_ ]?here/i;
+
+/** 32+ characters that look generated: not one repeated character and not a known placeholder. */
+export function isStrongSecret(secret: string): boolean {
+  return (
+    secret.length >= MIN_AUTH_SECRET_LENGTH &&
+    new Set(secret).size >= MIN_DISTINCT_SECRET_CHARS &&
+    !PLACEHOLDER.test(secret)
+  );
+}
 
 /** Minimums (OWASP) for an Argon2id hash accepted as the operator password: 19 MiB, 2 passes. */
 export const MIN_ARGON2_MEMORY_KIB = 19456;
@@ -33,14 +44,14 @@ export function authMode(env: AuthEnv): AuthMode {
   const email = env.ADMIN_EMAIL?.trim();
   const hash = env.ADMIN_PASSWORD_HASH?.trim();
   const secret = env.BETTER_AUTH_SECRET ?? "";
-  if (email && hash && isStrongArgon2id(hash) && secret.length >= MIN_AUTH_SECRET_LENGTH) return "session";
+  if (email && hash && isStrongArgon2id(hash) && isStrongSecret(secret)) return "session";
   if (env.APP_ENV === "production" || email || hash) return "unconfigured";
   return "off";
 }
 
 export const UNCONFIGURED_MESSAGE =
   "The dashboard is disabled: set ADMIN_EMAIL, ADMIN_PASSWORD_HASH (argon2id from `pnpm hash-password`, see the README) and " +
-  "BETTER_AUTH_SECRET (32+ characters) to enable it.";
+  "BETTER_AUTH_SECRET (32+ random characters, `openssl rand -hex 32`) to enable it.";
 
 /** Only same-site paths inside the app are valid post-login targets (no open redirect). */
 export function safeNext(value: string | null | undefined): string {

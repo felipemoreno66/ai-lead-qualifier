@@ -64,21 +64,30 @@ function unauthorized(): Response {
   );
 }
 
+const HOST = /^(\[[0-9a-f:]+\]|[a-z0-9.-]+)(:\d{1,5})?$/i;
+
 /**
- * Pages go to the login (with a return path); API-style routes get a plain 401. The Location is
- * absolute on the host the browser used: behind Docker `request.url` carries the container's bind
- * address (0.0.0.0), which would send the browser to an unreachable page.
+ * Pages go to the login (with a return path); API-style routes get a plain 401. Next needs an
+ * absolute Location here. It is `BETTER_AUTH_URL` when set (the production setting), otherwise the
+ * host the browser used: behind Docker `request.url` carries the container's bind address
+ * (0.0.0.0), which no browser can reach. A malformed Host falls back to `request.url`.
  */
 function toLogin(request: Request, url: URL, env: GuardEnv): Response {
-  const trusted = env.TRUST_FORWARDED_HOST === "true";
-  const host =
-    (trusted && request.headers.get("x-forwarded-host")) || request.headers.get("host") || url.host;
-  const proto = (trusted && request.headers.get("x-forwarded-proto")) || url.protocol.replace(":", "");
-  const next = url.pathname + url.search;
-  return new Response(null, {
-    status: 303,
-    headers: { ...noStore, Location: `${proto}://${host}/login?next=${encodeURIComponent(next)}` },
-  });
+  const next = `/login?next=${encodeURIComponent(url.pathname + url.search)}`;
+  let origin: string | null = null;
+  try {
+    origin = env.BETTER_AUTH_URL ? new URL(env.BETTER_AUTH_URL).origin : null;
+  } catch {
+    origin = null;
+  }
+  if (!origin) {
+    const trusted = env.TRUST_FORWARDED_HOST === "true";
+    const given = (trusted && request.headers.get("x-forwarded-host")) || request.headers.get("host");
+    const host = given && HOST.test(given) ? given : url.host;
+    const proto = (trusted && request.headers.get("x-forwarded-proto")) || url.protocol.replace(":", "");
+    origin = `${proto === "https" ? "https" : "http"}://${host}`;
+  }
+  return new Response(null, { status: 303, headers: { ...noStore, Location: origin + next } });
 }
 
 const isApiPath = (pathname: string) => /^\/(bff|api)(\/|$)/.test(normalizePath(pathname) ?? "");

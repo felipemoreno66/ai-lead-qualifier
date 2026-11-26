@@ -64,6 +64,8 @@ export async function createAuth(
   const everyone = new WindowCounter(windowMs);
   // Password checks run one at a time: their cost bounds guesses per second for the whole
   // instance. Only the check holds the turn; delays and body reading happen outside it.
+  // Sub-key for the log identifier, so the logged value reveals nothing about the session secret.
+  const logKey = createHmac("sha256", env.BETTER_AUTH_SECRET ?? "").update("log-client-id").digest();
   const recentFailures = new WindowCounter(WARN_WINDOW_MS);
   let lastWarning = 0;
   const checks = new SerialQueue(limits.maxQueued);
@@ -149,7 +151,7 @@ export async function createAuth(
             event: "login_failures_high",
             failures: recent,
             window_seconds: WARN_WINDOW_MS / 1000,
-            client: key ? createHmac("sha256", env.BETTER_AUTH_SECRET ?? "").update(key).digest("hex").slice(0, 8) : "unidentified",
+            client: key ? createHmac("sha256", logKey).update(key).digest("hex").slice(0, 8) : "unidentified",
           });
         }
         let delay: number;

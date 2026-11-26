@@ -7,7 +7,7 @@ const login = {
   APP_ENV: "production",
   ADMIN_EMAIL: "owner@example.com",
   ADMIN_PASSWORD_HASH: "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA",
-  BETTER_AUTH_SECRET: "x".repeat(32),
+  BETTER_AUTH_SECRET: "9f2c41d7a0b85e63c1d4f7a29b0e3c68",
 };
 const signedIn = vi.fn(async () => true);
 const signedOut = vi.fn(async () => false);
@@ -24,6 +24,9 @@ describe("auth mode", () => {
     expect(authMode({ ...login, ADMIN_EMAIL: "" })).toBe("unconfigured");
     expect(authMode({ ...login, ADMIN_PASSWORD_HASH: "" })).toBe("unconfigured");
     expect(authMode({ ...login, BETTER_AUTH_SECRET: "short" })).toBe("unconfigured");
+    for (const weak of ["x".repeat(40), "ab".repeat(20), "change-me-change-me-change-me-12345", "local-dev-secret-0123456789abcdef"]) {
+      expect(authMode({ ...login, BETTER_AUTH_SECRET: weak }), weak).toBe("unconfigured");
+    }
   });
 
   it("refuses a plain-text password in place of a hash", () => {
@@ -85,6 +88,15 @@ describe("dashboard guard", () => {
     const trusting = { ...login, TRUST_FORWARDED_HOST: "true" };
     expect((await guardDashboard(proxied, trusting, signedOut))?.headers.get("location")).toBe(
       "https://dash.example.com/login?next=%2Fdashboard",
+    );
+    // A configured BETTER_AUTH_URL wins over any header; a junk Host is never reflected.
+    const pinned = { ...login, BETTER_AUTH_URL: "https://dash.example.com/" };
+    expect((await guardDashboard(request, pinned, signedOut))?.headers.get("location")).toBe(
+      "https://dash.example.com/login?next=%2Fdashboard",
+    );
+    const junk = new Request("http://0.0.0.0:3000/dashboard", { headers: { host: "evil.test/x?y" } });
+    expect((await guardDashboard(junk, login, signedOut))?.headers.get("location")).toBe(
+      "http://0.0.0.0:3000/login?next=%2Fdashboard",
     );
     // Without a trusted proxy the forwarded headers are ignored.
     expect((await guardDashboard(proxied, login, signedOut))?.headers.get("location")).toBe(

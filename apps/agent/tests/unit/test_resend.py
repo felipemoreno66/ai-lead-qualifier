@@ -108,3 +108,13 @@ def test_settings_pick_the_provider_and_require_its_inputs():
         Settings(email_provider="resend", resend_api_key=KEY)
     with pytest.raises(ValidationError):
         Settings(email_provider="sendgrid")  # type: ignore[arg-type]
+
+
+@respx.mock
+async def test_address_fields_cannot_carry_line_breaks():
+    route = respx.post(RESEND_URL).mock(return_value=httpx.Response(200, json={"id": "re-1"}))
+    bad = EmailChannel("a@b.co\r\nBcc: x@y.co", reply_to="r@b.co\nBcc: z@y.co").render(message())
+    await ResendSender(KEY).send(bad)
+    body = json.loads(route.calls.last.request.content)
+    assert "\n" not in body["from"] and "\r" not in body["from"]
+    assert "\n" not in body["reply_to"] and "\r" not in body["reply_to"]

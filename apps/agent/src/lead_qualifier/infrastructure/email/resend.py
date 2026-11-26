@@ -27,13 +27,13 @@ class ResendSender:
 
     def _body(self, payload: ChannelPayload) -> dict[str, Any]:
         body: dict[str, Any] = {
-            "from": payload.sender,
-            "to": [payload.recipient],
+            "from": sanitize_header(payload.sender),  # a header value: never a second line
+            "to": [sanitize_header(payload.recipient)],
             "subject": sanitize_header(payload.subject),  # defence in depth
             "text": strip_invisible(payload.text),  # text only
         }
         if payload.reply_to:
-            body["reply_to"] = payload.reply_to
+            body["reply_to"] = sanitize_header(payload.reply_to)
         return body
 
     async def send(self, payload: ChannelPayload) -> str:
