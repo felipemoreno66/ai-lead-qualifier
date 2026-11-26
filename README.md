@@ -251,10 +251,12 @@ Compose refuses to start while a required secret is missing. Stop it with `docke
   bounded queue (full queue: 429) and every request ends within 10 s (503). A client the trusted proxy
   identifies (`TRUST_FORWARDED_HOST=true` behind a proxy you control) is delayed progressively and locked for
   15 minutes after repeated failures. Unidentified clients are never refused, so strangers cannot lock the right
-  password out; under a flood their guesses are delayed (up to 8 s, inside the verification turn) and the right
-  password may take a few seconds or need a retry. More than 50 failures in 10 minutes log one structured line,
-  `{"level":"warn","event":"login_failures_high",...}` (no personal data; the client is a short hash). Alert
-  on that line.
+  password out; under a flood their guesses are delayed (up to 8 s, outside the verification turn, so the right password
+  is not queued behind the delays). More than 50 failures in 10 minutes log one structured line,
+  `{"level":"warn","event":"login_failures_high",...}` (no personal data; the client is a short HMAC keyed with `BETTER_AUTH_SECRET`). Alert
+  on that line. This is an accepted tradeoff: without a trusted client identity a hard cap would let anyone
+  lock the operator out, so brute force is bounded by the hash cost, the strong-password rule and keeping the
+  dashboard on the tailnet only.
 - **Real email.** `EMAIL_PROVIDER=resend` sends through Resend's HTTP API with `RESEND_API_KEY` and an
   `EMAIL_FROM` on a domain verified there; replies go to the workspace's `contact_email`. The message id is
   the idempotency key, 429/5xx/timeouts are retried and other errors fail the message. The key is never

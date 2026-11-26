@@ -2,7 +2,7 @@ import { hash as argonHash, verify as argonVerify } from "@node-rs/argon2";
 import { APIError, betterAuth } from "better-auth";
 import { memoryAdapter, type MemoryDB } from "better-auth/adapters/memory";
 import { createAuthMiddleware } from "better-auth/api";
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { authMode, type AuthEnv } from "./mode";
 import { LoginLimiter, slowdownMs, WindowCounter } from "./login-limiter";
 import { QueueFull, SerialQueue } from "./serial-queue";
@@ -43,8 +43,6 @@ const defaultLimits: Limits = {
   warn: (event) => console.warn(JSON.stringify({ level: "warn", ...event })),
 };
 
-/** Unidentified failures above this many in the window hold the verification turn while delayed. */
-const HEAVY_FAILURES = 20;
 /** Failures in WARN_WINDOW_MS above this raise the alert log line (at most once a minute). */
 const WARN_FAILURES = 50;
 const WARN_WINDOW_MS = 10 * 60 * 1000;
@@ -134,12 +132,12 @@ export async function createAuth(
         const recent = recentFailures.hit();
         if (recent > WARN_FAILURES && Date.now() - lastWarning > 60_000) {
           lastWarning = Date.now();
-          // No personal data: the client is only a short hash of its proxy-reported address.
+          // No personal data: the client is a short HMAC (keyed with the auth secret) of its proxy-reported address.
           limits.warn({
             event: "login_failures_high",
             failures: recent,
             window_seconds: WARN_WINDOW_MS / 1000,
-            client: key ? createHash("sha256").update(key).digest("hex").slice(0, 8) : "unidentified",
+            client: key ? createHmac("sha256", env.BETTER_AUTH_SECRET ?? "").update(key).digest("hex").slice(0, 8) : "unidentified",
           });
         }
         let delay: number;
@@ -154,13 +152,9 @@ export async function createAuth(
           }
           delay = slowdownMs(lock.count, 3); // progressive, for this client only
         } else {
-          // Nobody is refused. Under a flood the delay is held inside the verification turn, so
-          // parallel guesses add up; it never outlasts the request timeout.
+          // Nobody is refused, and the delay never holds the verification turn (a flood could
+          // otherwise keep the operator waiting behind it). It is capped at half the request timeout.
           delay = Math.min(slowdownMs(overall, 5, 250, 8000), limits.timeoutMs / 2);
-          if (overall > HEAVY_FAILURES && delay > 0) {
-            await queued(() => limits.sleep(delay));
-            return;
-          }
         }
         if (delay > 0) await limits.sleep(delay);
       }),

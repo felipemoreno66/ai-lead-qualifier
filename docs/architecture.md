@@ -106,8 +106,11 @@ flowchart LR
   (`handle`) and the dashboard layout. A fixed allow-list stays public (`/`, the apply form, the privacy
   notice, `/login`); everything else is closed by default.
 - The sign-in path is bounded: capped body, one password check at a time through a bounded queue,
-  per-client progressive delay and lockout for identified clients, a capped shared delay otherwise,
-  constant-memory counters, and a request timeout.
+  per-client progressive delay and lockout for identified clients, a shared delay (outside the
+  verification turn, at most 8 s) otherwise, constant-memory counters, a request timeout and a structured
+  failure-spike warning (client = HMAC). Unidentified clients are deliberately never refused: a hard cap
+  would let anyone lock the operator out. Brute force is bounded instead by the Argon2id cost (about 100 ms),
+  the 20-character password rule and exposing the dashboard only on the tailnet (Tailscale, not Funnel).
 - `docker-compose.private.yml` merges over `docker-compose.yml`: project `ai-lead-qualifier-private` (own
   database volume), `APP_ENV=production`, `ENABLED_WORKSPACES=david-moreno`, `DEMO_SEED=false`, Mailpit and
   `demo-init` behind a profile nobody enables, other host ports, all bound to 127.0.0.1, required secrets

@@ -85,22 +85,24 @@ describe("operator login", () => {
     expect(Date.now() - started).toBeLessThan(5000);
   });
 
-  it("holds the verification turn while delaying a flood, yet never past the timeout", async () => {
-    let active = 0;
-    let maxActive = 0;
-    let calls = 0;
+  it("never holds the verification turn while delaying a flood", async () => {
+    let delaying = 0;
+    let peak = 0;
     const sleep = async () => {
-      calls++;
-      if (calls <= 15) return; // attempts 6 to 20 are delayed outside the turn
-      active++;
-      maxActive = Math.max(maxActive, active);
-      await new Promise((r) => setTimeout(r, 2));
-      active--;
+      delaying++;
+      peak = Math.max(peak, delaying);
+      await new Promise((r) => setTimeout(r, 5));
+      delaying--;
     };
     const auth = await createAuth(await adminEnv(), undefined, { sleep, maxQueued: 100 });
-    await Promise.all(Array.from({ length: 40 }, () => signIn(auth, "nope")));
-    expect(calls).toBeGreaterThan(30);
-    expect(maxActive).toBe(1); // heavy delays queue up one at a time
+    const flood = Promise.all(Array.from({ length: 40 }, () => signIn(auth, "nope")));
+    await new Promise((r) => setTimeout(r, 1));
+    // The operator is not queued behind the delays: only the (fast) password checks are serialized.
+    const started = Date.now();
+    expect((await signIn(auth, ADMIN_PASSWORD)).status).toBe(200);
+    expect(Date.now() - started).toBeLessThan(2000);
+    await flood;
+    expect(peak).toBeGreaterThan(1); // delays overlap instead of forming a line
   });
 
   it("logs one structured warning, without personal data, when failures pile up", async () => {
