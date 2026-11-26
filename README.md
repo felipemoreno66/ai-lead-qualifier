@@ -123,6 +123,17 @@ Next.js 16 (App Router), React 19, Tailwind CSS v4, shadcn/ui, TanStack Query, Z
 Mailpit, Docker Compose. Tooling: uv, pnpm, ruff, mypy (strict), pytest, Testcontainers, Vitest,
 Playwright, GitHub Actions.
 
+## Live demo
+
+> **Live demo: _URL to be added_** (`https://<machine>.<tailnet>.ts.net`, filled in once it is published).
+
+The demo is a fictional school (Northwind Academy) with an open dashboard: browse leads, approve, edit or
+reject drafts, ask the docs and try the public form. Honest limits: it runs on the author's own home
+server and is exposed with Tailscale Funnel, so **it is only up while that server is on**; the data is
+fictional and **resets every night**; the model is the deterministic stand-in (no real AI calls, no real
+emails); deleting leads is disabled and every action is rate limited per visitor. Please do not enter real
+personal data. To host your own copy see [docs/deploy-public-demo.md](docs/deploy-public-demo.md).
+
 ## Quick start (no keys, no accounts)
 
 ```bash
