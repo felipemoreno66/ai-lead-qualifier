@@ -1,6 +1,10 @@
-/** Sliding-window limiter for failed sign-ins (in memory: one web process, one admin). */
+/**
+ * Sliding window of sign-in attempts per key (in memory: one web process, one admin).
+ * ``acquire`` checks and records in one synchronous step, so parallel requests cannot all pass the
+ * check before any of them is counted; a successful sign-in gives its attempt back with ``release``.
+ */
 export class LoginLimiter {
-  private failures = new Map<string, number[]>();
+  private attempts = new Map<string, number[]>();
 
   constructor(
     private readonly max: number,
@@ -10,24 +14,41 @@ export class LoginLimiter {
 
   private recent(key: string): number[] {
     const cutoff = this.now() - this.windowMs;
-    const kept = (this.failures.get(key) ?? []).filter((t) => t > cutoff);
-    if (kept.length) this.failures.set(key, kept);
-    else this.failures.delete(key);
+    const kept = (this.attempts.get(key) ?? []).filter((t) => t > cutoff);
+    if (kept.length) this.attempts.set(key, kept);
+    else this.attempts.delete(key);
     return kept;
   }
 
-  /** Seconds until another attempt is allowed, or 0 when the key is not locked. */
-  retryAfterSeconds(key: string): number {
+  /** Counts an attempt unless the key is locked. ``retryAfterSeconds`` is 0 when it was allowed. */
+  acquire(key: string): { ok: boolean; retryAfterSeconds: number; count: number } {
     const kept = this.recent(key);
-    if (kept.length < this.max) return 0;
-    return Math.max(1, Math.ceil((kept[0] + this.windowMs - this.now()) / 1000));
+    if (kept.length >= this.max) {
+      return {
+        ok: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((kept[0] + this.windowMs - this.now()) / 1000)),
+        count: kept.length,
+      };
+    }
+    this.attempts.set(key, [...kept, this.now()]);
+    return { ok: true, retryAfterSeconds: 0, count: kept.length + 1 };
   }
 
-  recordFailure(key: string): void {
-    this.failures.set(key, [...this.recent(key), this.now()]);
-  }
-
+  /** Forget every attempt of ``key`` (it signed in). */
   reset(key: string): void {
-    this.failures.delete(key);
+    this.attempts.delete(key);
   }
+
+  /** Undo the newest attempt of ``key`` (it was a successful sign-in). */
+  release(key: string): void {
+    const kept = this.recent(key);
+    kept.pop();
+    if (kept.length) this.attempts.set(key, kept);
+    else this.attempts.delete(key);
+  }
+}
+
+/** Delay before answering the n-th attempt in the window: none for the first few, then doubling. */
+export function slowdownMs(count: number, free = 5, base = 250, cap = 8000): number {
+  return count <= free ? 0 : Math.min(cap, base * 2 ** (count - free - 1));
 }

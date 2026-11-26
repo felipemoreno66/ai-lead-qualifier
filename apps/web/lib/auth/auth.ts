@@ -3,7 +3,7 @@ import { APIError, betterAuth } from "better-auth";
 import { memoryAdapter, type MemoryDB } from "better-auth/adapters/memory";
 import { createAuthMiddleware } from "better-auth/api";
 import { authMode, type AuthEnv } from "./mode";
-import { LoginLimiter } from "./login-limiter";
+import { LoginLimiter, slowdownMs } from "./login-limiter";
 
 const SIGN_IN_PATH = "/sign-in/email";
 const DEFAULT_SESSION_HOURS = 12;
@@ -20,18 +20,27 @@ function sessionSeconds(env: AuthEnv): number {
  */
 const emptyStore = (): MemoryDB => ({ user: [], session: [], account: [], verification: [], rateLimit: [] });
 
-export async function createAuth(env: AuthEnv, store: MemoryDB = emptyStore(), limits = { perKey: 5, global: 25 }) {
+type Limits = { perClient: number; sleep: (ms: number) => Promise<void> };
+const defaultLimits: Limits = {
+  perClient: 5,
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
+export async function createAuth(env: AuthEnv, store: MemoryDB = emptyStore(), limits = defaultLimits) {
   if (authMode(env) !== "session") throw new Error("Login is not configured");
   const production = env.APP_ENV === "production";
   const adminEmail = (env.ADMIN_EMAIL ?? "").trim().toLowerCase();
   const passwordHash = (env.ADMIN_PASSWORD_HASH ?? "").trim();
   const windowMs = 15 * 60 * 1000;
-  const perKey = new LoginLimiter(limits.perKey, windowMs);
-  const global = new LoginLimiter(limits.global, windowMs);
+  // Hard lock per identified client only: other people's failures never lock the operator out.
+  const perClient = new LoginLimiter(limits.perClient, windowMs);
+  // Instance-wide: never refuses, only slows every attempt down while many are failing.
+  const everyone = new LoginLimiter(Number.MAX_SAFE_INTEGER, windowMs);
   const trustForwarded = env.TRUST_FORWARDED_HOST === "true";
-  const clientKey = (headers?: Headers) =>
-    // Behind a proxy we control the last hop is the client the proxy saw; otherwise one shared key.
-    (trustForwarded && headers?.get("x-forwarded-for")?.split(",").pop()?.trim()) || "direct";
+  /** Client identity: the last X-Forwarded-For hop, which only a proxy we trust appends. */
+  const clientKey = (headers?: Headers): string | null =>
+    (trustForwarded && headers?.get("x-forwarded-for")?.split(",").pop()?.trim()) || null;
+  const keyOf = (ctx: { headers?: Headers }) => clientKey(ctx.headers);
 
   const auth = betterAuth({
     appName: "Lead Qualifier",
@@ -58,30 +67,41 @@ export async function createAuth(env: AuthEnv, store: MemoryDB = emptyStore(), l
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", secure: production },
     },
     // Sign-in has its own failed-attempt lockout below; the built-in limiter covers the other paths.
-    rateLimit: { enabled: true, window: 60, max: 60, customRules: { [SIGN_IN_PATH]: false } },
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 60,
+      customRules: {
+        // Built-in limiter as an upper bound on sign-in requests of an identified client. Without
+        // an identity every client would share one bucket and could lock the operator out, so
+        // only the slowdown below applies.
+        [SIGN_IN_PATH]: (request) =>
+          clientKey(request.headers) ? { window: 60, max: 30 } : false,
+      },
+    },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== SIGN_IN_PATH) return;
-        const wait = Math.max(
-          perKey.retryAfterSeconds(clientKey(ctx.headers)),
-          global.retryAfterSeconds("*"),
-        );
-        if (wait > 0) {
-          throw new APIError("TOO_MANY_REQUESTS", {
-            message: "Too many sign-in attempts. Try again later.",
-            retryAfter: wait,
-          });
+        const key = keyOf(ctx);
+        if (key) {
+          const lock = perClient.acquire(key);
+          if (!lock.ok) {
+            throw new APIError("TOO_MANY_REQUESTS", {
+              message: "Too many sign-in attempts. Try again later.",
+              retryAfter: lock.retryAfterSeconds,
+            });
+          }
         }
+        const { count } = everyone.acquire("*");
+        const delay = slowdownMs(count);
+        if (delay > 0) await limits.sleep(delay);
       }),
       after: createAuthMiddleware(async (ctx) => {
-        if (ctx.path !== SIGN_IN_PATH) return;
-        const key = clientKey(ctx.headers);
-        if (ctx.context.newSession) {
-          perKey.reset(key);
-        } else {
-          perKey.recordFailure(key);
-          global.recordFailure("*");
-        }
+        if (ctx.path !== SIGN_IN_PATH || !ctx.context.newSession) return;
+        // A correct password gives its attempt back: only failures count towards the limits.
+        const key = keyOf(ctx);
+        if (key) perClient.reset(key);
+        everyone.release("*");
       }),
     },
   });

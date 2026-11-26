@@ -1,29 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { LoginLimiter } from "@/lib/auth/login-limiter";
+import { LoginLimiter, slowdownMs } from "@/lib/auth/login-limiter";
 
 describe("LoginLimiter", () => {
-  it("locks a key after max failures and reports the wait", () => {
+  it("counts and locks in one step", () => {
     let now = 0;
     const limiter = new LoginLimiter(3, 60_000, () => now);
     for (let i = 0; i < 3; i++) {
-      expect(limiter.retryAfterSeconds("a")).toBe(0);
-      limiter.recordFailure("a");
+      expect(limiter.acquire("a").ok).toBe(true);
       now += 1000;
     }
-    expect(limiter.retryAfterSeconds("a")).toBe(57);
-    expect(limiter.retryAfterSeconds("b")).toBe(0);
+    const locked = limiter.acquire("a");
+    expect(locked).toMatchObject({ ok: false, retryAfterSeconds: 57 });
+    expect(limiter.acquire("b").ok).toBe(true);
   });
 
-  it("forgets failures after the window and on reset", () => {
+  it("forgets attempts after the window and gives back a successful one", () => {
     let now = 0;
     const limiter = new LoginLimiter(2, 60_000, () => now);
-    limiter.recordFailure("a");
-    limiter.recordFailure("a");
+    limiter.acquire("a");
+    limiter.acquire("a");
     now = 60_001;
-    expect(limiter.retryAfterSeconds("a")).toBe(0);
-    limiter.recordFailure("a");
-    limiter.recordFailure("a");
-    limiter.reset("a");
-    expect(limiter.retryAfterSeconds("a")).toBe(0);
+    expect(limiter.acquire("a").ok).toBe(true);
+    limiter.release("a");
+    expect(limiter.acquire("a").ok).toBe(true);
+    expect(limiter.acquire("a").ok).toBe(true);
+    expect(limiter.acquire("a").ok).toBe(false);
+  });
+
+  it("slows down progressively after the free attempts, with a cap", () => {
+    expect(slowdownMs(5)).toBe(0);
+    expect(slowdownMs(6)).toBe(250);
+    expect(slowdownMs(7)).toBe(500);
+    expect(slowdownMs(100)).toBe(8000);
   });
 });
