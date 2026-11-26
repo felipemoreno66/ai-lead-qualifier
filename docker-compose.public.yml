@@ -121,8 +121,13 @@ services:
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?run scripts/public-demo.sh init to generate .env.public}
       # Funnel forwards the public Host/X-Forwarded-* of its own proxy; used by the same-origin check.
       TRUST_FORWARDED_HOST: "true"
-      # Requests per visitor IP and hour.
+      # Requests per visitor (IPv4 address or IPv6 /64) and hour.
       DEMO_LIMIT_INTAKE_PER_HOUR: "5"
       DEMO_LIMIT_ASK_PER_HOUR: "10"
       DEMO_LIMIT_REVIEW_PER_HOUR: "30"
       DEMO_LIMIT_RETRIGGER_PER_HOUR: "10"
+      # Ceiling for all visitors together, per hour (cannot be reset by a flood of new IPs).
+      DEMO_GLOBAL_INTAKE_PER_HOUR: "100"
+      DEMO_GLOBAL_ASK_PER_HOUR: "150"
+      DEMO_GLOBAL_REVIEW_PER_HOUR: "600"
+      DEMO_GLOBAL_RETRIGGER_PER_HOUR: "150"

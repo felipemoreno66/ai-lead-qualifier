@@ -179,3 +179,88 @@ describe("proxy headers in the public demo", () => {
     expect(res.headers.get("Content-Security-Policy")).toContain("localhost:8000");
   });
 });
+
+describe("hardening", () => {
+  it("reduces IPv6 clients to their /64 and unwraps IPv4-mapped addresses", async () => {
+    const { networkKey } = await import("@/lib/public-demo");
+    expect(networkKey("203.0.113.9")).toBe("203.0.113.9");
+    expect(networkKey("::ffff:203.0.113.9")).toBe("203.0.113.9");
+    const a = networkKey("2001:db8:1:2:aaaa:bbbb:cccc:dddd");
+    expect(a).toBe(networkKey("2001:DB8:1:2::1"));
+    expect(a).not.toBe(networkKey("2001:db8:1:3::1"));
+    expect(networkKey("2001:db8::1")).toBe("2001:db8:0:0::/64");
+  });
+
+  it("applies one limit to a whole /64 and a global ceiling to everyone", async () => {
+    vi.stubEnv("PUBLIC_DEMO", "true");
+    vi.stubEnv("DEMO_LIMIT_ASK_PER_HOUR", "2");
+    vi.stubEnv("DEMO_GLOBAL_ASK_PER_HOUR", "4");
+    const { demoRateLimit } = await import("@/lib/public-demo");
+    const from = (ip: string) => new Request("http://web/", { headers: { "x-forwarded-for": ip } });
+    expect(demoRateLimit(from("2001:db8:1:2::1"), "ask", 1)).toBeNull();
+    expect(demoRateLimit(from("2001:db8:1:2::2"), "ask", 1)).toBeNull();
+    expect(demoRateLimit(from("2001:db8:1:2::3"), "ask", 1)?.status).toBe(429); // same /64
+    expect(demoRateLimit(from("198.51.100.1"), "ask", 1)).toBeNull(); // 4th of 4 globally
+    expect(demoRateLimit(from("198.51.100.2"), "ask", 1)?.status).toBe(429); // global ceiling
+  });
+
+  it("fails closed when the per-visitor map is full instead of forgetting counters", async () => {
+    vi.stubEnv("PUBLIC_DEMO", "true");
+    vi.stubEnv("DEMO_LIMIT_REVIEW_PER_HOUR", "1");
+    vi.stubEnv("DEMO_GLOBAL_REVIEW_PER_HOUR", "1000000");
+    const { demoRateLimit } = await import("@/lib/public-demo");
+    const from = (ip: string) => new Request("http://web/", { headers: { "x-forwarded-for": ip } });
+    const known = from("10.0.0.1");
+    expect(demoRateLimit(known, "review", 1)).toBeNull();
+    for (let i = 0; i < 10_000; i++) demoRateLimit(from(`172.${i >> 8}.${i & 255}.1`), "review", 1);
+    expect(demoRateLimit(from("192.0.2.1"), "review", 1)?.status).toBe(429); // new key, map full
+    expect(demoRateLimit(known, "review", 1)?.status).toBe(429); // old counter survived the flood
+  });
+});
+
+describe("readBoundedText", () => {
+  const post = (body: BodyInit | null, headers: Record<string, string> = {}) =>
+    new Request("http://web/", { method: "POST", headers, body, duplex: "half" } as RequestInit);
+
+  it("reads a body within the limit", async () => {
+    const { readBoundedText } = await import("@/lib/api/bounded-body");
+    expect(await readBoundedText(post("hello"), 10)).toBe("hello");
+    expect(await readBoundedText(post(null), 10)).toBe("");
+  });
+
+  it("stops reading a stream that grows past the limit, whatever Content-Length says", async () => {
+    const { readBoundedText } = await import("@/lib/api/bounded-body");
+    let pulled = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(new Uint8Array(1024));
+        if (pulled > 1000) controller.close();
+      },
+    });
+    const request = post(stream, { "content-length": "abc" });
+    expect(await readBoundedText(request, 4096)).toBeNull();
+    expect(pulled).toBeLessThan(20);
+  });
+
+  it("refuses a declared size over the limit without reading", async () => {
+    const { readBoundedText } = await import("@/lib/api/bounded-body");
+    expect(await readBoundedText(post("x", { "content-length": "99999" }), 100)).toBeNull();
+  });
+
+  it("makes the intake relay answer 413 for an oversized body", async () => {
+    vi.stubEnv("PUBLIC_DEMO", "true");
+    const { POST } = await import("@/app/api/leads/[slug]/route");
+    const spy = agent(() => Response.json({}, { status: 202 }));
+    const response = await POST(
+      new Request("http://web/api/leads/northwind-academy", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://web", "x-forwarded-for": "5.5.5.5" },
+        body: "x".repeat(20_000),
+      }),
+      { params: Promise.resolve({ slug: "northwind-academy" }) },
+    );
+    expect(response.status).toBe(413);
+    expect(spy).not.toHaveBeenCalled();
+  });
+});

@@ -1,5 +1,6 @@
 import { assertSameSite, errorResponse } from "@/lib/api/bff";
 import { demoRateLimit, clientIp, isPublicDemo } from "@/lib/public-demo";
+import { readBoundedText } from "@/lib/api/bounded-body";
 import { SLUG_PATTERN } from "@/lib/kb/slug";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +22,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ slug: stri
   const limited = demoRateLimit(request, "intake");
   if (limited) return limited;
 
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
-    return errorResponse("Payload too large", "The request is too large.", 413);
-  }
-  const body = await request.text();
-  if (new TextEncoder().encode(body).length > MAX_BODY_BYTES) {
-    return errorResponse("Payload too large", "The request is too large.", 413);
-  }
+  const body = await readBoundedText(request, MAX_BODY_BYTES);
+  if (body === null) return errorResponse("Payload too large", "The request is too large.", 413);
 
   const base = (process.env.AGENT_INTERNAL_URL ?? "http://localhost:8000").replace(/\/$/, "");
   const headers: Record<string, string> = {
