@@ -71,6 +71,8 @@ privacy:
   notice:
     en: "TODO(david): privacy notice in English"
     es: "TODO(david): aviso de privacidad en español"
+# Origins allowed to POST the contact form (see docs/connect-external-form.md), for example
+#   - https://SERVICES-PAGE.EXAMPLE.COM   (TODO(david): the real domain of the services page)
 cors:
   allowed_origins: []
 knowledge_base: { path: knowledge-base, enabled: true }
