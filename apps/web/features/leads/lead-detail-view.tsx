@@ -197,25 +197,25 @@ function Detail({ lead, canDelete }: { lead: LeadDetail; canDelete: boolean }) {
             {formatDateTimeUtc(lead.consent_at)}. Source: {lead.source.replace("_", " ")}.
           </p>
           {canDelete ? (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button className="btn danger" type="button">
-                <Trash2 className="ic" aria-hidden="true" />
-                Delete this lead
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogTitle>Delete {lead.name}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This permanently removes the application, its timeline and queued events. It cannot
-                be undone.
-              </AlertDialogDescription>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep lead</AlertDialogCancel>
-                <AlertDialogAction onClick={() => remove.mutate()}>Delete permanently</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="btn danger" type="button">
+                  <Trash2 className="ic" aria-hidden="true" />
+                  Delete this lead
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogTitle>Delete {lead.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently removes the application, its timeline and queued events. It cannot
+                  be undone.
+                </AlertDialogDescription>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep lead</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => remove.mutate()}>Delete permanently</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : (
             <p style={{ margin: 0 }}>Deleting leads is disabled in the public demo.</p>
           )}
