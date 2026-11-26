@@ -9,12 +9,12 @@ import type { PublicWorkspaceConfig } from "@/lib/api/types";
 import { localized, ui } from "@/lib/i18n";
 import { validateAnswers, type FieldErrors, type RawValues } from "./validate";
 
-type Props = { config: PublicWorkspaceConfig; apiBase: string; initialLocale: string };
+type Props = { config: PublicWorkspaceConfig; apiBase: string; initialLocale: string; demoNotice?: boolean };
 
 const AUTOCOMPLETE: Record<string, string> = { name: "name", email: "email" };
 const PILL_MAX_OPTIONS = 5;
 
-export function ApplyForm({ config, apiBase, initialLocale }: Props) {
+export function ApplyForm({ config, apiBase, initialLocale, demoNotice = false }: Props) {
   const router = useRouter();
   const [locale, setLocale] = useState(initialLocale);
   const t = ui(locale);
@@ -153,6 +153,11 @@ export function ApplyForm({ config, apiBase, initialLocale }: Props) {
         </div>
         <h1>{t.applyTitle(config.name)}</h1>
         <p className="lead">{config.tagline}. {t.applyLead}</p>
+        {demoNotice && (
+          <p className="hint" role="note">
+            Fictional demo: use made-up details, not your real name, email or phone number.
+          </p>
+        )}
       </div>
 
       <form className="form" onSubmit={onSubmit} noValidate aria-busy={submitting}>

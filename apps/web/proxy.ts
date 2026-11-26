@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { guardDashboard } from "@/lib/auth/dashboard-guard";
 import { authEnv, hasSession } from "@/lib/auth/session";
+import { isPublicDemo } from "@/lib/public-demo-flag";
 
 /** Per-request CSP nonce plus baseline security headers for every page. */
 export async function proxy(request: NextRequest) {
@@ -8,9 +9,11 @@ export async function proxy(request: NextRequest) {
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
+  const publicDemo = isPublicDemo();
+  // Public demo: browsers only ever talk to this server, never to the agent.
   let apiOrigin = "";
   try {
-    apiOrigin = new URL(process.env.PUBLIC_API_BASE_URL ?? "http://localhost:8000").origin;
+    if (!publicDemo) apiOrigin = new URL(process.env.PUBLIC_API_BASE_URL ?? "http://localhost:8000").origin;
   } catch {
     apiOrigin = "";
   }
@@ -43,6 +46,16 @@ export async function proxy(request: NextRequest) {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (publicDemo) {
+    // Served over HTTPS by Tailscale Funnel: pin it, isolate the origin, expose nothing cross-origin.
+    response.headers.set("Strict-Transport-Security", "max-age=31536000");
+    response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+    response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
+    response.headers.set(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+    );
+  }
   return response;
 }
 

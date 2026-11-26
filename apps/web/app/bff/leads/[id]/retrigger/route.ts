@@ -3,6 +3,7 @@ import { z } from "zod";
 import { assertSameOrigin, errorResponse, handle } from "@/lib/api/bff";
 import { retriggerResultSchema } from "@/lib/api/schemas";
 import { adminFetch } from "@/lib/api/server";
+import { demoRateLimit } from "@/lib/public-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export function POST(request: Request, ctx: { params: Promise<{ id: string }> })
   return handle(request, async () => {
     const forbidden = assertSameOrigin(request);
     if (forbidden) return forbidden;
+    const limited = demoRateLimit(request, "retrigger");
+    if (limited) return limited;
     const id = z.uuid().safeParse((await ctx.params).id);
     if (!id.success) return errorResponse("Not found", "Unknown lead.", 404);
     const result = await adminFetch(`/admin/leads/${id.data}/retrigger`, retriggerResultSchema, {

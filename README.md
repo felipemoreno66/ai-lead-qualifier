@@ -6,9 +6,9 @@ language (answering their questions from your documents, with citations), and **
 every reply before anything is sent**. All data in this repository is fictional (Northwind Academy).
 
 > **Status:** phases 1 to 3 are built (intake, qualification, drafting with human review, knowledge
-> base and "Ask the docs"), plus a metrics page and a keyless demo (`docker compose up`, no keys). Not
-> built yet: runs with a real model provider (the evals support them but none has been recorded),
-> public deployment, a private instance with a login, and WhatsApp. See [Roadmap](#roadmap).
+> base and "Ask the docs"), plus a metrics page and a keyless demo (`docker compose up`, no keys), with
+> one recorded real-model run of each eval ([results](#evaluation-results)). Not built yet: public
+> deployment, a private instance with a login, and WhatsApp. See [Roadmap](#roadmap).
 
 ![Lead awaiting review: draft reply, score explanation and run log](docs/screenshots/review-desktop.png)
 
@@ -122,6 +122,17 @@ Python 3.12, FastAPI, SQLAlchemy Core (async) and Alembic, PostgreSQL 17 (pgvect
 Next.js 16 (App Router), React 19, Tailwind CSS v4, shadcn/ui, TanStack Query, Zod 4, n8n 2.x,
 Mailpit, Docker Compose. Tooling: uv, pnpm, ruff, mypy (strict), pytest, Testcontainers, Vitest,
 Playwright, GitHub Actions.
+
+## Live demo
+
+> **Live demo: _URL to be added_** (`https://<machine>.<tailnet>.ts.net`, filled in once it is published).
+
+The demo is a fictional school (Northwind Academy) with an open dashboard: browse leads, approve, edit or
+reject drafts, ask the docs and try the public form. Honest limits: it runs on the author's own home
+server and is exposed with Tailscale Funnel, so **it is only up while that server is on**; the data is
+fictional and **resets every night**; the model is the deterministic stand-in (no real AI calls, no real
+emails); deleting leads is disabled and every action is rate limited per visitor. Please do not enter real
+personal data. To host your own copy see [docs/deploy-public-demo.md](docs/deploy-public-demo.md).
 
 ## Quick start (no keys, no accounts)
 
@@ -331,19 +342,46 @@ make eval                      # qualification eval, fake provider, offline
 CI (`.github/workflows/ci.yml`) runs lint, types, tests, build, contract-drift check, secret scan
 and the Playwright suite, all without secrets.
 
+## Evaluation results
+
+One recorded run of each eval with a real model (`claude-haiku-5-5`, 25 Nov 2026). The datasets are
+small (10 leads, 15 questions), so treat these as a sanity check, not a benchmark.
+
+**Qualification** ([dataset](evals/qualification/dataset.yaml), [raw results](evals/results/2026-11-25-qualification-anthropic.json)) — 30 model calls, US$0.011
+
+| Metric | Result |
+|---|---|
+| Tier accuracy (hot / warm / cold) | 90% (9/10; the miss was one step off: a cold lead scored 48, warm) |
+| Recommended program accuracy | 86% (6/7 leads with a program) |
+| Prompt-injection flag correct (10 leads, 2 with an attempt) | 100%; no injected lead was promoted to hot |
+
+**RAG answers** ([dataset](evals/rag/northwind.yaml), [full table](evals/results/2026-11-25-rag-anthropic-fastembed.md)) — local `fastembed` embeddings, top 5, similarity ≥ 0.45, 13 model calls, US$0.004
+
+| Metric | Result |
+|---|---|
+| Answer accuracy (rubric keywords, 12 answerable questions) | 92% |
+| Expected source cited | 100% |
+| Citation precision | 100% |
+| Unanswerable questions refused (3) | 100% |
+| Answerable questions wrongly refused | 0 |
+
+Refusals of unanswerable questions partly come from the similarity threshold (nothing above it means the
+model is not asked). Reproduce with `--provider anthropic` (see each eval's README); each run has a hard
+spending cap.
+
 ## Roadmap
 
 Built: intake and outbox, qualification, drafting with human review, email delivery (SMTP, optionally
-through n8n), knowledge base with citations, "Ask the docs", metrics, the keyless demo.
+through n8n), knowledge base with citations, "Ask the docs", metrics, the keyless demo, one real-model
+run of each eval, the self-hosted public demo setup and the private instance (single-admin login, Resend).
 
 Remaining:
 
-1. **Real-provider runs**: record one run of each eval ([qualification](evals/qualification/README.md),
-   [RAG](evals/rag/README.md)) with a real model within its small spending cap.
-2. **Public deployment** of the demo (hosts not chosen yet).
-3. **The private instance's own content**: the `david-moreno` workspace is a draft until its services,
+1. **Go live with the public demo**: the self-hosted setup behind Tailscale Funnel is built
+   ([guide](docs/deploy-public-demo.md)); the public URL is added once Funnel is enabled.
+2. **The private instance's own content**: the `david-moreno` workspace is a draft until its services,
    prices and privacy notice are filled in (see [Private instance](#private-instance)).
-4. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta
+3. **WhatsApp channel** (not built; the data model is channel-ready). Planned through the Meta
    WhatsApp Cloud API and n8n, with a separate opt-in from the lead.
 
 ## Author

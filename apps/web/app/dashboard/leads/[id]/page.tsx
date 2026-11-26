@@ -6,6 +6,7 @@ import { LeadDetailView } from "@/features/leads/lead-detail-view";
 import { leadKey } from "@/features/leads/queries";
 import { leadDetailSchema } from "@/lib/api/schemas";
 import { AgentError, adminFetch } from "@/lib/api/server";
+import { isPublicDemo } from "@/lib/public-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   }
   return (
     <HydrationBoundary state={dehydrate(client)}>
-      <LeadDetailView id={parsed.data} />
+      <LeadDetailView id={parsed.data} canDelete={!isPublicDemo()} />
     </HydrationBoundary>
   );
 }

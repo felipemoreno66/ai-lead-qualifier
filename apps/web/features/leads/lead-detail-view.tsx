@@ -28,7 +28,7 @@ import { fetchLead, leadKey } from "./queries";
 
 const IN_FLIGHT = new Set(["new", "qualifying", "approved"]);
 
-export function LeadDetailView({ id }: { id: string }) {
+export function LeadDetailView({ id, canDelete = true }: { id: string; canDelete?: boolean }) {
   const query = useQuery({
     queryKey: leadKey(id),
     queryFn: () => fetchLead(id),
@@ -55,10 +55,10 @@ export function LeadDetailView({ id }: { id: string }) {
         <span className="skel" style={{ height: 200 }} />
       </div>
     );
-  return <Detail lead={query.data} />;
+  return <Detail lead={query.data} canDelete={canDelete} />;
 }
 
-function Detail({ lead }: { lead: LeadDetail }) {
+function Detail({ lead, canDelete }: { lead: LeadDetail; canDelete: boolean }) {
   const router = useRouter();
   const client = useQueryClient();
   const refresh = () => {
@@ -196,25 +196,29 @@ function Detail({ lead }: { lead: LeadDetail }) {
             The applicant accepted privacy notice version <b>{lead.consent_notice_version}</b> on{" "}
             {formatDateTimeUtc(lead.consent_at)}. Source: {lead.source.replace("_", " ")}.
           </p>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button className="btn danger" type="button">
-                <Trash2 className="ic" aria-hidden="true" />
-                Delete this lead
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogTitle>Delete {lead.name}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This permanently removes the application, its timeline and queued events. It cannot
-                be undone.
-              </AlertDialogDescription>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep lead</AlertDialogCancel>
-                <AlertDialogAction onClick={() => remove.mutate()}>Delete permanently</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {canDelete ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="btn danger" type="button">
+                  <Trash2 className="ic" aria-hidden="true" />
+                  Delete this lead
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogTitle>Delete {lead.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently removes the application, its timeline and queued events. It cannot
+                  be undone.
+                </AlertDialogDescription>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep lead</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => remove.mutate()}>Delete permanently</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <p style={{ margin: 0 }}>Deleting leads is disabled in the public demo.</p>
+          )}
           <MutationStatus mutation={remove} done="Deleted." />
         </div>
       </section>

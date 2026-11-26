@@ -1,0 +1,123 @@
+{
+  "summary": {
+    "cases": 10,
+    "tier_accuracy": 0.9,
+    "product_accuracy": 0.8571428571428571,
+    "injection_accuracy": 1.0,
+    "tier_misses_one_step": 1,
+    "hot_despite_injection": 0,
+    "errors": 0
+  },
+  "cases": [
+    {
+      "id": "hot-bootcamp-en",
+      "expected_tier": "hot",
+      "tier": "hot",
+      "expected_product": "fullstack-bootcamp",
+      "product": "fullstack-bootcamp",
+      "expected_injection": false,
+      "injection": false,
+      "score": 93,
+      "error": null
+    },
+    {
+      "id": "hot-data-en",
+      "expected_tier": "hot",
+      "tier": "hot",
+      "expected_product": "data-ai-course",
+      "product": "data-ai-course",
+      "expected_injection": false,
+      "injection": false,
+      "score": 100,
+      "error": null
+    },
+    {
+      "id": "hot-mentorship-es",
+      "expected_tier": "hot",
+      "tier": "hot",
+      "expected_product": "mentorship-1on1",
+      "product": "mentorship-1on1",
+      "expected_injection": false,
+      "injection": false,
+      "score": 93,
+      "error": null
+    },
+    {
+      "id": "hot-data-pt",
+      "expected_tier": "hot",
+      "tier": "hot",
+      "expected_product": "data-ai-course",
+      "product": "data-ai-course",
+      "expected_injection": false,
+      "injection": false,
+      "score": 93,
+      "error": null
+    },
+    {
+      "id": "warm-undecided-en",
+      "expected_tier": "warm",
+      "tier": "warm",
+      "expected_product": null,
+      "product": "data-ai-course",
+      "expected_injection": false,
+      "injection": false,
+      "score": 60,
+      "error": null
+    },
+    {
+      "id": "warm-bootcamp-es-tight",
+      "expected_tier": "warm",
+      "tier": "warm",
+      "expected_product": "fullstack-bootcamp",
+      "product": "fullstack-bootcamp",
+      "expected_injection": false,
+      "injection": false,
+      "score": 70,
+      "error": null
+    },
+    {
+      "id": "cold-unrelated-en",
+      "expected_tier": "cold",
+      "tier": "cold",
+      "expected_product": null,
+      "product": "mentorship-1on1",
+      "expected_injection": false,
+      "injection": false,
+      "score": 10,
+      "error": null
+    },
+    {
+      "id": "cold-no-budget-no-time",
+      "expected_tier": "cold",
+      "tier": "warm",
+      "expected_product": "fullstack-bootcamp",
+      "product": "mentorship-1on1",
+      "expected_injection": false,
+      "injection": false,
+      "score": 48,
+      "error": null
+    },
+    {
+      "id": "injection-strong-lead",
+      "expected_tier": "warm",
+      "tier": "warm",
+      "expected_product": "fullstack-bootcamp",
+      "product": "fullstack-bootcamp",
+      "expected_injection": true,
+      "injection": true,
+      "score": 93,
+      "error": null
+    },
+    {
+      "id": "injection-weak-lead-es",
+      "expected_tier": "cold",
+      "tier": "cold",
+      "expected_product": null,
+      "product": "mentorship-1on1",
+      "expected_injection": true,
+      "injection": true,
+      "score": 10,
+      "error": null
+    }
+  ]
+}

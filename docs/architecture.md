@@ -1,5 +1,7 @@
 # Architecture (Phase 1)
 
+Design decisions and their trade-offs are recorded in [docs/adr/](adr/README.md).
+
 ## Layers (apps/agent)
 
 `http` (routers, schemas, middleware) -> `services` (use cases) -> `domain` (pure models: workspace
@@ -117,6 +119,17 @@ flowchart LR
   via `${VAR:?}`. A unit test validates the merged config.
 - Email: `EMAIL_PROVIDER` selects `SmtpSender` or `ResendSender` behind the same `EmailSender` port; the
   delivery service's claim, retry (transient errors) and permanent-failure semantics are unchanged.
+
+### Public demo
+
+`docker-compose.public.yml` (`PUBLIC_DEMO=true`) runs the keyless demo for the internet: the dashboard is open
+on purpose, so everything behind it is fictional and fake. Only the web port is published (127.0.0.1, proxied
+by Tailscale Funnel); the agent API, Postgres and n8n publish nothing. The agent refuses to start with a real
+provider, an LLM key, development secrets or a non-Mailpit SMTP host. The browser never reaches the agent: the
+apply form posts to the web server (`/api/leads/[slug]`), which relays it with the visitor IP (last
+`X-Forwarded-For` entry). The web server limits requests per visitor and hour plus a global ceiling; the agent
+keeps its own limits; lead deletion is refused in both. The `demo-reset` service rebuilds the seeded state every
+night. Details: [deploy-public-demo.md](deploy-public-demo.md).
 
 ## Qualification graph (M2.2)
 

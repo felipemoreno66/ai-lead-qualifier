@@ -3,6 +3,8 @@ import { z } from "zod";
 import { errorResponse, handle } from "@/lib/api/bff";
 import { leadListSchema } from "@/lib/api/schemas";
 import { adminFetch } from "@/lib/api/server";
+import { DEMO_MAX_PAGE_SIZE, demoReadLimit, isPublicDemo } from "@/lib/public-demo";
+import { hideInvisibleWorkspace } from "@/lib/workspaces";
 import { STATUSES, TIERS } from "@/lib/leads/filters";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +32,15 @@ export function GET(request: NextRequest) {
   return handle(request, async () => {
     const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
     if (!parsed.success) return errorResponse("Invalid query", parsed.error.issues[0]?.message ?? "", 400);
+    // Searches and big pages are the costly reads; plain list views only count as cheap ones.
+    if (parsed.data.q || parsed.data.page_size > 10) {
+      const limited = demoReadLimit(request, "costly");
+      if (limited) return limited;
+    }
+    const hidden = await hideInvisibleWorkspace(parsed.data.workspace);
+    if (hidden) return hidden;
     const { status, tier, ...rest } = parsed.data;
+    if (isPublicDemo()) rest.page_size = Math.min(rest.page_size, DEMO_MAX_PAGE_SIZE);
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(rest)) if (value !== undefined) params.set(key, String(value));
     if (status.length) params.set("status", status.join(","));
