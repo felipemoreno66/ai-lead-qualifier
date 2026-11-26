@@ -88,26 +88,31 @@ scripts/public-demo.sh down
 
 ## Verify the visitor IP (do this once)
 
-The rate limits are per visitor, so they need the real client address. Funnel runs on the host and is
-expected to append the caller's address to `X-Forwarded-For`; the web server keys on the **last** entry.
-This is not documented by Tailscale, so verify it. From **another network** (a phone on mobile data, not the
-tailnet or the server):
+The rate limits are per visitor, so they need the real client address. The web server keys on the **last**
+`X-Forwarded-For` entry. Only rate-limited actions (form submissions, Ask, review) log the key, once per
+visitor per window, so probe the form endpoint (an empty body is rejected with 422 and creates nothing):
 
 ```bash
 # on the server, in a second terminal
 scripts/public-demo.sh logs web | grep demo_client_key
 
-# from the other network
-curl -s -o /dev/null -H 'X-Forwarded-For: 1.2.3.4' https://<machine>.<tailnet>.ts.net/bff/workspaces
+# from another network (e.g. a phone on mobile data), twice, with different fake addresses
+for ip in 1.2.3.4 5.6.7.8; do
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<machine>.<tailnet>.ts.net/api/leads/northwind-academy \
+    -H 'Content-Type: application/json' -H 'Origin: https://<machine>.<tailnet>.ts.net' \
+    -H "X-Forwarded-For: $ip" --data '{}'
+done
 ```
 
-The web log line shows a hashed key (never the address) and the number of `X-Forwarded-For` entries:
+Read the log lines (they show a hashed key, never the address, and the number of `X-Forwarded-For` entries):
 
-- `"forwarded_entries":2` and the key is the same for repeated calls from your phone but different from a call
-  from another network: **working** (your fake `1.2.3.4` plus the address Funnel appended).
-- `"forwarded_entries":1`: Funnel did not add its own entry; your fake header is being trusted, so a visitor
-  could dodge the per-visitor limit by changing it.
-- `"forwarded_entries":0`: Funnel sends no header; every visitor shares one key.
+- **One new line for both calls** (`"forwarded_entries":1`): Tailscale **replaced** your fake header with the
+  real address, so visitors cannot spoof it. **Working.** This is what was observed on 26 Nov 2026 through the
+  Tailscale proxy (Tailscale 1.104).
+- `"forwarded_entries":2` with one line for both calls: Tailscale appended the real address after your fake one;
+  the last entry is the real visitor. **Working.**
+- **A new line per fake address**: your fake header is trusted, so a visitor could dodge the per-visitor limit.
+- `"forwarded_entries":0`: no header at all; every visitor shares one key.
 
 In the last two cases the per-visitor limits are weak or coarse, but the **global caps per hour** still bound
 total traffic (intake 100, Ask 150, review 600, retrigger 150, reads 60000, costly reads 6000), so the demo cannot be flooded into a large bill or
