@@ -17,6 +17,18 @@ x-public-env: &public-env
   EXPOSE_ADMIN_API: "true"
   ORCHESTRATOR: inline
   IP_HASH_SECRET: ${IP_HASH_SECRET:?run scripts/public-demo.sh init to generate .env.public}
+  ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?run scripts/public-demo.sh init to generate .env.public}
+  N8N_API_TOKEN: ${N8N_API_TOKEN:?run scripts/public-demo.sh init to generate .env.public}
+  N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?run scripts/public-demo.sh init to generate .env.public}
+  # No real mail, no real model: these cannot be set from .env.public.
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  SMTP_USERNAME: ""
+  SMTP_PASSWORD: ""
+  SMTP_STARTTLS: "false"
+  SMTP_SSL: "false"
+  ANTHROPIC_API_KEY: ""
+  OPENAI_API_KEY: ""
   DEMO_MAILPIT_URL: http://mailpit:8025
 
 networks:
@@ -49,9 +61,6 @@ services:
     ports: !reset []
     environment:
       <<: *public-env
-      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?run scripts/public-demo.sh init to generate .env.public}
-      N8N_API_TOKEN: ${N8N_API_TOKEN:?run scripts/public-demo.sh init to generate .env.public}
-      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?run scripts/public-demo.sh init to generate .env.public}
       WEB_PUBLIC_ORIGIN: ${PUBLIC_URL:?set PUBLIC_URL in .env.public (https://<machine>.<tailnet>.ts.net)}
       DASHBOARD_BASE_URL: ${PUBLIC_URL}
       TRUSTED_PROXIES: ${DEMO_SUBNET:-172.31.250.0/24}
@@ -63,15 +72,6 @@ services:
       RATE_EMAIL_PER_DAY: "2"
       KB_ASK_PER_HOUR: "30"
       QUALIFY_MAX_RUNS_PER_DAY: "3"
-      # No real mail, no real model: these cannot be set from .env.public.
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
-      SMTP_STARTTLS: "false"
-      SMTP_SSL: "false"
-      ANTHROPIC_API_KEY: ""
-      OPENAI_API_KEY: ""
       AWS_REGION: ""
 
   demo-init:
@@ -92,10 +92,6 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leadq}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-leadq}
       WORKSPACES_DIR: /app/workspaces
       ENABLED_WORKSPACES: northwind-academy
-      N8N_API_TOKEN: ${N8N_API_TOKEN}
-      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
-      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN}
-      SMTP_HOST: mailpit
       EMBEDDINGS_PROVIDER: ${DEMO_EMBEDDINGS:-${EMBEDDINGS_PROVIDER:-fastembed}}
       EMBEDDINGS_CACHE_DIR: /var/cache/fastembed
       HF_HOME: /var/cache/fastembed/hf
