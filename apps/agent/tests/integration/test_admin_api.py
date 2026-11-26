@@ -274,3 +274,11 @@ async def test_admin_and_internal_routers_can_be_left_unmounted(make_client):
         assert (
             await client.get("/api/workspaces/northwind-academy/public-config")
         ).status_code == 200
+
+
+async def test_deleting_a_lead_is_refused_in_the_public_demo(make_client, seeded):
+    async with make_client(public_demo=True, smtp_host="mailpit") as client:
+        lead = (await client.get("/admin/leads", headers=AUTH)).json()["items"][0]
+        response = await client.delete(f"/admin/leads/{lead['id']}", headers=AUTH)
+        assert response.status_code == 403
+        assert (await client.get(f"/admin/leads/{lead['id']}", headers=AUTH)).status_code == 200
