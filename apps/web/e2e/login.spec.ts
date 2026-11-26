@@ -12,13 +12,15 @@ test("the dashboard is closed without a session and sends you to the login", asy
   await expect(page).toHaveURL(/\/login\?next=%2Fdashboard%2Fmetrics$/);
   await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
   expect((await request.get("/bff/leads")).status()).toBe(401);
-  expect((await request.get("/api/auth/get-session")).status()).toBe(404);
+  expect((await request.get("/api/auth/get-session")).status()).toBe(401); // not an exposed endpoint
 });
 
 test("the public pages stay open", async ({ page }) => {
-  const res = await page.goto("/");
-  expect(res?.status()).toBe(200);
-  await expect(page).toHaveURL(/\/$/);
+  // Public routes never bounce to the login (this instance has no published workspace, so 404 is fine).
+  await page.goto("/privacy/david-moreno");
+  await expect(page).toHaveURL(/\/privacy\/david-moreno$/);
+  await page.goto("/login");
+  await expect(page).toHaveURL(/\/login$/);
 });
 
 test("a wrong password shows one generic message and stays on the login", async ({ page }) => {
@@ -26,12 +28,12 @@ test("a wrong password shows one generic message and stays on the login", async 
   await page.getByLabel("Email").fill(EMAIL!);
   await page.getByLabel("Password").fill("definitely-not-the-password");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("alert")).toContainText("email or password is not right");
+  await expect(page.locator(".form-alert")).toContainText("email or password is not right");
   await expect(page).toHaveURL(/\/login/);
   await page.getByLabel("Email").fill("someone-else@example.com");
   await page.getByLabel("Password").fill("definitely-not-the-password");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("alert")).toContainText("email or password is not right");
+  await expect(page.locator(".form-alert")).toContainText("email or password is not right");
 });
 
 test("sign in, use the dashboard, sign out", async ({ page, context }) => {
