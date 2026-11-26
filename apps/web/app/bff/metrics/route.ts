@@ -19,7 +19,7 @@ export function GET(request: Request) {
     const raw = Object.fromEntries(new URL(request.url).searchParams);
     const parsed = querySchema.safeParse(raw);
     if (!parsed.success) return errorResponse("Bad request", "Invalid workspace or date range.", 400);
-    const limited = demoReadLimit(request);
+    const limited = demoReadLimit(request, "costly");
     if (limited) return limited;
     const hidden = await hideInvisibleWorkspace(parsed.data.workspace);
     if (hidden) return hidden;

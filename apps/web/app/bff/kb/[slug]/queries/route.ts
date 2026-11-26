@@ -12,7 +12,7 @@ export function GET(request: Request, ctx: { params: Promise<{ slug: string }> }
   return handle(request, async () => {
     const slug = (await ctx.params).slug;
     if (!SLUG_PATTERN.test(slug)) return errorResponse("Not found", "Unknown workspace.", 404);
-    const limited = demoReadLimit(request);
+    const limited = demoReadLimit(request, "costly");
     if (limited) return limited;
     const hidden = await hideInvisibleWorkspace(slug);
     if (hidden) return hidden;

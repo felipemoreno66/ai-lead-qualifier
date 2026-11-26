@@ -360,8 +360,9 @@ describe("read flood isolation and workspace visibility", () => {
   const slugCtx = (slug: string) => ({ params: Promise.resolve({ slug }) });
   const calls: string[] = [];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.stubEnv("PUBLIC_DEMO", "true");
+    (await import("@/lib/workspaces")).resetWorkspaceCache();
     calls.length = 0;
     agent((url) => {
       calls.push(url);
@@ -373,25 +374,67 @@ describe("read flood isolation and workspace visibility", () => {
   });
 
   it("a read flood does not touch mutation limits or other visitors", async () => {
-    vi.stubEnv("DEMO_LIMIT_READ_PER_HOUR", "3");
+    vi.stubEnv("DEMO_LIMIT_READ_COSTLY_PER_HOUR", "3");
     vi.stubEnv("DEMO_LIMIT_REVIEW_PER_HOUR", "2");
     const { demoReadLimit, demoRateLimit } = await import("@/lib/public-demo");
     const req = (ip: string) => from("http://web/x", ip);
-    for (let i = 0; i < 3; i++) expect(demoReadLimit(req("1.1.1.1"))).toBeNull();
-    for (let i = 0; i < 500; i++) expect(demoReadLimit(req("1.1.1.1"))?.status).toBe(429);
-    expect(demoReadLimit(req("2.2.2.2"))).toBeNull(); // another visitor is not locked out
+    for (let i = 0; i < 3; i++) expect(demoReadLimit(req("1.1.1.1"), "costly")).toBeNull();
+    for (let i = 0; i < 500; i++) expect(demoReadLimit(req("1.1.1.1"), "costly")?.status).toBe(429);
+    expect(demoReadLimit(req("2.2.2.2"), "costly")).toBeNull(); // another visitor is not locked out
     expect(demoRateLimit(req("1.1.1.1"), "review")).toBeNull(); // mutation limits untouched
     expect(demoRateLimit(req("1.1.1.1"), "review")).toBeNull();
     expect(demoRateLimit(req("1.1.1.1"), "review")?.status).toBe(429);
   });
 
-  it("plain lead views and detail reads are not counted", async () => {
-    vi.stubEnv("DEMO_LIMIT_READ_PER_HOUR", "1");
+  it("cheap reads have a generous limit applied to every GET by handle()", async () => {
+    vi.stubEnv("DEMO_LIMIT_READ_PER_HOUR", "3");
+    const { GET } = await import("@/app/bff/leads/[id]/route");
+    const detail = (ip: string) =>
+      GET(from("http://web/bff/leads/" + id, ip), ctx);
+    for (let i = 0; i < 3; i++) expect((await detail("5.5.5.5")).status).not.toBe(429);
+    expect((await detail("5.5.5.5")).status).toBe(429);
+    expect((await detail("6.6.6.6")).status).not.toBe(429);
+  });
+
+  it("an abusive visitor does not use up the global read ceiling, and the ceiling cannot be dodged", async () => {
+    vi.stubEnv("DEMO_LIMIT_READ_COSTLY_PER_HOUR", "1");
+    vi.stubEnv("DEMO_GLOBAL_READ_COSTLY_PER_HOUR", "3");
+    const { demoReadLimit } = await import("@/lib/public-demo");
+    const req = (ip: string) => from("http://web/x", ip);
+    expect(demoReadLimit(req("1.1.1.1"), "costly")).toBeNull();
+    for (let i = 0; i < 50; i++) demoReadLimit(req("1.1.1.1"), "costly"); // refused, not counted globally
+    expect(demoReadLimit(req("2.2.2.2"), "costly")).toBeNull();
+    expect(demoReadLimit(req("3.3.3.3"), "costly")).toBeNull();
+    expect(demoReadLimit(req("4.4.4.4"), "costly")?.status).toBe(429); // global ceiling, new key
+  });
+
+  it("when the read map is full only new visitors are refused, live counters survive", async () => {
+    vi.stubEnv("DEMO_LIMIT_READ_COSTLY_PER_HOUR", "1");
+    vi.stubEnv("DEMO_GLOBAL_READ_COSTLY_PER_HOUR", "1000000");
+    const { demoReadLimit } = await import("@/lib/public-demo");
+    const req = (ip: string) => from("http://web/x", ip);
+    expect(demoReadLimit(req("10.0.0.1"), "costly", 1)).toBeNull();
+    for (let i = 0; i < 50_000; i++) demoReadLimit(req(`172.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`), "costly", 1);
+    expect(demoReadLimit(req("192.0.2.1"), "costly", 1)?.status).toBe(429); // new key refused
+    expect(demoReadLimit(req("10.0.0.1"), "costly", 1)?.status).toBe(429); // old counter kept (count 2 > 1)
+  });
+
+  it("plain lead views only count as cheap reads", async () => {
+    vi.stubEnv("DEMO_LIMIT_READ_COSTLY_PER_HOUR", "1");
     const { GET } = await import("@/app/bff/leads/route");
     for (let i = 0; i < 5; i++)
       expect((await GET(from("http://web/bff/leads?page_size=10"))).status).toBe(200);
     expect((await GET(from("http://web/bff/leads?q=ana"))).status).toBe(200);
     expect((await GET(from("http://web/bff/leads?q=ana"))).status).toBe(429);
+  });
+
+  it("the visible workspace list is cached briefly", async () => {
+    const { visibleWorkspaces } = await import("@/lib/workspaces");
+    await visibleWorkspaces(1000);
+    await visibleWorkspaces(2000);
+    expect(calls.filter((u) => u.endsWith("/admin/workspaces"))).toHaveLength(1);
+    await visibleWorkspaces(40_000);
+    expect(calls.filter((u) => u.endsWith("/admin/workspaces"))).toHaveLength(2);
   });
 
   it("leads, metrics, ask and queries answer 404 for a draft or disabled workspace", async () => {

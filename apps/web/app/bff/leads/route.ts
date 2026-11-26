@@ -32,13 +32,13 @@ export function GET(request: NextRequest) {
   return handle(request, async () => {
     const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
     if (!parsed.success) return errorResponse("Invalid query", parsed.error.issues[0]?.message ?? "", 400);
-    const hidden = await hideInvisibleWorkspace(parsed.data.workspace);
-    if (hidden) return hidden;
-    // Searches and big pages are the costly reads; plain list views are not counted.
+    // Searches and big pages are the costly reads; plain list views only count as cheap ones.
     if (parsed.data.q || parsed.data.page_size > 10) {
-      const limited = demoReadLimit(request);
+      const limited = demoReadLimit(request, "costly");
       if (limited) return limited;
     }
+    const hidden = await hideInvisibleWorkspace(parsed.data.workspace);
+    if (hidden) return hidden;
     const { status, tier, ...rest } = parsed.data;
     if (isPublicDemo()) rest.page_size = Math.min(rest.page_size, DEMO_MAX_PAGE_SIZE);
     const params = new URLSearchParams();

@@ -80,28 +80,23 @@ function logClientKey(request: Request, bucket: DemoBucket, key: string): void {
 
 type Counter = { count: number; resetAt: number };
 const hits = new Map<string, Counter>();
-// Costly reads (searches, metrics, history) live in their own map: a read flood can neither fill the
-// mutation map nor lock anyone out of the dashboard (no global read ceiling; the oldest visitor is
-// forgotten when the map is full, which only loosens a read limit, never a mutation one).
-const readHits = new Map<string, Counter>();
-const DEFAULT_READ_PER_HOUR = 600;
-const totals = new Map<DemoBucket, Counter>();
+const totals = new Map<string, Counter>();
 
 /** Test hook. */
 export function resetDemoLimits(): void {
-  readHits.clear();
   hits.clear();
   totals.clear();
+  readHits.clear();
+  readTotals.clear();
 }
 
-function bump(map: Map<string, Counter> | Map<DemoBucket, Counter>, key: string, now: number): Counter | null {
-  const m = map as Map<string, Counter>;
+function bump(m: Map<string, Counter>, key: string, now: number, max = MAX_TRACKED): Counter | null {
   let entry = m.get(key);
   if (!entry || entry.resetAt <= now) {
-    if (!entry && m.size >= MAX_TRACKED) {
+    if (!entry && m.size >= max) {
       for (const [k, v] of m) if (v.resetAt <= now) m.delete(k);
       // Still full of live counters: fail closed for new keys, never forget the existing ones.
-      if (m.size >= MAX_TRACKED) return null;
+      if (m.size >= max) return null;
     }
     entry = { count: 0, resetAt: now + WINDOW_MS };
     m.set(key, entry);
@@ -140,23 +135,37 @@ export function demoRateLimit(request: Request, bucket: DemoBucket, now = Date.n
 /** Largest page the lead list may return in the public demo (the API allows 100). */
 export const DEMO_MAX_PAGE_SIZE = 25;
 
-/** Per-visitor hourly limit for the costly read endpoints. Null outside the public demo. */
-export function demoReadLimit(request: Request, now = Date.now()): Response | null {
+export type ReadTier = "cheap" | "costly";
+
+// Reads live apart from the mutation counters so a read flood can never fill or reset them. Same
+// rules as `bump`: when the map is full of live entries only NEW visitors are refused, no live
+// counter is ever evicted; and a high global ceiling that new keys cannot reset.
+const MAX_READ_TRACKED = 50_000;
+const readHits = new Map<string, Counter>();
+const readTotals = new Map<string, Counter>();
+const READ_LIMITS: Record<ReadTier, { visitor: [string, number]; global: [string, number] }> = {
+  cheap: { visitor: ["DEMO_LIMIT_READ_PER_HOUR", 1200], global: ["DEMO_GLOBAL_READ_PER_HOUR", 60_000] },
+  costly: {
+    visitor: ["DEMO_LIMIT_READ_COSTLY_PER_HOUR", 120],
+    global: ["DEMO_GLOBAL_READ_COSTLY_PER_HOUR", 6_000],
+  },
+};
+
+/**
+ * Hourly read allowance per visitor: generous for cheap reads (every GET goes through `handle`),
+ * tighter for costly ones (search, big pages, metrics, run history, Ask history). Null outside the
+ * public demo.
+ */
+export function demoReadLimit(request: Request, tier: ReadTier = "costly", now = Date.now()): Response | null {
   if (!isPublicDemo()) return null;
-  const key = networkKey(clientIp(request));
-  let entry = readHits.get(key);
-  if (!entry || entry.resetAt <= now) {
-    if (!entry && readHits.size >= MAX_TRACKED) {
-      for (const [k, v] of readHits) if (v.resetAt <= now) readHits.delete(k);
-      const oldest = readHits.keys().next().value;
-      if (readHits.size >= MAX_TRACKED && oldest !== undefined) readHits.delete(oldest);
-    }
-    entry = { count: 0, resetAt: now + WINDOW_MS };
-    readHits.set(key, entry);
-  }
-  entry.count += 1;
-  const max = configured("DEMO_LIMIT_READ_PER_HOUR", DEFAULT_READ_PER_HOUR, process.env);
-  return entry.count > max ? tooMany(entry.resetAt, now) : null;
+  const cfg = READ_LIMITS[tier];
+  const visitor = bump(readHits, `${tier}:${networkKey(clientIp(request))}`, now, MAX_READ_TRACKED);
+  if (!visitor) return tooMany(now + WINDOW_MS, now);
+  if (visitor.count > configured(cfg.visitor[0], cfg.visitor[1], process.env)) return tooMany(visitor.resetAt, now);
+  const total = bump(readTotals, tier, now, MAX_READ_TRACKED);
+  if (!total) return tooMany(now + WINDOW_MS, now);
+  if (total.count > configured(cfg.global[0], cfg.global[1], process.env)) return tooMany(total.resetAt, now);
+  return null;
 }
 
 /** 403 for actions the public demo never allows (for example deleting a lead). */

@@ -1,6 +1,7 @@
 import "server-only";
 import { errorResponse } from "@/lib/api/bff";
 import { workspaceSummariesSchema } from "@/lib/api/schemas";
+import type { z } from "zod";
 import { adminFetch } from "@/lib/api/server";
 import { isPublicDemo } from "@/lib/public-demo-flag";
 
@@ -8,9 +9,22 @@ import { isPublicDemo } from "@/lib/public-demo-flag";
  * Workspaces the dashboard may show. In the public demo only enabled, non-draft workspaces are
  * visible (a defense in depth: the agent only loads the enabled ones). Elsewhere: all of them.
  */
-export async function visibleWorkspaces() {
+type WorkspaceSummary = z.infer<typeof workspaceSummariesSchema>[number];
+const CACHE_MS = 30_000;
+let cached: { at: number; list: WorkspaceSummary[] } | null = null;
+
+/** Test hook. */
+export function resetWorkspaceCache(): void {
+  cached = null;
+}
+
+export async function visibleWorkspaces(now = Date.now()): Promise<WorkspaceSummary[]> {
+  if (!isPublicDemo()) return adminFetch("/admin/workspaces", workspaceSummariesSchema);
+  // Public demo: slug checks run on every request, so the list is cached briefly.
+  if (cached && now - cached.at < CACHE_MS) return cached.list;
   const all = await adminFetch("/admin/workspaces", workspaceSummariesSchema);
-  return isPublicDemo() ? all.filter((w) => w.enabled && !w.draft) : all;
+  cached = { at: now, list: all.filter((w) => w.enabled && !w.draft) };
+  return cached.list;
 }
 
 export async function isVisibleWorkspace(slug: string): Promise<boolean> {

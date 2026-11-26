@@ -110,7 +110,7 @@ The web log line shows a hashed key (never the address) and the number of `X-For
 - `"forwarded_entries":0`: Funnel sends no header; every visitor shares one key.
 
 In the last two cases the per-visitor limits are weak or coarse, but the **global caps per hour** still bound
-total traffic (intake 100, Ask 150, review 600, retrigger 150; costly reads have a per-visitor limit only), so the demo cannot be flooded into a large bill or
+total traffic (intake 100, Ask 150, review 600, retrigger 150, reads 60000, costly reads 6000), so the demo cannot be flooded into a large bill or
 outage; it can only be used up for a while. If you see that, tell the maintainer rather than raising limits.
 The agent also logs `client_resolved` at debug level (`LOG_LEVEL=DEBUG` in `.env.public`, then `up` again) with
 the hashed key it used for intake.

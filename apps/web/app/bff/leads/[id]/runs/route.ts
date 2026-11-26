@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   return handle(request, async () => {
-    const limited = demoReadLimit(request);
+    const limited = demoReadLimit(request, "costly");
     if (limited) return limited;
     const id = z.uuid().safeParse((await ctx.params).id);
     if (!id.success) return errorResponse("Not found", "Unknown lead.", 404);
