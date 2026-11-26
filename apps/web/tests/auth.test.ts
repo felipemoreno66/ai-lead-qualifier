@@ -7,7 +7,7 @@ afterEach(() => vi.useRealTimers());
 
 const ATTACKER = "203.0.113.7";
 const proxied = () => adminEnv({ TRUST_FORWARDED_HOST: "true" });
-const limits = () => ({ perClient: 3, sleep: async () => {} });
+const limits = () => ({ perClient: 3, maxQueued: 50, sleep: async () => {} });
 const signIn = (
   auth: Awaited<ReturnType<typeof createAuth>>,
   password: string,
@@ -20,7 +20,7 @@ const signIn = (
       headers: {
         "content-type": "application/json",
         origin: "http://web",
-        ...(ip ? { "x-forwarded-for": `10.0.0.1, ${ip}` } : {}),
+        ...(ip ? { "x-forwarded-for": ip } : {}),
       },
       body: JSON.stringify({ email, password }),
     }),
@@ -71,10 +71,40 @@ describe("operator login", () => {
     expect((await signIn(auth, ADMIN_PASSWORD, ADMIN_EMAIL, "198.51.100.9")).status).toBe(200);
   });
 
+  it("serializes parallel guesses and slows them, then the right password still gets in", async () => {
+    let active = 0;
+    let maxActive = 0;
+    const delays: number[] = [];
+    const sleep = async (ms: number) => {
+      delays.push(ms);
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((r) => setTimeout(r, 1));
+      active--;
+    };
+    const auth = await createAuth(await adminEnv(), undefined, { perClient: 3, maxQueued: 50, sleep });
+    const flood = await Promise.all(Array.from({ length: 14 }, () => signIn(auth, "nope")));
+    expect(flood.every((r) => r.status === 401)).toBe(true);
+    expect(delays.length).toBeGreaterThanOrEqual(8); // attempts past the free ones were delayed
+    expect(delays).toEqual([...delays].sort((a, b) => a - b));
+    expect(maxActive).toBe(1); // never two verifications at once
+    expect((await signIn(auth, ADMIN_PASSWORD)).status).toBe(200);
+  });
+
+  it("bounds the queue under a flood instead of growing without limit", async () => {
+    const sleep = () => new Promise<void>((r) => setTimeout(r, 2));
+    const auth = await createAuth(await adminEnv(), undefined, { perClient: 3, maxQueued: 4, sleep });
+    const flood = await Promise.all(Array.from({ length: 40 }, () => signIn(auth, "nope")));
+    const refused = flood.filter((r) => r.status === 429).length;
+    expect(refused).toBeGreaterThanOrEqual(30);
+    expect(flood.filter((r) => r.status === 401).length).toBeLessThanOrEqual(10);
+    expect((await signIn(auth, ADMIN_PASSWORD)).status).toBe(200);
+  });
+
   it("counts parallel attempts atomically (no burst gets past the limit)", async () => {
     const auth = await createAuth(await proxied(), undefined, limits());
     const results = await Promise.all(
-      Array.from({ length: 8 }, () => signIn(auth, "nope", ADMIN_EMAIL, ATTACKER)),
+      Array.from({ length: 8 }, () => signIn(auth, "nope", ADMIN_EMAIL, "192.0.2.55")),
     );
     const statuses = results.map((r) => r.status);
     expect(statuses.filter((s) => s === 401)).toHaveLength(3);
@@ -83,7 +113,7 @@ describe("operator login", () => {
 
   it("without an identifiable client it only slows down, and a right password still works", async () => {
     const sleep = vi.fn(async () => {});
-    const auth = await createAuth(await adminEnv(), undefined, { perClient: 3, sleep });
+    const auth = await createAuth(await adminEnv(), undefined, { perClient: 3, maxQueued: 50, sleep });
     for (let i = 0; i < 9; i++) expect((await signIn(auth, "nope")).status).toBe(401);
     expect(sleep).toHaveBeenCalled();
     const delays = sleep.mock.calls.map((c) => (c as unknown as [number])[0]);

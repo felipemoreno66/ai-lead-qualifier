@@ -3,7 +3,8 @@ import { APIError, betterAuth } from "better-auth";
 import { memoryAdapter, type MemoryDB } from "better-auth/adapters/memory";
 import { createAuthMiddleware } from "better-auth/api";
 import { authMode, type AuthEnv } from "./mode";
-import { LoginLimiter, slowdownMs } from "./login-limiter";
+import { LoginLimiter, slowdownMs, WindowCounter } from "./login-limiter";
+import { QueueFull, SerialQueue } from "./serial-queue";
 
 const SIGN_IN_PATH = "/sign-in/email";
 const DEFAULT_SESSION_HOURS = 12;
@@ -20,9 +21,10 @@ function sessionSeconds(env: AuthEnv): number {
  */
 const emptyStore = (): MemoryDB => ({ user: [], session: [], account: [], verification: [], rateLimit: [] });
 
-type Limits = { perClient: number; sleep: (ms: number) => Promise<void> };
+type Limits = { perClient: number; maxQueued: number; sleep: (ms: number) => Promise<void> };
 const defaultLimits: Limits = {
   perClient: 5,
+  maxQueued: 50,
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 
@@ -34,8 +36,10 @@ export async function createAuth(env: AuthEnv, store: MemoryDB = emptyStore(), l
   const windowMs = 15 * 60 * 1000;
   // Hard lock per identified client only: other people's failures never lock the operator out.
   const perClient = new LoginLimiter(limits.perClient, windowMs);
-  // Instance-wide: never refuses, only slows every attempt down while many are failing.
-  const everyone = new LoginLimiter(Number.MAX_SAFE_INTEGER, windowMs);
+  // Instance-wide: never refuses, only slows every attempt down while many are failing (constant
+  // memory). Sign-ins are also verified one at a time, so the slowdown caps throughput.
+  const everyone = new WindowCounter(windowMs);
+  const signIns = new SerialQueue(limits.maxQueued);
   const trustForwarded = env.TRUST_FORWARDED_HOST === "true";
   /** Client identity: the last X-Forwarded-For hop, which only a proxy we trust appends. */
   const clientKey = (headers?: Headers): string | null =>
@@ -72,11 +76,11 @@ export async function createAuth(env: AuthEnv, store: MemoryDB = emptyStore(), l
       window: 60,
       max: 60,
       customRules: {
-        // Built-in limiter as an upper bound on sign-in requests of an identified client. Without
-        // an identity every client would share one bucket and could lock the operator out, so
-        // only the slowdown below applies.
+        // Built-in limiter as an upper bound on sign-in requests. Without a trusted client identity
+        // every client shares one bucket, so its threshold is high: it bounds a flood without
+        // locking the operator out for more than a window.
         [SIGN_IN_PATH]: (request) =>
-          clientKey(request.headers) ? { window: 60, max: 30 } : false,
+          clientKey(request.headers) ? { window: 60, max: 30 } : { window: 60, max: 120 },
       },
     },
     hooks: {
@@ -92,8 +96,7 @@ export async function createAuth(env: AuthEnv, store: MemoryDB = emptyStore(), l
             });
           }
         }
-        const { count } = everyone.acquire("*");
-        const delay = slowdownMs(count);
+        const delay = slowdownMs(everyone.hit());
         if (delay > 0) await limits.sleep(delay);
       }),
       after: createAuthMiddleware(async (ctx) => {
@@ -101,10 +104,25 @@ export async function createAuth(env: AuthEnv, store: MemoryDB = emptyStore(), l
         // A correct password gives its attempt back: only failures count towards the limits.
         const key = keyOf(ctx);
         if (key) perClient.reset(key);
-        everyone.release("*");
+        everyone.release();
       }),
     },
   });
+
+  // One sign-in verification at a time: parallel guesses queue behind the slowdown.
+  const handle = auth.handler;
+  auth.handler = async (request) => {
+    if (!new URL(request.url).pathname.endsWith(SIGN_IN_PATH)) return handle(request);
+    try {
+      return await signIns.run(() => handle(request));
+    } catch (error) {
+      if (!(error instanceof QueueFull)) throw error;
+      return Response.json(
+        { message: "Too many sign-in attempts. Try again later.", code: "TOO_MANY_REQUESTS" },
+        { status: 429, headers: { "Retry-After": "30" } },
+      );
+    }
+  };
 
   const context = await auth.$context;
   if (!(await context.internalAdapter.findUserByEmail(adminEmail))) {

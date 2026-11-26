@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LoginLimiter, slowdownMs } from "@/lib/auth/login-limiter";
+import { LoginLimiter, slowdownMs, WindowCounter } from "@/lib/auth/login-limiter";
 
 describe("LoginLimiter", () => {
   it("counts and locks in one step", () => {
@@ -32,5 +32,23 @@ describe("LoginLimiter", () => {
     expect(slowdownMs(6)).toBe(250);
     expect(slowdownMs(7)).toBe(500);
     expect(slowdownMs(100)).toBe(8000);
+  });
+
+  it("keeps memory bounded under a flood of distinct keys", () => {
+    const limiter = new LoginLimiter(3, 60_000, () => 0);
+    for (let i = 0; i < LoginLimiter.MAX_KEYS * 2; i++) limiter.acquire(`ip-${i}`);
+    expect(limiter.size).toBeLessThanOrEqual(LoginLimiter.MAX_KEYS);
+  });
+});
+
+describe("WindowCounter", () => {
+  it("counts in constant memory, restarts each window and takes back successes", () => {
+    let now = 0;
+    const counter = new WindowCounter(1000, () => now);
+    for (let i = 1; i <= 100_000; i++) expect(counter.hit()).toBe(i);
+    counter.release();
+    expect(counter.hit()).toBe(100_000);
+    now = 1000;
+    expect(counter.hit()).toBe(1);
   });
 });
