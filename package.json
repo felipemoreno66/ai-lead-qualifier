@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Open-source mini CRM that qualifies inbound leads with an AI agent and a human in the loop.",
   "license": "MIT",
-  "author": "David Felipe Moreno <davidmorenor.dm@gmail.com>",
+  "author": "David Felipe Moreno <147753525+felipemoreno66@users.noreply.github.com>",
   "packageManager": "pnpm@12.21.0",
   "engines": { "node": ">=22" },
   "scripts": {
