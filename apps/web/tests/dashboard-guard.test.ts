@@ -7,7 +7,7 @@ const login = {
   APP_ENV: "production",
   ADMIN_EMAIL: "owner@example.com",
   ADMIN_PASSWORD_HASH: "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA",
-  BETTER_AUTH_SECRET: "9f2c41d7a0b85e63c1d4f7a29b0e3c68",
+  BETTER_AUTH_SECRET: "test-only-not-a-secret-0123456789abcdef", // gitleaks:allow (test fixture)
 };
 const signedIn = vi.fn(async () => true);
 const signedOut = vi.fn(async () => false);
