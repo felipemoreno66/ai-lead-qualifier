@@ -224,6 +224,8 @@ A second deployment of the same code for a real workspace (`david-moreno`), isol
 Northwind demo: its own Compose project, database volume and ports, `APP_ENV=production`,
 `DEMO_SEED=false` (no seed ever), no Mailpit, a login on the dashboard and real email.
 
+Needs Docker Compose 2.24 or newer (the override uses `!override`); check with `docker compose version`.
+
 ```bash
 cp .env.private.example .env.private     # gitignored; fill every empty value
 pnpm install && pnpm hash-password       # prompts for the password, prints ADMIN_PASSWORD_HASH='...'
@@ -234,6 +236,21 @@ Dashboard on `http://127.0.0.1:3001`, agent on `127.0.0.1:8001` (change with `PR
 Compose refuses to start while a required secret is missing. Stop it with `docker compose --env-file
 .env.private -f docker-compose.yml -f docker-compose.private.yml down` (add `-v` only to delete its data).
 
+- **Reaching it from your phone or laptop needs HTTPS.** The session cookie is `Secure` in production and
+  browsers drop it on plain `http://` (except `localhost`), so over the tailnet the login would silently fail.
+  Put HTTPS in front with Tailscale Serve (tailnet only, never `tailscale funnel`) and set
+  `BETTER_AUTH_URL` to that address:
+
+  ```bash
+  tailscale serve --bg --https=8443 3001      # https://<machine>.<tailnet>.ts.net:8443 -> 127.0.0.1:3001
+  tailscale serve status                      # must NOT say "Funnel on" for this port
+  # .env.private: BETTER_AUTH_URL=https://<machine>.<tailnet>.ts.net:8443 and TRUST_FORWARDED_HOST=true
+  ```
+
+  If the public demo already uses Funnel on 443, keep it there and give the private dashboard another port
+  (`--https=8443` above, or `--https=10000`), so the two never share a listener. Funnel only exposes ports you
+  enable it on; if you ever enabled it for the private port, turn it off (`tailscale funnel --https=8443 off`).
+  Keep `secure` cookies on: do not downgrade to `http`. Restart the web container after changing the URL.
 - **Expose the dashboard only on your tailnet.** Serve it through Tailscale (`tailscale serve`, not Funnel)
   and publish only the public form endpoint `POST /api/leads/david-moreno` (and the privacy notice) to the
   internet. A private network is the primary control; the login is defence in depth.

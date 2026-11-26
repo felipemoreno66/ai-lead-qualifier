@@ -34,7 +34,16 @@ cors:
 
 Only `https://` origins are accepted on the private instance (`http://localhost:PORT` is allowed only
 when `APP_ENV=local`, never in production). Restart the
-agent after editing (`docker compose ... restart agent`). A page on any other origin gets `403`.
+agent after editing. A page on any other origin gets `403`. List only the exact https origin and never use `*`.
+
+`workspaces/` is copied into the agent image (it is not mounted), so a restart is not enough; rebuild
+and recreate the agent:
+
+```bash
+docker compose --env-file .env.private -f docker-compose.yml -f docker-compose.private.yml up -d --build agent
+```
+
+(The project name `ai-lead-qualifier-private` is set inside `docker-compose.private.yml`, so `-p` is not needed.)
 
 The workspace also stays disabled for visitors while `profile.draft: true`. Finish the
 `TODO(david)` values (services, privacy notice, contact email) and set `draft: false` before
@@ -61,7 +70,7 @@ Other keys of the body:
 | Key | Value |
 |---|---|
 | `consent` | `true` only if the visitor ticked the privacy checkbox (required) |
-| `consent_notice_version` | `privacy.version` from `public-config`; a stale value returns `422` |
+| `consent_notice_version` | must come from `GET /api/workspaces/{slug}/public-config` (`privacy.version`); a stale or invented value returns `422` |
 | `hp_company_website` | the **honeypot**: an input real people never see; leave it empty |
 | `form_rendered_at` | ISO time the form was shown; submissions faster than 2 s are treated as bots |
 | `locale` | optional, `en` or `es` (language of the draft reply) |
