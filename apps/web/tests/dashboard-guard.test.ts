@@ -68,8 +68,28 @@ describe("dashboard guard", () => {
   it("sends pages without a session to the login and keeps the return path", async () => {
     const res = await guardDashboard(req("/dashboard/leads/42?tab=runs"), login, signedOut);
     expect(res?.status).toBe(303);
-    expect(res?.headers.get("location")).toBe("/login?next=%2Fdashboard%2Fleads%2F42%3Ftab%3Druns");
+    expect(res?.headers.get("location")).toBe(
+      "http://web/login?next=%2Fdashboard%2Fleads%2F42%3Ftab%3Druns",
+    );
     expect(res?.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("redirects to the host the browser used, not the container's bind address", async () => {
+    const request = new Request("http://0.0.0.0:3000/dashboard", { headers: { host: "127.0.0.1:3001" } });
+    expect((await guardDashboard(request, login, signedOut))?.headers.get("location")).toBe(
+      "http://127.0.0.1:3001/login?next=%2Fdashboard",
+    );
+    const proxied = new Request("http://0.0.0.0:3000/dashboard", {
+      headers: { host: "web:3000", "x-forwarded-host": "dash.example.com", "x-forwarded-proto": "https" },
+    });
+    const trusting = { ...login, TRUST_FORWARDED_HOST: "true" };
+    expect((await guardDashboard(proxied, trusting, signedOut))?.headers.get("location")).toBe(
+      "https://dash.example.com/login?next=%2Fdashboard",
+    );
+    // Without a trusted proxy the forwarded headers are ignored.
+    expect((await guardDashboard(proxied, login, signedOut))?.headers.get("location")).toBe(
+      "http://web:3000/login?next=%2Fdashboard",
+    );
   });
 
   it("answers API-style routes with a JSON 401 instead of a redirect", async () => {

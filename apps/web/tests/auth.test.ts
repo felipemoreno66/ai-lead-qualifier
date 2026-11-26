@@ -45,6 +45,22 @@ describe("operator login", () => {
     expect(session?.user.email).toBe(ADMIN_EMAIL);
   });
 
+  it("accepts the host the browser used even when the inferred base URL differs", async () => {
+    const auth = await createAuth(await adminEnv());
+    const res = await auth.handler(
+      new Request("http://0.0.0.0:3000/api/auth/sign-in/email", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://127.0.0.1:3001",
+          host: "127.0.0.1:3001",
+        },
+        body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+      }),
+    );
+    expect(res.status).toBe(200);
+  });
+
   it("does not mark the cookie Secure outside production (plain http locally)", async () => {
     const auth = await createAuth(await adminEnv({ APP_ENV: "local" }));
     const res = await signIn(auth, ADMIN_PASSWORD);

@@ -64,12 +64,20 @@ function unauthorized(): Response {
   );
 }
 
-/** Pages go to the login (with a return path); API-style routes get a plain 401. */
-function toLogin(url: URL): Response {
+/**
+ * Pages go to the login (with a return path); API-style routes get a plain 401. The Location is
+ * absolute on the host the browser used: behind Docker `request.url` carries the container's bind
+ * address (0.0.0.0), which would send the browser to an unreachable page.
+ */
+function toLogin(request: Request, url: URL, env: GuardEnv): Response {
+  const trusted = env.TRUST_FORWARDED_HOST === "true";
+  const host =
+    (trusted && request.headers.get("x-forwarded-host")) || request.headers.get("host") || url.host;
+  const proto = (trusted && request.headers.get("x-forwarded-proto")) || url.protocol.replace(":", "");
   const next = url.pathname + url.search;
   return new Response(null, {
     status: 303,
-    headers: { ...noStore, Location: `/login?next=${encodeURIComponent(next)}` },
+    headers: { ...noStore, Location: `${proto}://${host}/login?next=${encodeURIComponent(next)}` },
   });
 }
 
@@ -92,7 +100,7 @@ export async function guardDashboard(
   if (isPublicPath(url.pathname)) return null;
   if (mode === "unconfigured") return unconfigured();
   if (await verify(request.headers)) return null;
-  return isApiPath(url.pathname) ? unauthorized() : toLogin(url);
+  return isApiPath(url.pathname) ? unauthorized() : toLogin(request, url, env);
 }
 
 /** Defense in depth for route handlers and layouts that must not rely on the proxy alone. */

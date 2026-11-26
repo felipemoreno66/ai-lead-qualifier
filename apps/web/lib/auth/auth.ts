@@ -90,6 +90,18 @@ export async function createAuth(
     appName: "Lead Qualifier",
     baseURL: env.BETTER_AUTH_URL || undefined,
     secret: env.BETTER_AUTH_SECRET,
+    // Same rule as the BFF: an Origin is trusted when it is the host the browser used. Behind
+    // Docker the inferred base URL is the container's bind address, which no browser uses.
+    trustedOrigins: (request) => {
+      const origin = request?.headers.get("origin");
+      const host =
+        (trustForwarded && request?.headers.get("x-forwarded-host")) || request?.headers.get("host");
+      try {
+        return origin && host && new URL(origin).host === host ? [origin] : [];
+      } catch {
+        return [];
+      }
+    },
     database: memoryAdapter(store),
     emailAndPassword: {
       enabled: true,
