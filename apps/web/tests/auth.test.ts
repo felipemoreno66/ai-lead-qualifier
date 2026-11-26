@@ -7,7 +7,7 @@ afterEach(() => vi.useRealTimers());
 
 const ATTACKER = "203.0.113.7";
 const proxied = () => adminEnv({ TRUST_FORWARDED_HOST: "true" });
-const limits = () => ({ perClient: 3, maxQueued: 50, sleep: async () => {} });
+const limits = () => ({ perClient: 3, sleep: async () => {} });
 const signIn = (
   auth: Awaited<ReturnType<typeof createAuth>>,
   password: string,
@@ -71,34 +71,72 @@ describe("operator login", () => {
     expect((await signIn(auth, ADMIN_PASSWORD, ADMIN_EMAIL, "198.51.100.9")).status).toBe(200);
   });
 
-  it("serializes parallel guesses and slows them, then the right password still gets in", async () => {
-    let active = 0;
-    let maxActive = 0;
+  it("a flood of wrong passwords from unidentified clients does not lock out the operator", async () => {
     const delays: number[] = [];
-    const sleep = async (ms: number) => {
-      delays.push(ms);
-      active++;
-      maxActive = Math.max(maxActive, active);
-      await new Promise((r) => setTimeout(r, 1));
-      active--;
-    };
-    const auth = await createAuth(await adminEnv(), undefined, { perClient: 3, maxQueued: 50, sleep });
-    const flood = await Promise.all(Array.from({ length: 14 }, () => signIn(auth, "nope")));
-    expect(flood.every((r) => r.status === 401)).toBe(true);
-    expect(delays.length).toBeGreaterThanOrEqual(8); // attempts past the free ones were delayed
-    expect(delays).toEqual([...delays].sort((a, b) => a - b));
-    expect(maxActive).toBe(1); // never two verifications at once
+    const sleep = async (ms: number) => void delays.push(ms);
+    const auth = await createAuth(await adminEnv(), undefined, { sleep });
+    const started = Date.now();
+    const flood = await Promise.all(Array.from({ length: 80 }, () => signIn(auth, "nope")));
+    const statuses = new Set(flood.map((r) => r.status));
+    expect([...statuses].every((s) => s === 401 || s === 429)).toBe(true);
+    expect(Math.max(...delays)).toBeLessThanOrEqual(2000); // the shared slowdown is capped
     expect((await signIn(auth, ADMIN_PASSWORD)).status).toBe(200);
+    expect(Date.now() - started).toBeLessThan(5000);
   });
 
-  it("bounds the queue under a flood instead of growing without limit", async () => {
-    const sleep = () => new Promise<void>((r) => setTimeout(r, 2));
-    const auth = await createAuth(await adminEnv(), undefined, { perClient: 3, maxQueued: 4, sleep });
-    const flood = await Promise.all(Array.from({ length: 40 }, () => signIn(auth, "nope")));
-    const refused = flood.filter((r) => r.status === 429).length;
-    expect(refused).toBeGreaterThanOrEqual(30);
-    expect(flood.filter((r) => r.status === 401).length).toBeLessThanOrEqual(10);
-    expect((await signIn(auth, ADMIN_PASSWORD)).status).toBe(200);
+  it("answers 429 quickly with Retry-After when the verification queue is full", async () => {
+    const auth = await createAuth(await adminEnv(), undefined, { maxQueued: 2, sleep: async () => {} });
+    const flood = await Promise.all(Array.from({ length: 12 }, () => signIn(auth, "nope")));
+    const refused = flood.filter((r) => r.status === 429);
+    expect(refused.length).toBeGreaterThanOrEqual(6);
+    expect(refused[0].headers.get("retry-after")).toBe("5");
+    expect(flood.filter((r) => r.status === 401).length).toBeGreaterThanOrEqual(1);
+    expect((await signIn(auth, ADMIN_PASSWORD)).status).toBe(200); // the queue drains
+  });
+
+  it("rejects an oversized body with 413 before any password check", async () => {
+    const auth = await createAuth(await adminEnv());
+    const res = await auth.handler(
+      new Request("http://web/api/auth/sign-in/email", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://web" },
+        body: JSON.stringify({ email: ADMIN_EMAIL, password: "x".repeat(10_000) }),
+      }),
+    );
+    expect(res.status).toBe(413);
+    const streamed = new Request("http://web/api/auth/sign-in/email", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "http://web" },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("x".repeat(5000)));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit);
+    expect((await auth.handler(streamed)).status).toBe(413);
+  });
+
+  it("never hangs: a slow sign-in ends in 503 with Retry-After", async () => {
+    const sleep = () => new Promise<void>((r) => setTimeout(r, 400));
+    const auth = await createAuth(await adminEnv(), undefined, { timeoutMs: 50, sleep });
+    for (let i = 0; i < 5; i++) await signIn(auth, "nope"); // past the free attempts: now delayed
+    const slow = await signIn(auth, "nope");
+    expect(slow.status).toBe(503);
+    expect(slow.headers.get("retry-after")).toBe("5");
+  });
+
+  it("delays an identified client progressively without touching others", async () => {
+    const delays: number[] = [];
+    const auth = await createAuth(await proxied(), undefined, {
+      perClient: 10,
+      sleep: async (ms) => void delays.push(ms),
+    });
+    for (let i = 0; i < 6; i++) await signIn(auth, "nope", ADMIN_EMAIL, "192.0.2.77");
+    expect(delays).toEqual([250, 500, 1000]); // attempts 4, 5, 6 of this client
+    const other = await signIn(auth, ADMIN_PASSWORD, ADMIN_EMAIL, "198.51.100.77");
+    expect(other.status).toBe(200);
   });
 
   it("counts parallel attempts atomically (no burst gets past the limit)", async () => {
@@ -113,7 +151,7 @@ describe("operator login", () => {
 
   it("without an identifiable client it only slows down, and a right password still works", async () => {
     const sleep = vi.fn(async () => {});
-    const auth = await createAuth(await adminEnv(), undefined, { perClient: 3, maxQueued: 50, sleep });
+    const auth = await createAuth(await adminEnv(), undefined, { perClient: 3, sleep });
     for (let i = 0; i < 9; i++) expect((await signIn(auth, "nope")).status).toBe(401);
     expect(sleep).toHaveBeenCalled();
     const delays = sleep.mock.calls.map((c) => (c as unknown as [number])[0]);
