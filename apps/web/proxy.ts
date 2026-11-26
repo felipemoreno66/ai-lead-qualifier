@@ -51,7 +51,7 @@ export function proxy(request: NextRequest) {
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   if (publicDemo) {
     // Served over HTTPS by Tailscale Funnel: pin it, isolate the origin, expose nothing cross-origin.
-    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    response.headers.set("Strict-Transport-Security", "max-age=31536000");
     response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
     response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
     response.headers.set(

@@ -16,8 +16,10 @@ secret() { openssl rand -hex 24; }
 
 # set_var NAME VALUE: replace the NAME= line of .env.public
 set_var() {
-  local name=$1 value=$2
-  sed -i "s|^${name}=.*|${name}=${value}|" "$ENV_FILE"
+  local name=$1 value=$2 escaped
+  # Escape the characters that are special on the replacement side of sed (\, & and the | delimiter).
+  escaped=$(printf '%s' "$value" | sed -e 's/[\\&|]/\\&/g')
+  sed -i "s|^${name}=.*|${name}=${escaped}|" "$ENV_FILE"
 }
 
 tailscale_url() {
@@ -54,6 +56,7 @@ cmd_init() {
     echo "Could not detect the Tailscale name. Set PUBLIC_URL in $ENV_FILE (https://<machine>.<tailnet>.ts.net)."
   fi
   echo "Created $ENV_FILE with generated secrets (mode 600, gitignored)."
+  echo "Next: review $ENV_FILE, then run: scripts/public-demo.sh up"
 }
 
 cmd_up() {

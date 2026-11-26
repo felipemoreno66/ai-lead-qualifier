@@ -122,8 +122,10 @@ services:
       DEMO_LIMIT_ASK_PER_HOUR: "10"
       DEMO_LIMIT_REVIEW_PER_HOUR: "30"
       DEMO_LIMIT_RETRIGGER_PER_HOUR: "10"
+      DEMO_LIMIT_READ_PER_HOUR: "600"
       # Ceiling for all visitors together, per hour (cannot be reset by a flood of new IPs).
       DEMO_GLOBAL_INTAKE_PER_HOUR: "100"
       DEMO_GLOBAL_ASK_PER_HOUR: "150"
       DEMO_GLOBAL_REVIEW_PER_HOUR: "600"
       DEMO_GLOBAL_RETRIGGER_PER_HOUR: "150"
+      DEMO_GLOBAL_READ_PER_HOUR: "6000"

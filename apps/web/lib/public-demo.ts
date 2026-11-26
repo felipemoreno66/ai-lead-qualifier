@@ -1,21 +1,29 @@
 import "server-only";
+import { createHmac, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isPublicDemo } from "./public-demo-flag";
 
 export { isPublicDemo };
 
-export type DemoBucket = "intake" | "ask" | "review" | "retrigger";
+export type DemoBucket = "intake" | "ask" | "review" | "retrigger" | "read";
 
 const WINDOW_MS = 60 * 60 * 1000;
-const DEFAULT_LIMITS: Record<DemoBucket, number> = { intake: 5, ask: 10, review: 30, retrigger: 10 };
+const DEFAULT_LIMITS: Record<DemoBucket, number> = { intake: 5, ask: 10, review: 30, retrigger: 10, read: 600 };
 // Ceiling for ALL visitors together, kept apart from the per-IP map so a flood of new IPs
 // (or of IPv6 addresses) cannot reset it.
-const DEFAULT_GLOBAL_LIMITS: Record<DemoBucket, number> = { intake: 100, ask: 150, review: 600, retrigger: 150 };
+const DEFAULT_GLOBAL_LIMITS: Record<DemoBucket, number> = {
+  intake: 100,
+  ask: 150,
+  review: 600,
+  retrigger: 150,
+  read: 6000,
+};
 const NAMES: Record<DemoBucket, string> = {
   intake: "INTAKE",
   ask: "ASK",
   review: "REVIEW",
   retrigger: "RETRIGGER",
+  read: "READ",
 };
 const MAX_TRACKED = 10_000;
 
@@ -62,6 +70,16 @@ export function clientIp(request: Request): string {
   return last || "unknown";
 }
 
+// Per-process secret: log lines can tell visitors apart without revealing or outliving an address.
+const LOG_SECRET = randomBytes(16);
+
+/** Logs how a visitor was keyed (hashed key, number of X-Forwarded-For entries), once per window. */
+function logClientKey(request: Request, bucket: DemoBucket, key: string): void {
+  const entries = request.headers.get("x-forwarded-for")?.split(",").length ?? 0;
+  const hashed = createHmac("sha256", LOG_SECRET).update(key).digest("hex").slice(0, 12);
+  console.log(JSON.stringify({ event: "demo_client_key", bucket, key: hashed, forwarded_entries: entries }));
+}
+
 type Counter = { count: number; resetAt: number };
 const hits = new Map<string, Counter>();
 const totals = new Map<DemoBucket, Counter>();
@@ -104,14 +122,19 @@ function tooMany(resetAt: number, now: number): Response {
 export function demoRateLimit(request: Request, bucket: DemoBucket, now = Date.now()): Response | null {
   if (!isPublicDemo()) return null;
   // Visitor first: a request refused for its own excess must not use up the shared allowance.
-  const entry = bump(hits, `${bucket}:${networkKey(clientIp(request))}`, now);
+  const visitor = networkKey(clientIp(request));
+  const entry = bump(hits, `${bucket}:${visitor}`, now);
   if (!entry) return tooMany(now + WINDOW_MS, now);
+  if (entry.count === 1) logClientKey(request, bucket, visitor);
   if (entry.count > limitFor(bucket)) return tooMany(entry.resetAt, now);
   const total = bump(totals, bucket, now);
   if (!total) return tooMany(now + WINDOW_MS, now);
   if (total.count > globalLimitFor(bucket)) return tooMany(total.resetAt, now);
   return null;
 }
+
+/** Largest page the lead list may return in the public demo (the API allows 100). */
+export const DEMO_MAX_PAGE_SIZE = 25;
 
 /** 403 for actions the public demo never allows (for example deleting a lead). */
 export function demoForbidden(what: string): Response | null {

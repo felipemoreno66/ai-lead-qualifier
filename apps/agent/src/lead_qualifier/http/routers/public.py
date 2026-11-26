@@ -13,10 +13,12 @@ from lead_qualifier.domain.lead_intake import LeadAccepted, LeadSubmission
 from lead_qualifier.domain.workspace import PublicWorkspaceConfig, to_public
 from lead_qualifier.http.client_ip import resolve_client_ip
 from lead_qualifier.http.deps import RegistryDep, SettingsDep
+from lead_qualifier.logging import get_logger
 from lead_qualifier.security import hash_value
 from lead_qualifier.services.intake import IntakeService, RequestMeta
 from lead_qualifier.services.rate_limit import Limit, RateLimiter
 
+log = get_logger("intake")
 router = APIRouter(prefix="/api", tags=["public"])
 
 
@@ -46,6 +48,14 @@ async def submit_lead(
         client, request.headers.get("x-forwarded-for"), request.app.state.trusted_networks
     )
     ip_hash = hash_value(ip, settings.ip_hash_secret)
+    log.debug(
+        "client_resolved",
+        client_key=ip_hash[:12],
+        forwarded_entries=len((request.headers.get("x-forwarded-for") or "").split(","))
+        if request.headers.get("x-forwarded-for")
+        else 0,
+        via_trusted_proxy=bool(request.app.state.trusted_networks),
+    )
     await limiter.hit(
         [
             Limit(f"ip:{ip_hash}:{slug}", settings.rate_ip_per_minute, 60),

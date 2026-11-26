@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { readBoundedText } from "@/lib/api/bounded-body";
 import { assertSameOrigin, errorResponse, handle } from "@/lib/api/bff";
 import { reviewRequestSchema, reviewResultSchema } from "@/lib/api/schemas";
 import { adminFetch } from "@/lib/api/server";
@@ -20,10 +21,9 @@ export function POST(request: Request, ctx: { params: Promise<{ id: string }> })
     const id = z.uuid().safeParse((await ctx.params).id);
     if (!id.success) return errorResponse("Not found", "Unknown lead.", 404);
 
-    // Refuse on the declared size before reading anything, then on the real UTF-8 size.
-    if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return tooLarge();
-    const text = await request.text();
-    if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return tooLarge();
+    // Streaming read: a chunked upload without Content-Length is cut off at the limit.
+    const text = await readBoundedText(request, MAX_BODY_BYTES);
+    if (text === null) return tooLarge();
     let json: unknown;
     try {
       json = JSON.parse(text);

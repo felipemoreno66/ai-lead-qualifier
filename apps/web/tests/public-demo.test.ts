@@ -280,3 +280,73 @@ describe("readBoundedText", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 });
+
+describe("reads, workspaces and chunked uploads in the public demo", () => {
+  const chunked = (bytes: number) =>
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(bytes));
+        controller.close();
+      },
+    });
+  const slug = { params: Promise.resolve({ slug: "northwind-academy" }) };
+
+  it("answers 413 to a chunked review or ask body without Content-Length", async () => {
+    const review = await import("@/app/bff/leads/[id]/review/route");
+    const ask = await import("@/app/bff/kb/[slug]/ask/route");
+    const spy = agent(() => Response.json({}));
+    const send = (url: string) =>
+      new Request(url, { method: "POST", headers: mutate, body: chunked(100_000), duplex: "half" } as RequestInit);
+    expect((await review.POST(send(`http://web/bff/leads/${id}/review`), ctx)).status).toBe(413);
+    expect((await ask.POST(send("http://web/bff/kb/northwind-academy/ask"), slug)).status).toBe(413);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("rate limits GET reads per visitor", async () => {
+    vi.stubEnv("PUBLIC_DEMO", "true");
+    vi.stubEnv("DEMO_LIMIT_READ_PER_HOUR", "2");
+    const { GET } = await import("@/app/bff/metrics/route");
+    agent(() => new Response("{}", { status: 502 }));
+    const read = () =>
+      GET(new NextRequest("http://web/bff/metrics", { headers: { "x-forwarded-for": "8.8.8.8" } }));
+    expect((await read()).status).not.toBe(429);
+    expect((await read()).status).not.toBe(429);
+    expect((await read()).status).toBe(429);
+  });
+
+  it("caps page_size and hides disabled workspaces", async () => {
+    vi.stubEnv("PUBLIC_DEMO", "true");
+    const { GET: list } = await import("@/app/bff/leads/route");
+    let seen = "";
+    agent((url) => {
+      seen = url;
+      return Response.json({ items: [], total: 0, page: 1, page_size: 25 });
+    });
+    await list(new NextRequest("http://web/bff/leads?page_size=100", { headers: { "x-forwarded-for": "8.8.4.4" } }));
+    expect(seen).toContain("page_size=25");
+
+    const { GET: workspaces } = await import("@/app/bff/workspaces/route");
+    const ws = (slug: string, enabled: boolean, draft: boolean) => ({
+      slug, name: slug, enabled, draft, lead_count: 0, by_status: {},
+    });
+    agent(() => Response.json([ws("a", true, false), ws("b", false, false), ws("c", true, true)]));
+    const body = (await (await workspaces(new Request("http://web/bff/workspaces", { headers: { "x-forwarded-for": "8.8.4.4" } }))).json()) as { slug: string }[];
+    expect(body.map((w) => w.slug)).toEqual(["a"]);
+  });
+});
+
+describe("client key logging", () => {
+  it("logs a hashed key and the number of forwarded entries, never the address", async () => {
+    vi.stubEnv("PUBLIC_DEMO", "true");
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const { demoRateLimit } = await import("@/lib/public-demo");
+    demoRateLimit(new Request("http://web/", { headers: { "x-forwarded-for": "1.2.3.4, 203.0.113.77" } }), "read");
+    demoRateLimit(new Request("http://web/", { headers: { "x-forwarded-for": "1.2.3.4, 203.0.113.77" } }), "read");
+    const lines = log.mock.calls.map((c) => String(c[0]));
+    log.mockRestore();
+    expect(lines).toHaveLength(1); // once per visitor and window
+    expect(lines[0]).toContain('"forwarded_entries":2');
+    expect(lines[0]).not.toContain("203.0.113.77");
+    expect(lines[0]).not.toContain("1.2.3.4");
+  });
+});

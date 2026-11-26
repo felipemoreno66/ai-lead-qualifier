@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, handle } from "@/lib/api/bff";
 import { leadListSchema } from "@/lib/api/schemas";
 import { adminFetch } from "@/lib/api/server";
+import { DEMO_MAX_PAGE_SIZE, isPublicDemo } from "@/lib/public-demo";
 import { STATUSES, TIERS } from "@/lib/leads/filters";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export function GET(request: NextRequest) {
     const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
     if (!parsed.success) return errorResponse("Invalid query", parsed.error.issues[0]?.message ?? "", 400);
     const { status, tier, ...rest } = parsed.data;
+    if (isPublicDemo()) rest.page_size = Math.min(rest.page_size, DEMO_MAX_PAGE_SIZE);
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(rest)) if (value !== undefined) params.set(key, String(value));
     if (status.length) params.set("status", status.join(","));

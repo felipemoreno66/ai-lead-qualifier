@@ -32,6 +32,7 @@ export default async function ApplyPage({
       config={config}
       // Public demo: the agent is not reachable from browsers, the form posts to this server.
       apiBase={isPublicDemo() ? "" : publicApiBase()}
+      demoNotice={isPublicDemo()}
       initialLocale={pickLocale(lang, config.languages, config.default_language)}
     />
   );
