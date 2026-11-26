@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AskView } from "@/features/kb/ask-view";
-import { workspaceSummariesSchema } from "@/lib/api/schemas";
-import { adminFetch } from "@/lib/api/server";
+import { visibleWorkspaces } from "@/lib/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Ask the docs" };
@@ -14,7 +13,7 @@ export default async function AskPage({
 }) {
   const raw = (await searchParams).workspace;
   const wanted = Array.isArray(raw) ? raw[0] : raw;
-  const workspaces = (await adminFetch("/admin/workspaces", workspaceSummariesSchema)).filter(
+  const workspaces = (await visibleWorkspaces()).filter(
     (w) => w.enabled,
   );
   const current = workspaces.find((w) => w.slug === wanted) ?? workspaces.find((w) => !w.draft) ?? workspaces[0];

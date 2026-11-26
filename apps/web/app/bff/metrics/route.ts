@@ -3,6 +3,8 @@ import { z } from "zod";
 import { errorResponse, handle } from "@/lib/api/bff";
 import { metricsSchema } from "@/lib/api/schemas";
 import { adminFetch } from "@/lib/api/server";
+import { demoReadLimit } from "@/lib/public-demo";
+import { hideInvisibleWorkspace } from "@/lib/workspaces";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,10 @@ export function GET(request: Request) {
     const raw = Object.fromEntries(new URL(request.url).searchParams);
     const parsed = querySchema.safeParse(raw);
     if (!parsed.success) return errorResponse("Bad request", "Invalid workspace or date range.", 400);
+    const limited = demoReadLimit(request);
+    if (limited) return limited;
+    const hidden = await hideInvisibleWorkspace(parsed.data.workspace);
+    if (hidden) return hidden;
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(parsed.data)) if (value) params.set(key, value);
     const query = params.size ? `?${params}` : "";

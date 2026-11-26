@@ -5,10 +5,10 @@ import { isPublicDemo } from "./public-demo-flag";
 
 export { isPublicDemo };
 
-export type DemoBucket = "intake" | "ask" | "review" | "retrigger" | "read";
+export type DemoBucket = "intake" | "ask" | "review" | "retrigger";
 
 const WINDOW_MS = 60 * 60 * 1000;
-const DEFAULT_LIMITS: Record<DemoBucket, number> = { intake: 5, ask: 10, review: 30, retrigger: 10, read: 600 };
+const DEFAULT_LIMITS: Record<DemoBucket, number> = { intake: 5, ask: 10, review: 30, retrigger: 10 };
 // Ceiling for ALL visitors together, kept apart from the per-IP map so a flood of new IPs
 // (or of IPv6 addresses) cannot reset it.
 const DEFAULT_GLOBAL_LIMITS: Record<DemoBucket, number> = {
@@ -16,14 +16,12 @@ const DEFAULT_GLOBAL_LIMITS: Record<DemoBucket, number> = {
   ask: 150,
   review: 600,
   retrigger: 150,
-  read: 6000,
 };
 const NAMES: Record<DemoBucket, string> = {
   intake: "INTAKE",
   ask: "ASK",
   review: "REVIEW",
   retrigger: "RETRIGGER",
-  read: "READ",
 };
 const MAX_TRACKED = 10_000;
 
@@ -82,10 +80,16 @@ function logClientKey(request: Request, bucket: DemoBucket, key: string): void {
 
 type Counter = { count: number; resetAt: number };
 const hits = new Map<string, Counter>();
+// Costly reads (searches, metrics, history) live in their own map: a read flood can neither fill the
+// mutation map nor lock anyone out of the dashboard (no global read ceiling; the oldest visitor is
+// forgotten when the map is full, which only loosens a read limit, never a mutation one).
+const readHits = new Map<string, Counter>();
+const DEFAULT_READ_PER_HOUR = 600;
 const totals = new Map<DemoBucket, Counter>();
 
 /** Test hook. */
 export function resetDemoLimits(): void {
+  readHits.clear();
   hits.clear();
   totals.clear();
 }
@@ -135,6 +139,25 @@ export function demoRateLimit(request: Request, bucket: DemoBucket, now = Date.n
 
 /** Largest page the lead list may return in the public demo (the API allows 100). */
 export const DEMO_MAX_PAGE_SIZE = 25;
+
+/** Per-visitor hourly limit for the costly read endpoints. Null outside the public demo. */
+export function demoReadLimit(request: Request, now = Date.now()): Response | null {
+  if (!isPublicDemo()) return null;
+  const key = networkKey(clientIp(request));
+  let entry = readHits.get(key);
+  if (!entry || entry.resetAt <= now) {
+    if (!entry && readHits.size >= MAX_TRACKED) {
+      for (const [k, v] of readHits) if (v.resetAt <= now) readHits.delete(k);
+      const oldest = readHits.keys().next().value;
+      if (readHits.size >= MAX_TRACKED && oldest !== undefined) readHits.delete(oldest);
+    }
+    entry = { count: 0, resetAt: now + WINDOW_MS };
+    readHits.set(key, entry);
+  }
+  entry.count += 1;
+  const max = configured("DEMO_LIMIT_READ_PER_HOUR", DEFAULT_READ_PER_HOUR, process.env);
+  return entry.count > max ? tooMany(entry.resetAt, now) : null;
+}
 
 /** 403 for actions the public demo never allows (for example deleting a lead). */
 export function demoForbidden(what: string): Response | null {

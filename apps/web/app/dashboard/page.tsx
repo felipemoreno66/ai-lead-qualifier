@@ -1,6 +1,7 @@
 import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
 import { LeadsView } from "@/features/leads/leads-view";
-import { leadListSchema, workspaceSummariesSchema } from "@/lib/api/schemas";
+import { visibleWorkspaces } from "@/lib/workspaces";
+import { leadListSchema } from "@/lib/api/schemas";
 import { adminFetch } from "@/lib/api/server";
 import { parseFilters, queryKey, toApiParams } from "@/lib/leads/filters";
 
@@ -12,7 +13,7 @@ export default async function DashboardPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
-  const workspaces = await adminFetch("/admin/workspaces", workspaceSummariesSchema);
+  const workspaces = await visibleWorkspaces();
   const usable = workspaces.filter((w) => w.enabled);
   const defaultWorkspace = (usable.find((w) => !w.draft) ?? usable[0])?.slug ?? "";
 

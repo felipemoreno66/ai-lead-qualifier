@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { authState } from "@/lib/auth/dashboard-guard";
 import { AppHeader } from "@/components/app-nav";
-import { instanceStatusSchema, workspaceSummariesSchema } from "@/lib/api/schemas";
+import { instanceStatusSchema } from "@/lib/api/schemas";
+import { visibleWorkspaces } from "@/lib/workspaces";
 import { adminFetch } from "@/lib/api/server";
 import { isPublicDemo } from "@/lib/public-demo-flag";
 
@@ -24,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </main>
     );
   }
-  const workspaces = await adminFetch("/admin/workspaces", workspaceSummariesSchema).catch(() => []);
+  const workspaces = await visibleWorkspaces().catch(() => []);
   const status = await adminFetch("/admin/status", instanceStatusSchema).catch(() => null);
   const first = workspaces.find((w) => w.enabled && !w.draft);
   return (

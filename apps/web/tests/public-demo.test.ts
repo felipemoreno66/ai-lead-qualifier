@@ -340,13 +340,90 @@ describe("client key logging", () => {
     vi.stubEnv("PUBLIC_DEMO", "true");
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const { demoRateLimit } = await import("@/lib/public-demo");
-    demoRateLimit(new Request("http://web/", { headers: { "x-forwarded-for": "1.2.3.4, 203.0.113.77" } }), "read");
-    demoRateLimit(new Request("http://web/", { headers: { "x-forwarded-for": "1.2.3.4, 203.0.113.77" } }), "read");
+    demoRateLimit(new Request("http://web/", { headers: { "x-forwarded-for": "1.2.3.4, 203.0.113.77" } }), "ask");
+    demoRateLimit(new Request("http://web/", { headers: { "x-forwarded-for": "1.2.3.4, 203.0.113.77" } }), "ask");
     const lines = log.mock.calls.map((c) => String(c[0]));
     log.mockRestore();
     expect(lines).toHaveLength(1); // once per visitor and window
     expect(lines[0]).toContain('"forwarded_entries":2');
     expect(lines[0]).not.toContain("203.0.113.77");
     expect(lines[0]).not.toContain("1.2.3.4");
+  });
+});
+
+describe("read flood isolation and workspace visibility", () => {
+  const ws = (slug: string, enabled: boolean, draft: boolean) => ({
+    slug, name: slug, enabled, draft, lead_count: 0, by_status: {},
+  });
+  const workspaces = [ws("northwind-academy", true, false), ws("hidden-draft", true, true), ws("off", false, false)];
+  const from = (url: string, ip = "8.8.4.4") => new NextRequest(url, { headers: { "x-forwarded-for": ip } });
+  const slugCtx = (slug: string) => ({ params: Promise.resolve({ slug }) });
+  const calls: string[] = [];
+
+  beforeEach(() => {
+    vi.stubEnv("PUBLIC_DEMO", "true");
+    calls.length = 0;
+    agent((url) => {
+      calls.push(url);
+      if (url.endsWith("/admin/workspaces")) return Response.json(workspaces);
+      if (url.includes("/admin/leads"))
+        return Response.json({ items: [], total: 0, page: 1, page_size: 25, pages: 0 });
+      return new Response("{}", { status: 502 });
+    });
+  });
+
+  it("a read flood does not touch mutation limits or other visitors", async () => {
+    vi.stubEnv("DEMO_LIMIT_READ_PER_HOUR", "3");
+    vi.stubEnv("DEMO_LIMIT_REVIEW_PER_HOUR", "2");
+    const { demoReadLimit, demoRateLimit } = await import("@/lib/public-demo");
+    const req = (ip: string) => from("http://web/x", ip);
+    for (let i = 0; i < 3; i++) expect(demoReadLimit(req("1.1.1.1"))).toBeNull();
+    for (let i = 0; i < 500; i++) expect(demoReadLimit(req("1.1.1.1"))?.status).toBe(429);
+    expect(demoReadLimit(req("2.2.2.2"))).toBeNull(); // another visitor is not locked out
+    expect(demoRateLimit(req("1.1.1.1"), "review")).toBeNull(); // mutation limits untouched
+    expect(demoRateLimit(req("1.1.1.1"), "review")).toBeNull();
+    expect(demoRateLimit(req("1.1.1.1"), "review")?.status).toBe(429);
+  });
+
+  it("plain lead views and detail reads are not counted", async () => {
+    vi.stubEnv("DEMO_LIMIT_READ_PER_HOUR", "1");
+    const { GET } = await import("@/app/bff/leads/route");
+    for (let i = 0; i < 5; i++)
+      expect((await GET(from("http://web/bff/leads?page_size=10"))).status).toBe(200);
+    expect((await GET(from("http://web/bff/leads?q=ana"))).status).toBe(200);
+    expect((await GET(from("http://web/bff/leads?q=ana"))).status).toBe(429);
+  });
+
+  it("leads, metrics, ask and queries answer 404 for a draft or disabled workspace", async () => {
+    const leads = await import("@/app/bff/leads/route");
+    const metrics = await import("@/app/bff/metrics/route");
+    const ask = await import("@/app/bff/kb/[slug]/ask/route");
+    const queries = await import("@/app/bff/kb/[slug]/queries/route");
+    for (const slug of ["hidden-draft", "off", "unknown"]) {
+      expect((await leads.GET(from(`http://web/bff/leads?workspace=${slug}`))).status).toBe(404);
+      expect((await metrics.GET(from(`http://web/bff/metrics?workspace=${slug}`))).status).toBe(404);
+      expect((await queries.GET(from("http://web/q"), slugCtx(slug))).status).toBe(404);
+      const post = new Request("http://web/ask", {
+        method: "POST",
+        headers: { ...mutate, "x-forwarded-for": "3.3.3.3" },
+        body: JSON.stringify({ question: "How much?" }),
+      });
+      expect((await ask.POST(post, slugCtx(slug))).status).toBe(404);
+    }
+    expect(calls.some((u) => u.includes("/admin/metrics") || u.includes("/ask") || u.includes("/queries"))).toBe(false);
+    expect((await leads.GET(from("http://web/bff/leads?workspace=northwind-academy"))).status).toBe(200);
+  });
+
+  it("the workspace list shows only enabled, non-draft workspaces", async () => {
+    const { GET } = await import("@/app/bff/workspaces/route");
+    const body = (await (await GET(from("http://web/bff/workspaces"))).json()) as { slug: string }[];
+    expect(body.map((w) => w.slug)).toEqual(["northwind-academy"]);
+  });
+
+  it("the shared helper shows everything outside the public demo", async () => {
+    vi.stubEnv("PUBLIC_DEMO", "false");
+    const { visibleWorkspaces, isVisibleWorkspace } = await import("@/lib/workspaces");
+    expect(await visibleWorkspaces()).toHaveLength(3);
+    expect(await isVisibleWorkspace("off")).toBe(true);
   });
 });

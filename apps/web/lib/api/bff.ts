@@ -4,7 +4,6 @@ import { ZodError } from "zod";
 import { AgentError } from "./server";
 
 import { guardRequest } from "@/lib/auth/dashboard-guard";
-import { demoRateLimit } from "@/lib/public-demo";
 import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from "./constants";
 
 export function errorResponse(title: string, detail: string, status: number) {
@@ -20,11 +19,6 @@ export async function handle(request: Request, run: () => Promise<Response>): Pr
     DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD,
   });
   if (denied) return denied;
-  // Public demo: reads are limited per visitor too (mutations have their own buckets).
-  if (request.method === "GET" || request.method === "HEAD") {
-    const limited = demoRateLimit(request, "read");
-    if (limited) return limited;
-  }
   try {
     return await run();
   } catch (error) {
