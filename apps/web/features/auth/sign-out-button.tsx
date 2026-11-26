@@ -1,12 +1,11 @@
 "use client";
 
 import { LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-// A full navigation drops every client-side cache of the signed-in session.
-const LOGIN_PATH = "/login";
-
 export function SignOutButton() {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   async function signOut() {
     setBusy(true);
@@ -17,7 +16,8 @@ export function SignOutButton() {
         body: "{}",
       });
     } finally {
-      window.location.assign(LOGIN_PATH);
+      router.replace("/login");
+      router.refresh(); // drop the cached pages of the signed-in session
     }
   }
   return (
