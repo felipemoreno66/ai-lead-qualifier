@@ -71,6 +71,54 @@ def test_merged_config_is_a_separate_production_instance():
 
 
 @docker
+def test_the_private_override_mounts_the_external_workspaces_read_only():
+    config = json.loads(compose_config(SECRETS).stdout)
+    agent = config["services"]["agent"]
+    assert agent["environment"]["WORKSPACES_DIR"] == "/srv/private-workspaces"
+    (mount,) = agent["volumes"]
+    assert mount["target"] == "/srv/private-workspaces"
+    assert mount["read_only"] is True
+    assert mount["source"] == str(ROOT / "data/private/workspaces")
+    assert mount["bind"]["create_host_path"] is False
+    assert "volumes" not in config["services"]["web"]  # the web app never reads workspace files
+
+
+@docker
+def test_private_workspaces_dir_is_configurable(tmp_path: Path):
+    config = json.loads(compose_config({**SECRETS, "PRIVATE_WORKSPACES_DIR": str(tmp_path)}).stdout)
+    assert config["services"]["agent"]["volumes"][0]["source"] == str(tmp_path)
+
+
+@docker
+@pytest.mark.parametrize("override", ["docker-compose.public.yml", "docker-compose.demo.yml"])
+def test_public_and_demo_composes_do_not_mount_private_workspaces(override: str):
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            "docker-compose.yml",
+            "-f",
+            override,
+            "config",
+            "--format",
+            "json",
+        ],
+        cwd=ROOT,
+        env={k: v for k, v in os.environ.items() if k not in SECRETS},
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        pytest.skip(f"{override} needs its own env: {result.stderr.strip()[:80]}")
+    text = result.stdout
+    assert "private-workspaces" not in text and "data/private" not in text
+    assert (
+        json.loads(text)["services"]["agent"]["environment"]["WORKSPACES_DIR"] == "/app/workspaces"
+    )
+
+
+@docker
 @pytest.mark.parametrize(
     "missing",
     ["ADMIN_EMAIL", "ADMIN_PASSWORD_HASH", "BETTER_AUTH_SECRET", "EMAIL_FROM", "POSTGRES_PASSWORD"],
@@ -105,6 +153,18 @@ def test_private_env_and_data_never_reach_git():
         text=True,
     ).stdout.split()
     assert ignored == [".env.private", "data/private/leads.json"]
+    nested = subprocess.run(
+        [
+            "git",
+            "check-ignore",
+            "data/private/workspaces/x",
+            "data/private/workspaces/david-moreno/workspace.yaml",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    ).stdout.split()
+    assert len(nested) == 2
     # The template has no values at all.
     for line in (ROOT / ".env.private.example").read_text().splitlines():
         if "=" in line and not line.startswith("#"):
