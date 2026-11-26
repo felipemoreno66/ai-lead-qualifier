@@ -4,9 +4,13 @@
 //
 //   pnpm hash-password
 //   printf '%s' "$PASSWORD" | pnpm hash-password
+import { randomBytes } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 
-const MIN_LENGTH = 12;
+const MIN_LENGTH = 20;
+// Argon2id, 64 MiB, 3 passes: about 100 ms per check on a small server (OWASP asks for at least
+// 19 MiB and 2 passes; the app refuses anything weaker in production).
+const COST = { algorithm: 2, memoryCost: 65536, timeCost: 3, parallelism: 1 };
 
 function readSecret(prompt) {
   return new Promise((resolve, reject) => {
@@ -42,8 +46,12 @@ function readSecret(prompt) {
   });
 }
 
-const password = await readSecret("New admin password: ");
-if (process.stdin.isTTY) {
+let password = await readSecret(`New admin password (${MIN_LENGTH}+ characters, empty = generate one): `);
+if (process.stdin.isTTY && password === "") {
+  // 24 random base64url characters (144 bits). Shown once, on stderr; store it in a password manager.
+  password = randomBytes(18).toString("base64url");
+  console.error(`Generated password (save it now, it is not stored anywhere): ${password}`);
+} else if (process.stdin.isTTY) {
   const again = await readSecret("Repeat it: ");
   if (again !== password) {
     console.error("The passwords do not match.");
@@ -54,6 +62,6 @@ if (password.length < MIN_LENGTH) {
   console.error(`Use at least ${MIN_LENGTH} characters.`);
   process.exit(1);
 }
-const encoded = await hash(password, { algorithm: 2 }); // 2 = Argon2id
+const encoded = await hash(password, COST); // algorithm 2 = Argon2id
 // Single quotes: Docker Compose and shells would otherwise expand the "$" signs in the hash.
 console.log(`ADMIN_PASSWORD_HASH='${encoded}'`);

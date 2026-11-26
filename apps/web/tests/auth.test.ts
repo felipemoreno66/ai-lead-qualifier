@@ -79,9 +79,45 @@ describe("operator login", () => {
     const flood = await Promise.all(Array.from({ length: 80 }, () => signIn(auth, "nope")));
     const statuses = new Set(flood.map((r) => r.status));
     expect([...statuses].every((s) => s === 401 || s === 429)).toBe(true);
-    expect(Math.max(...delays)).toBeLessThanOrEqual(2000); // the shared slowdown is capped
+    expect(Math.max(...delays)).toBeLessThanOrEqual(5000); // capped at half the request timeout
+    expect(Math.max(...delays)).toBeGreaterThan(2000); // and growing under a flood
     expect((await signIn(auth, ADMIN_PASSWORD)).status).toBe(200);
     expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it("holds the verification turn while delaying a flood, yet never past the timeout", async () => {
+    let active = 0;
+    let maxActive = 0;
+    let calls = 0;
+    const sleep = async () => {
+      calls++;
+      if (calls <= 15) return; // attempts 6 to 20 are delayed outside the turn
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((r) => setTimeout(r, 2));
+      active--;
+    };
+    const auth = await createAuth(await adminEnv(), undefined, { sleep, maxQueued: 100 });
+    await Promise.all(Array.from({ length: 40 }, () => signIn(auth, "nope")));
+    expect(calls).toBeGreaterThan(30);
+    expect(maxActive).toBe(1); // heavy delays queue up one at a time
+  });
+
+  it("logs one structured warning, without personal data, when failures pile up", async () => {
+    const warn = vi.fn();
+    const auth = await createAuth(await proxied(), undefined, {
+      perClient: 1000,
+      maxQueued: 200,
+      sleep: async () => {},
+      warn,
+    });
+    await Promise.all(Array.from({ length: 70 }, (_, i) => signIn(auth, "nope", ADMIN_EMAIL, `192.0.2.${i + 100}`)));
+    expect(warn).toHaveBeenCalledTimes(1);
+    const [event] = warn.mock.calls[0] as [Record<string, unknown>];
+    expect(event).toMatchObject({ event: "login_failures_high", window_seconds: 600 });
+    expect(event.failures).toBeGreaterThan(50);
+    expect(JSON.stringify(event)).not.toMatch(/192\.0\.2|owner@example|nope/);
+    expect(String(event.client)).toMatch(/^[0-9a-f]{8}$/);
   });
 
   it("answers 429 quickly with Retry-After when the verification queue is full", async () => {

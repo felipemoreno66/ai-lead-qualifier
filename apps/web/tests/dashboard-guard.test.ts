@@ -31,6 +31,13 @@ describe("auth mode", () => {
     expect(authMode({ ...login, ADMIN_PASSWORD_HASH: "$2b$12$abcdefghijklmnopqrstuv" })).toBe("unconfigured");
   });
 
+  it("refuses weak or non-argon2id hashes (production would not start the login)", () => {
+    const weak = "$argon2id$v=19$m=1024,t=1,p=1$c2FsdA$aGFzaA";
+    expect(authMode({ ...login, ADMIN_PASSWORD_HASH: weak })).toBe("unconfigured");
+    expect(authMode({ ...login, ADMIN_PASSWORD_HASH: "$argon2i$v=19$m=65536,t=3,p=1$c2FsdA$aGFzaA" })).toBe("unconfigured");
+    expect(authMode({ ...login, ADMIN_PASSWORD_HASH: "$argon2id$v=19$m=65536,t=3,p=1$c2FsdA$aGFzaA" })).toBe("session");
+  });
+
   it("treats a half-filled login as misconfigured outside production too", () => {
     expect(authMode({ APP_ENV: "local", ADMIN_EMAIL: "owner@example.com" })).toBe("unconfigured");
     expect(authMode({ ...login, APP_ENV: "local" })).toBe("session");

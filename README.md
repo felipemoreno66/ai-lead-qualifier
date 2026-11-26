@@ -242,11 +242,19 @@ Compose refuses to start while a required secret is missing. Stop it with `docke
   rejected). The session is an httpOnly, `SameSite=Lax` cookie, `Secure` in production, valid for
   `ADMIN_SESSION_HOURS`. The operator lives in memory: nothing is stored, a restart signs you out, and
   changing the password means a new hash and a restart. Failures read the same whatever was wrong.
-- **Brute force.** The body is capped (4 KB) and the password check runs one at a time with a bounded queue
-  (full queue: 429), so guesses per second are limited for the whole instance. A client the trusted proxy
-  identifies (`TRUST_FORWARDED_HOST=true` behind a proxy you control) is also delayed progressively and
-  locked for 15 minutes after repeated failures; unidentified clients only see a short capped delay, so
-  strangers can slow the login but never refuse the right password.
+- **Strong password.** `pnpm hash-password` refuses passwords under 20 characters (press Enter to get a random
+  24-character one, shown once) and writes Argon2id with 64 MiB and 3 passes, about 100 ms per check. The app
+  does not start the login with a weaker hash (below 19 MiB or 2 passes, or not Argon2id), so production
+  answers 503 instead. At that cost the whole instance can verify at most about 860,000 guesses a day (less with
+  the delays below); a random 20+ character password makes that irrelevant.
+- **Brute force (defence in depth).** The body is capped (4 KB), the password check runs one at a time with a
+  bounded queue (full queue: 429) and every request ends within 10 s (503). A client the trusted proxy
+  identifies (`TRUST_FORWARDED_HOST=true` behind a proxy you control) is delayed progressively and locked for
+  15 minutes after repeated failures. Unidentified clients are never refused, so strangers cannot lock the right
+  password out; under a flood their guesses are delayed (up to 8 s, inside the verification turn) and the right
+  password may take a few seconds or need a retry. More than 50 failures in 10 minutes log one structured line,
+  `{"level":"warn","event":"login_failures_high",...}` (no personal data; the client is a short hash). Alert
+  on that line.
 - **Real email.** `EMAIL_PROVIDER=resend` sends through Resend's HTTP API with `RESEND_API_KEY` and an
   `EMAIL_FROM` on a domain verified there; replies go to the workspace's `contact_email`. The message id is
   the idempotency key, 429/5xx/timeouts are retried and other errors fail the message. The key is never

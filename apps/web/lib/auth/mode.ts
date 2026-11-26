@@ -19,19 +19,27 @@ export type AuthMode = "off" | "session" | "unconfigured";
 
 export const MIN_AUTH_SECRET_LENGTH = 32;
 
-const isArgon2 = (hash: string) => /^\$argon2(id|i|d)\$/.test(hash);
+/** Minimums (OWASP) for an Argon2id hash accepted as the operator password: 19 MiB, 2 passes. */
+export const MIN_ARGON2_MEMORY_KIB = 19456;
+export const MIN_ARGON2_PASSES = 2;
+
+/** True for an Argon2id hash whose cost parameters are not weaker than the minimums. */
+export function isStrongArgon2id(hash: string): boolean {
+  const match = /^\$argon2id\$v=\d+\$m=(\d+),t=(\d+),p=\d+\$/.exec(hash);
+  return !!match && Number(match[1]) >= MIN_ARGON2_MEMORY_KIB && Number(match[2]) >= MIN_ARGON2_PASSES;
+}
 
 export function authMode(env: AuthEnv): AuthMode {
   const email = env.ADMIN_EMAIL?.trim();
   const hash = env.ADMIN_PASSWORD_HASH?.trim();
   const secret = env.BETTER_AUTH_SECRET ?? "";
-  if (email && hash && isArgon2(hash) && secret.length >= MIN_AUTH_SECRET_LENGTH) return "session";
+  if (email && hash && isStrongArgon2id(hash) && secret.length >= MIN_AUTH_SECRET_LENGTH) return "session";
   if (env.APP_ENV === "production" || email || hash) return "unconfigured";
   return "off";
 }
 
 export const UNCONFIGURED_MESSAGE =
-  "The dashboard is disabled: set ADMIN_EMAIL, ADMIN_PASSWORD_HASH (argon2, see the README) and " +
+  "The dashboard is disabled: set ADMIN_EMAIL, ADMIN_PASSWORD_HASH (argon2id from `pnpm hash-password`, see the README) and " +
   "BETTER_AUTH_SECRET (32+ characters) to enable it.";
 
 /** Only same-site paths inside the app are valid post-login targets (no open redirect). */
