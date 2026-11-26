@@ -55,8 +55,10 @@ class DeliveryService:
         sender: EmailSender,
         *,
         max_attempts: int = 3,
+        from_address: str = "",
     ) -> None:
         self.max_attempts = max_attempts
+        self.from_address = from_address
         self.engine = engine
         self.clock = clock
         self.registry = registry
@@ -82,8 +84,11 @@ class DeliveryService:
     def payload_for(self, row: dict[str, Any]) -> ChannelPayload:
         """Render the stored message with its channel (``UnsupportedChannel`` for unbuilt ones)."""
         workspace = self.registry.get(row["workspace_slug"])
-        sender = workspace.config.profile.contact_email if workspace else "noreply@localhost"
-        channel = channel_for(row["channel"], sender=sender)
+        contact = workspace.config.profile.contact_email if workspace else "noreply@localhost"
+        # ``EMAIL_FROM`` (a verified sending address) wins; replies still reach the workspace owner.
+        sender = self.from_address or contact
+        reply_to = contact if self.from_address and contact != self.from_address else None
+        channel = channel_for(row["channel"], sender=sender, reply_to=reply_to)
         return channel.render(
             ChannelMessage(
                 id=str(row["id"]),

@@ -17,7 +17,7 @@ from lead_qualifier.http.middleware.request_id import RequestIdMiddleware
 from lead_qualifier.http.routers import admin, health, internal, public
 from lead_qualifier.infrastructure.checkpoint import PostgresCheckpointer
 from lead_qualifier.infrastructure.db.engine import create_engine
-from lead_qualifier.infrastructure.email.smtp import SmtpSender
+from lead_qualifier.infrastructure.email import build_email_sender
 from lead_qualifier.infrastructure.embeddings import build_embeddings
 from lead_qualifier.infrastructure.llm.router import build_provider
 from lead_qualifier.infrastructure.outbox.dispatcher import OutboxDispatcher
@@ -86,16 +86,9 @@ def create_app(
         engine,
         clock,
         registry,
-        email_sender
-        or SmtpSender(
-            settings.smtp_host,
-            settings.smtp_port,
-            username=settings.smtp_username,
-            password=settings.smtp_password.get_secret_value(),
-            starttls=settings.smtp_starttls,
-            use_ssl=settings.smtp_ssl,
-        ),
+        email_sender or build_email_sender(settings),
         max_attempts=settings.send_max_attempts,
+        from_address=settings.email_from,
     )
     qualifier.attach_send_gateway(reviewer)
     n8n_publisher: N8nPublisher | None = None

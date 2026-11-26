@@ -34,6 +34,8 @@ class SmtpSender:
         message = EmailMessage()
         message["From"] = payload.sender
         message["To"] = payload.recipient
+        if payload.reply_to:
+            message["Reply-To"] = payload.reply_to
         message["Subject"] = sanitize_header(payload.subject)  # defence in depth
         message["Message-ID"] = payload.message_id
         message["Date"] = formatdate(usegmt=True)

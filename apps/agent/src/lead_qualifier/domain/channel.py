@@ -37,8 +37,14 @@ def strip_invisible(text: str) -> str:
 class EmailChannel:
     name = "email"
 
-    def __init__(self, sender: str, message_id_domain: str = "lead-qualifier.local") -> None:
+    def __init__(
+        self,
+        sender: str,
+        message_id_domain: str = "lead-qualifier.local",
+        reply_to: str | None = None,
+    ) -> None:
         self.sender = sender
+        self.reply_to = reply_to
         self.message_id_domain = message_id_domain
 
     def validate_recipient(self, recipient: str) -> None:
@@ -57,11 +63,12 @@ class EmailChannel:
             subject=sanitize_header(message.subject),
             text=message.body,
             message_id=f"<{message.id}@{self.message_id_domain}>",
+            reply_to=self.reply_to,
         )
 
 
-def channel_for(name: str, *, sender: str) -> MessageChannel:
+def channel_for(name: str, *, sender: str, reply_to: str | None = None) -> MessageChannel:
     """The channel implementation for ``name``; only email is built."""
     if name == "email":
-        return EmailChannel(sender)
+        return EmailChannel(sender, reply_to=reply_to)
     raise UnsupportedChannel(name)
