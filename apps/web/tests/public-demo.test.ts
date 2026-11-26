@@ -194,13 +194,13 @@ describe("hardening", () => {
   it("applies one limit to a whole /64 and a global ceiling to everyone", async () => {
     vi.stubEnv("PUBLIC_DEMO", "true");
     vi.stubEnv("DEMO_LIMIT_ASK_PER_HOUR", "2");
-    vi.stubEnv("DEMO_GLOBAL_ASK_PER_HOUR", "4");
+    vi.stubEnv("DEMO_GLOBAL_ASK_PER_HOUR", "3");
     const { demoRateLimit } = await import("@/lib/public-demo");
     const from = (ip: string) => new Request("http://web/", { headers: { "x-forwarded-for": ip } });
     expect(demoRateLimit(from("2001:db8:1:2::1"), "ask", 1)).toBeNull();
     expect(demoRateLimit(from("2001:db8:1:2::2"), "ask", 1)).toBeNull();
     expect(demoRateLimit(from("2001:db8:1:2::3"), "ask", 1)?.status).toBe(429); // same /64
-    expect(demoRateLimit(from("198.51.100.1"), "ask", 1)).toBeNull(); // 4th of 4 globally
+    expect(demoRateLimit(from("198.51.100.1"), "ask", 1)).toBeNull(); // 3rd of 3 globally
     expect(demoRateLimit(from("198.51.100.2"), "ask", 1)?.status).toBe(429); // global ceiling
   });
 
@@ -215,6 +215,22 @@ describe("hardening", () => {
     for (let i = 0; i < 10_000; i++) demoRateLimit(from(`172.${i >> 8}.${i & 255}.1`), "review", 1);
     expect(demoRateLimit(from("192.0.2.1"), "review", 1)?.status).toBe(429); // new key, map full
     expect(demoRateLimit(known, "review", 1)?.status).toBe(429); // old counter survived the flood
+  });
+});
+
+describe("global ceiling", () => {
+  it("is not consumed by a visitor that is over its own limit", async () => {
+    vi.stubEnv("PUBLIC_DEMO", "true");
+    vi.stubEnv("DEMO_LIMIT_ASK_PER_HOUR", "1");
+    vi.stubEnv("DEMO_GLOBAL_ASK_PER_HOUR", "3");
+    const { demoRateLimit } = await import("@/lib/public-demo");
+    const from = (ip: string) => new Request("http://web/", { headers: { "x-forwarded-for": ip } });
+    expect(demoRateLimit(from("203.0.113.1"), "ask", 1)).toBeNull();
+    for (let i = 0; i < 50; i++) expect(demoRateLimit(from("203.0.113.1"), "ask", 1)?.status).toBe(429);
+    // The abuser used one unit of the global allowance, so two other visitors still fit.
+    expect(demoRateLimit(from("203.0.113.2"), "ask", 1)).toBeNull();
+    expect(demoRateLimit(from("203.0.113.3"), "ask", 1)).toBeNull();
+    expect(demoRateLimit(from("203.0.113.4"), "ask", 1)?.status).toBe(429);
   });
 });
 

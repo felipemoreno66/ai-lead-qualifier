@@ -103,12 +103,13 @@ function tooMany(resetAt: number, now: number): Response {
  */
 export function demoRateLimit(request: Request, bucket: DemoBucket, now = Date.now()): Response | null {
   if (!isPublicDemo()) return null;
-  const total = bump(totals, bucket, now);
-  if (!total) return tooMany(now + WINDOW_MS, now);
-  if (total.count > globalLimitFor(bucket)) return tooMany(total.resetAt, now);
+  // Visitor first: a request refused for its own excess must not use up the shared allowance.
   const entry = bump(hits, `${bucket}:${networkKey(clientIp(request))}`, now);
   if (!entry) return tooMany(now + WINDOW_MS, now);
   if (entry.count > limitFor(bucket)) return tooMany(entry.resetAt, now);
+  const total = bump(totals, bucket, now);
+  if (!total) return tooMany(now + WINDOW_MS, now);
+  if (total.count > globalLimitFor(bucket)) return tooMany(total.resetAt, now);
   return null;
 }
 
