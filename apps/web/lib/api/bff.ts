@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { AgentError } from "./server";
 
 import { guardRequest } from "@/lib/auth/dashboard-guard";
+import { demoReadLimit } from "@/lib/public-demo";
 import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from "./constants";
 
 export function errorResponse(title: string, detail: string, status: number) {
@@ -19,6 +20,11 @@ export async function handle(request: Request, run: () => Promise<Response>): Pr
     DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD,
   });
   if (denied) return denied;
+  // Public demo: every read counts against a generous per-visitor allowance, before any other work.
+  if (request.method === "GET" || request.method === "HEAD") {
+    const limited = demoReadLimit(request, "cheap");
+    if (limited) return limited;
+  }
   try {
     return await run();
   } catch (error) {
@@ -46,6 +52,11 @@ export function assertSameOrigin(request: Request): Response | null {
   if (request.headers.get(MUTATION_HEADER) !== MUTATION_HEADER_VALUE) {
     return errorResponse("Forbidden", "Missing request header.", 403);
   }
+  return assertSameSite(request);
+}
+
+/** The origin checks alone, for public forms that cannot send the custom header. */
+export function assertSameSite(request: Request): Response | null {
   // Browsers label every fetch with its relationship to the page; only same-origin may mutate.
   const site = request.headers.get("sec-fetch-site");
   if (site && site !== "same-origin") {

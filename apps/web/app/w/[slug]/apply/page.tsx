@@ -4,6 +4,7 @@ import { ApplyForm } from "@/features/apply/apply-form";
 import { publicWorkspaceConfigSchema } from "@/lib/api/schemas";
 import { publicApiBase, publicFetch } from "@/lib/api/server";
 import { pickLocale, ui } from "@/lib/i18n";
+import { isPublicDemo } from "@/lib/public-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,9 @@ export default async function ApplyPage({
   return (
     <ApplyForm
       config={config}
-      apiBase={publicApiBase()}
+      // Public demo: the agent is not reachable from browsers, the form posts to this server.
+      apiBase={isPublicDemo() ? "" : publicApiBase()}
+      demoNotice={isPublicDemo()}
       initialLocale={pickLocale(lang, config.languages, config.default_language)}
     />
   );

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { PublicDemoBanner } from "@/components/public-demo-banner";
 import { Providers } from "./providers";
 
 const youngSerif = localFont({
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${youngSerif.variable} ${figtree.variable}`}>
       <body>
+        <PublicDemoBanner />
         <Providers>{children}</Providers>
       </body>
     </html>

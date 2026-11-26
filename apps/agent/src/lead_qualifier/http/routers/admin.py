@@ -11,7 +11,13 @@ from typing import Annotated
 import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request, Response
 
-from lead_qualifier.domain.errors import NotFound, Unavailable, UpstreamTimeout, ValidationFailed
+from lead_qualifier.domain.errors import (
+    Forbidden,
+    NotFound,
+    Unavailable,
+    UpstreamTimeout,
+    ValidationFailed,
+)
 from lead_qualifier.domain.lead import LeadStatus
 from lead_qualifier.domain.workspace import Tier
 from lead_qualifier.http.auth import require_admin
@@ -186,7 +192,11 @@ async def retrigger_lead(
 
 
 @router.delete("/leads/{lead_id}", status_code=204)
-async def delete_lead(lead_id: uuid.UUID, engine: EngineDep, request: Request) -> Response:
+async def delete_lead(
+    lead_id: uuid.UUID, engine: EngineDep, request: Request, settings: SettingsDep
+) -> Response:
+    if settings.public_demo:
+        raise Forbidden("Deleting leads is disabled in the public demo.")
     await operator.delete_lead(engine, lead_id, request.app.state.checkpointer)
     return Response(status_code=204)
 

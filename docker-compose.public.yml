@@ -1,0 +1,133 @@
+# Public demo: fictional Northwind data behind an OPEN dashboard, exposed with Tailscale Funnel.
+#   scripts/public-demo.sh up        (wraps: docker compose -p alq-demo --env-file .env.public \
+#                                      -f docker-compose.yml -f docker-compose.public.yml up -d --build)
+# Needs Docker Compose 2.24+ (the !override / !reset tags). See docs/deploy-public-demo.md.
+#
+# Exposure: ONLY the web port is published, on 127.0.0.1 (Funnel proxies to it). The agent API,
+# Postgres and n8n publish nothing; the Mailpit UI stays on 127.0.0.1 for the owner. The LLM
+# provider is hard-coded to the deterministic fake one and no API key reaches the containers.
+name: alq-demo
+
+# Shared by agent, demo-init and demo-reset. Hard-coded values cannot be changed from .env.public.
+x-public-env: &public-env
+  APP_ENV: local
+  PUBLIC_DEMO: "true"
+  LLM_PROVIDER: fake
+  DEMO_SEED: "true"
+  EXPOSE_ADMIN_API: "true"
+  ORCHESTRATOR: inline
+  IP_HASH_SECRET: ${IP_HASH_SECRET:?run scripts/public-demo.sh init to generate .env.public}
+  ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?run scripts/public-demo.sh init to generate .env.public}
+  N8N_API_TOKEN: ${N8N_API_TOKEN:?run scripts/public-demo.sh init to generate .env.public}
+  N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?run scripts/public-demo.sh init to generate .env.public}
+  # No real mail, no real model: these cannot be set from .env.public.
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  SMTP_USERNAME: ""
+  SMTP_PASSWORD: ""
+  SMTP_STARTTLS: "false"
+  SMTP_SSL: "false"
+  ANTHROPIC_API_KEY: ""
+  OPENAI_API_KEY: ""
+  DEMO_MAILPIT_URL: http://mailpit:8025
+
+networks:
+  default:
+    ipam:
+      config:
+        # Fixed so the agent can trust the web container's X-Forwarded-For (visitor IP).
+        # Change DEMO_SUBNET if it collides with another Docker network.
+        - subnet: ${DEMO_SUBNET:-172.31.250.0/24}
+
+services:
+  postgres:
+    ports: !reset []
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/public-demo.sh init to generate .env.public}
+
+  mailpit:
+    # Every email the demo "sends" lands here and nowhere else. UI for the owner only.
+    ports: !override
+      - "127.0.0.1:${DEMO_MAILPIT_PORT:-18025}:8025"
+    environment:
+      MP_MAX_MESSAGES: "200"
+
+  n8n:
+    # Never part of the public demo (inline orchestration); even COMPOSE_PROFILES=n8n cannot start it.
+    profiles: !override ["never-in-public-demo"]
+    ports: !reset []
+
+  agent:
+    ports: !reset []
+    environment:
+      <<: *public-env
+      WEB_PUBLIC_ORIGIN: ${PUBLIC_URL:?set PUBLIC_URL in .env.public (https://<machine>.<tailnet>.ts.net)}
+      DASHBOARD_BASE_URL: ${PUBLIC_URL}
+      TRUSTED_PROXIES: ${DEMO_SUBNET:-172.31.250.0/24}
+      # Tighter than the defaults (5/min, 30/h, 300/h, 3/day, 60/h, 5/day). The visitor IP comes
+      # from the web relay; the agent counts per IP and per workspace.
+      RATE_IP_PER_MINUTE: "3"
+      RATE_IP_PER_HOUR: "10"
+      RATE_WORKSPACE_PER_HOUR: "60"
+      RATE_EMAIL_PER_DAY: "2"
+      KB_ASK_PER_HOUR: "30"
+      QUALIFY_MAX_RUNS_PER_DAY: "3"
+      AWS_REGION: ""
+
+  demo-init:
+    environment:
+      <<: *public-env
+
+  # Resets the demo to its seeded state every night (DEMO_RESET_AT, UTC) and clears Mailpit.
+  demo-reset:
+    image: leadq-agent:local
+    restart: unless-stopped
+    depends_on:
+      agent:
+        condition: service_healthy
+      demo-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *public-env
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leadq}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-leadq}
+      WORKSPACES_DIR: /app/workspaces
+      ENABLED_WORKSPACES: northwind-academy
+      EMBEDDINGS_PROVIDER: ${DEMO_EMBEDDINGS:-${EMBEDDINGS_PROVIDER:-fastembed}}
+      EMBEDDINGS_CACHE_DIR: /var/cache/fastembed
+      HF_HOME: /var/cache/fastembed/hf
+      KB_TOP_K: ${KB_TOP_K:-5}
+      KB_MIN_SIMILARITY: ${KB_MIN_SIMILARITY:-}
+      DEMO_RESET_AT: ${DEMO_RESET_AT:-04:00}
+      DEMO_RESET_INTERVAL_HOURS: ${DEMO_RESET_INTERVAL_HOURS:-}
+    command: ["python", "-m", "lead_qualifier.scripts.demo_reset"]
+    volumes:
+      - fastembed_cache:/var/cache/fastembed
+    mem_limit: 1g
+
+  web:
+    # The web image is a production build (NODE_ENV=production); PUBLIC_DEMO only keeps the
+    # dashboard open, adds the banner and the per-visitor limits, and disables lead deletion.
+    ports: !override
+      - "127.0.0.1:${DEMO_WEB_PORT:-3000}:3000"
+    environment:
+      PUBLIC_DEMO: "true"
+      APP_ENV: local
+      DASHBOARD_USER: ""
+      DASHBOARD_PASSWORD: ""
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?run scripts/public-demo.sh init to generate .env.public}
+      # Funnel forwards the public Host/X-Forwarded-* of its own proxy; used by the same-origin check.
+      TRUST_FORWARDED_HOST: "true"
+      # Requests per visitor (IPv4 address or IPv6 /64) and hour.
+      DEMO_LIMIT_INTAKE_PER_HOUR: "5"
+      DEMO_LIMIT_ASK_PER_HOUR: "10"
+      DEMO_LIMIT_REVIEW_PER_HOUR: "30"
+      DEMO_LIMIT_RETRIGGER_PER_HOUR: "10"
+      DEMO_LIMIT_READ_PER_HOUR: "1200"
+      DEMO_LIMIT_READ_COSTLY_PER_HOUR: "120"
+      # Ceiling for all visitors together, per hour (cannot be reset by a flood of new IPs).
+      DEMO_GLOBAL_INTAKE_PER_HOUR: "100"
+      DEMO_GLOBAL_ASK_PER_HOUR: "150"
+      DEMO_GLOBAL_REVIEW_PER_HOUR: "600"
+      DEMO_GLOBAL_RETRIGGER_PER_HOUR: "150"
+      DEMO_GLOBAL_READ_PER_HOUR: "60000"
+      DEMO_GLOBAL_READ_COSTLY_PER_HOUR: "6000"

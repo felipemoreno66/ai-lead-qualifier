@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { authState } from "@/lib/auth/dashboard-guard";
 import { AppHeader } from "@/components/app-nav";
-import { instanceStatusSchema, workspaceSummariesSchema } from "@/lib/api/schemas";
+import { instanceStatusSchema } from "@/lib/api/schemas";
+import { visibleWorkspaces } from "@/lib/workspaces";
 import { adminFetch } from "@/lib/api/server";
+import { isPublicDemo } from "@/lib/public-demo-flag";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Leads" };
@@ -23,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </main>
     );
   }
-  const workspaces = await adminFetch("/admin/workspaces", workspaceSummariesSchema).catch(() => []);
+  const workspaces = await visibleWorkspaces().catch(() => []);
   const status = await adminFetch("/admin/status", instanceStatusSchema).catch(() => null);
   const first = workspaces.find((w) => w.enabled && !w.draft);
   return (
@@ -31,7 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <a className="skip" href="#main">
         Skip to content
       </a>
-      {status?.demo_mode && (
+      {status?.demo_mode && !isPublicDemo() && (
         <p className="demo-bar" role="note">
           <b>Demo mode</b>
           <span>Sample data and a deterministic stand-in model, no real AI calls.</span>

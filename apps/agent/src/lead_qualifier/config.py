@@ -68,6 +68,14 @@ class Settings(BaseSettings):
 
     # Load the fictional Northwind demo data on first start (``demo_init``); never in production.
     demo_seed: bool = False
+    # Public demo (docker-compose.public.yml): an open dashboard with fictional data, online.
+    # Turns on guards that make a misconfiguration fail at startup instead of leaking or spending.
+    public_demo: bool = False
+    # Nightly reset of the public demo: HH:MM (UTC) every day, or every N hours when set.
+    demo_reset_at: str = "04:00"
+    demo_reset_interval_hours: float | None = Field(default=None, gt=0)
+    # Mailpit API base URL, emptied after each reset (leave empty to skip).
+    demo_mailpit_url: str = ""
     llm_provider: Literal["fake", "anthropic", "bedrock", "openai"] = "fake"
     llm_model_default: str = "claude-haiku-5-5"
     llm_model_draft: str = ""
@@ -111,6 +119,45 @@ class Settings(BaseSettings):
         if self.demo_seed and self.embeddings_provider == "fake" and self.kb_min_similarity is None:
             object.__setattr__(self, "kb_min_similarity", 0.1)
         return self
+
+    @model_validator(mode="after")
+    def _public_demo_is_safe(self) -> Settings:
+        """Runs before the ephemeral-secret fallback: a public instance needs real secrets."""
+        if not self.public_demo:
+            return self
+        problems: list[str] = []
+        if self.llm_provider != "fake":
+            problems.append("LLM_PROVIDER must be fake (no real model behind a public page)")
+        if self.anthropic_api_key.get_secret_value() or self.openai_api_key.get_secret_value():
+            problems.append("no LLM API key may be set")
+        if self.app_env == "production":
+            problems.append("APP_ENV must not be production (the demo dashboard has no login)")
+        if self.orchestrator != "inline":
+            problems.append("ORCHESTRATOR must be inline (n8n is not part of the public demo)")
+        if (
+            self.smtp_host != "mailpit"
+            or self.smtp_username
+            or self.smtp_password.get_secret_value()
+        ):
+            problems.append("SMTP_HOST must be mailpit, without credentials (no real emails)")
+        for name in ("admin_api_token", "n8n_api_token", "n8n_webhook_secret", "ip_hash_secret"):
+            value: str = getattr(self, name)
+            if len(value) < MIN_SECRET_LENGTH or value.startswith(KNOWN_DEFAULT_PREFIX):
+                problems.append(f"{name.upper()} must be a generated secret of 16+ characters")
+        if problems:
+            raise ValueError("PUBLIC_DEMO safety check failed: " + "; ".join(problems))
+        return self
+
+    @field_validator("demo_reset_at")
+    @classmethod
+    def _reset_time(cls, value: str) -> str:
+        try:
+            hour, minute = (int(part) for part in value.split(":"))
+            if not (0 <= hour < 24 and 0 <= minute < 60):
+                raise ValueError
+        except ValueError:
+            raise ValueError("DEMO_RESET_AT must be HH:MM (UTC), for example 04:00") from None
+        return value
 
     @model_validator(mode="after")
     def _fill_or_require_secrets(self) -> Settings:
