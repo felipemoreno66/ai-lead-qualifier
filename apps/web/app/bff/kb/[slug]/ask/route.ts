@@ -3,6 +3,7 @@ import { assertSameOrigin, errorResponse, handle } from "@/lib/api/bff";
 import { kbAskRequestSchema, kbChatEntrySchema } from "@/lib/api/schemas";
 import { adminFetch } from "@/lib/api/server";
 import { SLUG_PATTERN } from "@/lib/kb/slug";
+import { demoRateLimit } from "@/lib/public-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,8 @@ export function POST(request: Request, ctx: { params: Promise<{ slug: string }> 
   return handle(request, async () => {
     const forbidden = assertSameOrigin(request);
     if (forbidden) return forbidden;
+    const limited = demoRateLimit(request, "ask");
+    if (limited) return limited;
     const slug = (await ctx.params).slug;
     if (!SLUG_PATTERN.test(slug)) return errorResponse("Not found", "Unknown workspace.", 404);
 

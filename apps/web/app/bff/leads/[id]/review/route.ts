@@ -3,6 +3,7 @@ import { z } from "zod";
 import { assertSameOrigin, errorResponse, handle } from "@/lib/api/bff";
 import { reviewRequestSchema, reviewResultSchema } from "@/lib/api/schemas";
 import { adminFetch } from "@/lib/api/server";
+import { demoRateLimit } from "@/lib/public-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,8 @@ export function POST(request: Request, ctx: { params: Promise<{ id: string }> })
   return handle(request, async () => {
     const forbidden = assertSameOrigin(request);
     if (forbidden) return forbidden;
+    const limited = demoRateLimit(request, "review");
+    if (limited) return limited;
     const id = z.uuid().safeParse((await ctx.params).id);
     if (!id.success) return errorResponse("Not found", "Unknown lead.", 404);
 

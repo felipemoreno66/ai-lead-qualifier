@@ -46,6 +46,11 @@ export function assertSameOrigin(request: Request): Response | null {
   if (request.headers.get(MUTATION_HEADER) !== MUTATION_HEADER_VALUE) {
     return errorResponse("Forbidden", "Missing request header.", 403);
   }
+  return assertSameSite(request);
+}
+
+/** The origin checks alone, for public forms that cannot send the custom header. */
+export function assertSameSite(request: Request): Response | null {
   // Browsers label every fetch with its relationship to the page; only same-origin may mutate.
   const site = request.headers.get("sec-fetch-site");
   if (site && site !== "same-origin") {
