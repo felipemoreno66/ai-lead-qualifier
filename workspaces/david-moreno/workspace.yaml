@@ -1,3 +1,5 @@
+# Template only — the real config lives in the private instance's private directory (see docs).
+# Copy it with scripts/private-workspace.sh init; never put real prices or emails in this file.
 # DRAFT workspace. Only the three service names are filled in. Every other business value is
 # an explicit TODO(david) placeholder; the validator accepts placeholders only while
 # `profile.draft` is true, and the public form and intake stay disabled for drafts.
