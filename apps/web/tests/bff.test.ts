@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { stubLogin } from "./auth-helpers";
 
 vi.mock("server-only", () => ({}));
 
@@ -143,9 +144,7 @@ describe("state-changing BFF routes", () => {
 
 describe("BFF routes in production", () => {
   it("each route enforces the dashboard credentials itself", async () => {
-    vi.stubEnv("APP_ENV", "production");
-    vi.stubEnv("DASHBOARD_USER", "ops");
-    vi.stubEnv("DASHBOARD_PASSWORD", "pw");
+    await stubLogin();
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
     const id = "3f1c2f5e-8a47-4f3b-9c1d-2f6f7d6c1a11";

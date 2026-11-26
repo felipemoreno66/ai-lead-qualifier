@@ -130,6 +130,14 @@ jobs:
           test "$state" = "exited" && test "$code" = "0"
       - run: pnpm --filter web exec playwright install --with-deps chromium
       - run: pnpm --filter web e2e
+      - name: Restart the web app with the operator login and run its e2e
+        run: |
+          export E2E_ADMIN_EMAIL=owner@example.com
+          export E2E_ADMIN_PASSWORD="ci-only-$(openssl rand -hex 8)"
+          eval "$(printf '%s' "$E2E_ADMIN_PASSWORD" | pnpm --silent hash-password | sed 's/^/export /')"
+          export ADMIN_EMAIL="$E2E_ADMIN_EMAIL" BETTER_AUTH_SECRET="$(openssl rand -hex 32)"
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --force-recreate --wait web
+          pnpm --filter web exec playwright test login.spec.ts
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

@@ -112,8 +112,9 @@ services:
     environment:
       PUBLIC_DEMO: "true"
       APP_ENV: local
-      DASHBOARD_USER: ""
-      DASHBOARD_PASSWORD: ""
+      # The public demo has no operator login: blank ADMIN_* keeps the auth mode "off" (see lib/auth/mode.ts).
+      ADMIN_EMAIL: ""
+      ADMIN_PASSWORD_HASH: ""
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?run scripts/public-demo.sh init to generate .env.public}
       # Funnel forwards the public Host/X-Forwarded-* of its own proxy; used by the same-origin check.
       TRUST_FORWARDED_HOST: "true"

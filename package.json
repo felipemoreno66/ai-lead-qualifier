@@ -12,6 +12,7 @@
     "web:build": "pnpm --filter web build",
     "web:test": "pnpm --filter web test",
     "web:lint": "pnpm --filter web lint",
-    "contracts:generate": "pnpm --filter contracts generate"
+    "contracts:generate": "pnpm --filter contracts generate",
+    "hash-password": "pnpm --silent --filter web hash-password"
   }
 }

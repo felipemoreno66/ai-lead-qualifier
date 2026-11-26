@@ -86,8 +86,39 @@ dashboard, instead of being retried for hours.
 ## Exposure
 
 Public surface: `/api/*` and `/healthz`. Private: `/admin/*` (web server, admin token) and `/internal/*`
-(n8n, its own token); `EXPOSE_ADMIN_API=false` unmounts both. In production the dashboard requires HTTP Basic
-auth and fails closed (503) when credentials are not configured.
+(n8n, its own token); `EXPOSE_ADMIN_API=false` unmounts both. The dashboard and `/bff/*` require an operator
+session (see Operator login) and fail closed (503) when the login is not configured in production.
+
+## Operator login and the private instance (M4.4)
+
+```mermaid
+flowchart LR
+  B[Browser] -->|"every request"| P["proxy.ts: public allow-list, else session check"]
+  P -->|no session, page| L["/login (Better Auth sign-in)"]
+  P -->|no session, /bff| U[401 JSON]
+  P -->|session| D["/dashboard and /bff/*"]
+  D -->|"bearer ADMIN_API_TOKEN"| A[Agent /admin]
+```
+
+- `lib/auth/mode.ts` decides the mode from the environment: `off` (no `ADMIN_*`, outside production),
+  `session`, or `unconfigured` (production, or a half-filled login) which answers 503.
+- `lib/auth/auth.ts` builds Better Auth with an in-memory adapter and one account created from
+  `ADMIN_EMAIL` and the argon2id `ADMIN_PASSWORD_HASH`. Sign-up is disabled and only `sign-in/email` and
+  `sign-out` are routed. Three places check the session, each independently: the proxy, every `/bff` route
+  (`handle`) and the dashboard layout. A fixed allow-list stays public (`/`, the apply form, the privacy
+  notice, `/login`); everything else is closed by default.
+- The sign-in path is bounded: capped body, one password check at a time through a bounded queue,
+  per-client progressive delay and lockout for identified clients, a shared delay (outside the
+  verification turn, at most 8 s) otherwise, constant-memory counters, a request timeout and a structured
+  failure-spike warning (client = HMAC). Unidentified clients are deliberately never refused: a hard cap
+  would let anyone lock the operator out. Brute force is bounded instead by the Argon2id cost (about 100 ms),
+  the 20-character password rule and exposing the dashboard only on the tailnet (Tailscale, not Funnel).
+- `docker-compose.private.yml` merges over `docker-compose.yml`: project `ai-lead-qualifier-private` (own
+  database volume), `APP_ENV=production`, `ENABLED_WORKSPACES=david-moreno`, `DEMO_SEED=false`, Mailpit and
+  `demo-init` behind a profile nobody enables, other host ports, all bound to 127.0.0.1, required secrets
+  via `${VAR:?}`. A unit test validates the merged config.
+- Email: `EMAIL_PROVIDER` selects `SmtpSender` or `ResendSender` behind the same `EmailSender` port; the
+  delivery service's claim, retry (transient errors) and permanent-failure semantics are unchanged.
 
 ### Public demo
 
@@ -188,7 +219,7 @@ sequenceDiagram
   participant I as Inline sender
   participant N as n8n message-approved
   participant A as Agent /internal
-  participant S as SMTP (Mailpit)
+  participant S as SMTP (Mailpit) or Resend
   D->>D: message.approved event
   alt ORCHESTRATOR=inline
     D->>I: publish (in-process)

@@ -30,6 +30,7 @@ class ChannelPayload:
     subject: str
     text: str
     message_id: str
+    reply_to: str | None = None
 
 
 class UnsupportedChannel(Exception):

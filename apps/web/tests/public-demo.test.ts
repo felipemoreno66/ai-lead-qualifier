@@ -164,7 +164,7 @@ describe("proxy headers in the public demo", () => {
     vi.stubEnv("PUBLIC_DEMO", "true");
     vi.stubEnv("PUBLIC_API_BASE_URL", "http://localhost:8000");
     const { proxy } = await import("../proxy");
-    const res = proxy(new NextRequest("http://web/dashboard"));
+    const res = await proxy(new NextRequest("http://web/dashboard"));
     expect(res.headers.get("Strict-Transport-Security")).toContain("max-age=31536000");
     expect(res.headers.get("Cross-Origin-Opener-Policy")).toBe("same-origin");
     expect(res.headers.get("Content-Security-Policy")).toContain("connect-src 'self';");
@@ -174,7 +174,7 @@ describe("proxy headers in the public demo", () => {
   it("leaves a normal instance unchanged", async () => {
     vi.stubEnv("PUBLIC_API_BASE_URL", "http://localhost:8000");
     const { proxy } = await import("../proxy");
-    const res = proxy(new NextRequest("http://web/dashboard"));
+    const res = await proxy(new NextRequest("http://web/dashboard"));
     expect(res.headers.get("Strict-Transport-Security")).toBeNull();
     expect(res.headers.get("Content-Security-Policy")).toContain("localhost:8000");
   });

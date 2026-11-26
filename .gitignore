@@ -40,3 +40,5 @@ workspaces/*/private/
 evals/results/raw/
 .impeccable/review/
 .cache/
+
+!.env.private.example

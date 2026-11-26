@@ -11,10 +11,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "hash-password": "node scripts/hash-password.mjs"
   },
   "dependencies": {
+    "@node-rs/argon2": "2.2.2",
     "@tanstack/react-query": "5.108.2",
+    "better-auth": "1.7.28",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "contracts": "workspace:*",

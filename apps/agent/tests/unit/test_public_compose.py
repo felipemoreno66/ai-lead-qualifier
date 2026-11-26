@@ -99,7 +99,8 @@ def test_rate_limits_are_tighter_than_the_defaults(config):
     assert int(agent["RATE_EMAIL_PER_DAY"]) < 3
     assert int(agent["KB_ASK_PER_HOUR"]) < 60
     web = config["services"]["web"]["environment"]
-    assert web["PUBLIC_DEMO"] == "true" and web["DASHBOARD_USER"] == ""
+    assert web["PUBLIC_DEMO"] == "true"
+    assert web["ADMIN_EMAIL"] == "" and web["ADMIN_PASSWORD_HASH"] == ""  # no operator login
     assert all(int(web[k]) > 0 for k in web if k.startswith("DEMO_LIMIT_"))
 
 

@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     max_body_bytes: int = Field(default=16 * 1024, ge=1024)
     duplicate_window_minutes: int = Field(default=10, ge=0)
 
+    # smtp (default, Mailpit locally) or resend (HTTP API). EMAIL_FROM overrides the workspace
+    # contact address as the sender; Resend needs an address on a domain verified there.
+    email_provider: Literal["smtp", "resend"] = "smtp"
+    email_from: str = ""
+    resend_api_key: SecretStr = SecretStr("")
+
     smtp_host: str = "localhost"
     smtp_port: int = Field(default=1025, ge=1, le=65535)
     smtp_username: str = ""
@@ -110,6 +116,15 @@ class Settings(BaseSettings):
                 "SMTP_USERNAME is set but neither SMTP_STARTTLS nor SMTP_SSL is on: "
                 "credentials would cross the network in clear text"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _resend_needs_key_and_sender(self) -> Settings:
+        if self.email_provider == "resend":
+            if not self.resend_api_key.get_secret_value():
+                raise ValueError("EMAIL_PROVIDER=resend needs RESEND_API_KEY")
+            if not self.email_from:
+                raise ValueError("EMAIL_PROVIDER=resend needs EMAIL_FROM (a verified sender)")
         return self
 
     @model_validator(mode="after")

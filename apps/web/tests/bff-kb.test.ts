@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { signInCookie, stubLogin } from "./auth-helpers";
 
 vi.mock("server-only", () => ({}));
 
@@ -111,13 +112,11 @@ describe("POST /bff/kb/[slug]/ask", () => {
 
   it("is protected like every other route in production", async () => {
     const { POST } = await import("@/app/bff/kb/[slug]/ask/route");
-    vi.stubEnv("APP_ENV", "production");
-    vi.stubEnv("DASHBOARD_USER", "ops");
-    vi.stubEnv("DASHBOARD_PASSWORD", "pw");
+    await stubLogin();
     const spy = agent(() => Response.json(entry));
     expect((await POST(post({ question: "How much?" }), ctx)).status).toBe(401);
-    const auth = `Basic ${Buffer.from("ops:pw").toString("base64")}`;
-    expect((await POST(post({ question: "How much?" }, { ...mutate, authorization: auth }), ctx)).status).toBe(200);
+    const cookie = await signInCookie();
+    expect((await POST(post({ question: "How much?" }, { ...mutate, cookie }), ctx)).status).toBe(200);
     expect(spy).toHaveBeenCalledTimes(1);
   });
 });
