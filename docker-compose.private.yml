@@ -1,0 +1,52 @@
+# Private instance for the real workspace (david-moreno), isolated from the public Northwind demo.
+#
+#   cp .env.private.example .env.private     # fill it in (gitignored)
+#   docker compose --env-file .env.private -f docker-compose.yml -f docker-compose.private.yml up -d --build --wait
+#
+# Own Compose project (own containers, network and database volume), production mode, the one
+# workspace enabled, no demo data ever, no Mailpit, a login on the dashboard. Host ports differ
+# from the demo stack so both can run side by side; everything stays bound to 127.0.0.1.
+name: ai-lead-qualifier-private
+
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:${PRIVATE_POSTGRES_PORT:-5433}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.private}
+
+  # The private instance sends real email (Resend or a real SMTP server), never to Mailpit.
+  mailpit:
+    profiles: ["demo-only"]
+
+  # Loads the fictional Northwind data: never started here.
+  demo-init:
+    profiles: ["demo-only"]
+
+  agent:
+    ports: !override
+      - "127.0.0.1:${PRIVATE_AGENT_PORT:-8001}:8000"
+    environment:
+      APP_ENV: production
+      ENABLED_WORKSPACES: david-moreno
+      DEMO_SEED: "false"
+      ALLOW_DRAFT_WORKSPACES: ${ALLOW_DRAFT_WORKSPACES:-false}
+      EXPOSE_ADMIN_API: ${EXPOSE_ADMIN_API:-true}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.private}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leadq}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-leadq}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?set ADMIN_API_TOKEN in .env.private}
+      N8N_API_TOKEN: ${N8N_API_TOKEN:?set N8N_API_TOKEN in .env.private}
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?set N8N_WEBHOOK_SECRET in .env.private}
+      IP_HASH_SECRET: ${IP_HASH_SECRET:?set IP_HASH_SECRET in .env.private}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-resend}
+      EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM in .env.private}
+
+  web:
+    ports: !override
+      - "127.0.0.1:${PRIVATE_WEB_PORT:-3001}:3000"
+    environment:
+      APP_ENV: production
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?set ADMIN_API_TOKEN in .env.private}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env.private}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?set ADMIN_PASSWORD_HASH in .env.private}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env.private}

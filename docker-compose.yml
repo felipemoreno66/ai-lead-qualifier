@@ -128,6 +128,8 @@ services:
       AGENT_RUN_TIMEOUT_MINUTES: ${AGENT_RUN_TIMEOUT_MINUTES:-10}
       QUALIFY_MAX_RUNS_PER_DAY: ${QUALIFY_MAX_RUNS_PER_DAY:-5}
       AWS_REGION: ${AWS_REGION:-us-east-1}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+      EMAIL_FROM: ${EMAIL_FROM:-}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -138,6 +140,7 @@ services:
       # Secret: from .env only, no default.
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       # Secrets: forwarded from .env only, deliberately without a default value.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
@@ -180,8 +183,13 @@ services:
       AGENT_INTERNAL_URL: http://agent:8000
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8000}
       APP_ENV: ${APP_ENV:-local}
-      DASHBOARD_USER: ${DASHBOARD_USER:-}
-      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      # Operator login (Better Auth). All empty = no login, which only the local demo accepts.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
+      ADMIN_SESSION_HOURS: ${ADMIN_SESSION_HOURS:-12}
+      TRUST_FORWARDED_HOST: ${TRUST_FORWARDED_HOST:-}
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-local-dev-admin-token-change-me}
     ports:
       - "127.0.0.1:3000:3000"
