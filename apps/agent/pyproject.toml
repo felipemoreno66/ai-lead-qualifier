@@ -3,7 +3,7 @@ name = "lead-qualifier"
 version = "0.1.0"
 description = "FastAPI service: lead intake, outbox, workspaces and (later) the qualification agent."
 authors = [
-    { name = "David Felipe Moreno", email = "davidmorenor.dm@gmail.com" }
+    { name = "David Felipe Moreno", email = "147753525+felipemoreno66@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
