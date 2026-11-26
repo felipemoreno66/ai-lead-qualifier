@@ -32,8 +32,8 @@ Next steps:
   1. Edit $target/workspace.yaml (real contact email, prices, CORS origins) and the files in
      $target/knowledge-base/. Set profile.draft to false when the TODO(david) values are gone.
   2. scripts/private-workspace.sh validate
-  3. docker compose --env-file .env.private -f docker-compose.yml -f docker-compose.private.yml up -d agent
-     (the directory is a read-only bind mount: a restart of the agent is enough to pick up edits)
+  3. docker compose --env-file .env.private -f docker-compose.yml -f docker-compose.private.yml restart agent
+     (read-only bind mount: restarting the agent picks up edits)
 MSG
 }
 
