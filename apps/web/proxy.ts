@@ -1,13 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { guardDashboard } from "@/lib/auth/dashboard-guard";
+import { authEnv, hasSession } from "@/lib/auth/session";
 
 /** Per-request CSP nonce plus baseline security headers for every page. */
-export function proxy(request: NextRequest) {
-  const denied = guardDashboard(request, {
-    APP_ENV: process.env.APP_ENV,
-    DASHBOARD_USER: process.env.DASHBOARD_USER,
-    DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD,
-  });
+export async function proxy(request: NextRequest) {
+  const denied = await guardDashboard(request, authEnv(), hasSession);
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
@@ -33,7 +30,7 @@ export function proxy(request: NextRequest) {
 
   let response: Response;
   if (denied) {
-    // 401/503 from the dashboard guard get the same hardening as any page.
+    // Redirects, 401 and 503 from the dashboard guard get the same hardening as any page.
     response = denied;
   } else {
     const headers = new Headers(request.headers);

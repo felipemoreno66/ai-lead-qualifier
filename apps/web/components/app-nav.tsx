@@ -3,10 +3,11 @@
 import { ChartColumn, FileText, List, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SignOutButton } from "@/features/auth/sign-out-button";
 
-type Props = { applyHref: string | null };
+type Props = { applyHref: string | null; showSignOut?: boolean };
 
-export function AppHeader({ applyHref }: Props) {
+export function AppHeader({ applyHref, showSignOut = false }: Props) {
   const pathname = usePathname();
   const onMetrics = pathname.startsWith("/dashboard/metrics");
   const onAsk = pathname.startsWith("/dashboard/ask");
@@ -43,6 +44,7 @@ export function AppHeader({ applyHref }: Props) {
         <nav className="dnav" aria-label="Main">
           {links(false)}
         </nav>
+        {showSignOut && <SignOutButton />}
       </header>
       <nav className="tabs" aria-label="Main">
         {links(true)}

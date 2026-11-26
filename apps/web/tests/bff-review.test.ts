@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { signInCookie, stubLogin } from "./auth-helpers";
 
 vi.mock("server-only", () => ({}));
 
@@ -130,13 +131,11 @@ describe("POST /bff/leads/[id]/review", () => {
 
   it("is protected like every other route in production", async () => {
     const { POST } = await import("@/app/bff/leads/[id]/review/route");
-    vi.stubEnv("APP_ENV", "production");
-    vi.stubEnv("DASHBOARD_USER", "ops");
-    vi.stubEnv("DASHBOARD_PASSWORD", "pw");
+    await stubLogin();
     const spy = agent(() => Response.json(result));
     expect((await POST(post({ action: "approve" }), ctx)).status).toBe(401);
     const authed = await POST(
-      post({ action: "approve" }, { ...mutate, authorization: `Basic ${Buffer.from("ops:pw").toString("base64")}` }),
+      post({ action: "approve" }, { ...mutate, cookie: await signInCookie() }),
       ctx,
     );
     expect(authed.status).toBe(200);

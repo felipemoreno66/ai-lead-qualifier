@@ -1,58 +1,91 @@
-import { describe, expect, it } from "vitest";
-import {
-  authState,
-  guardDashboard,
-  guardRequest,
-  isPublicPath,
-  normalizePath,
-} from "@/lib/auth/dashboard-guard";
+import { describe, expect, it, vi } from "vitest";
+import { guardDashboard, guardRequest, isPublicPath, normalizePath } from "@/lib/auth/dashboard-guard";
+import { authMode, safeNext } from "@/lib/auth/mode";
 
-const basic = (user: string, password: string) =>
-  `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`;
-const req = (path: string, authorization?: string) =>
-  new Request(`http://web${path}`, { headers: authorization ? { authorization } : {} });
-const prod = { APP_ENV: "production", DASHBOARD_USER: "ops", DASHBOARD_PASSWORD: "s3cret:with:colons" };
+const req = (path: string) => new Request(`http://web${path}`);
+const login = {
+  APP_ENV: "production",
+  ADMIN_EMAIL: "owner@example.com",
+  ADMIN_PASSWORD_HASH: "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA",
+  BETTER_AUTH_SECRET: "x".repeat(32),
+};
+const signedIn = vi.fn(async () => true);
+const signedOut = vi.fn(async () => false);
+
+describe("auth mode", () => {
+  it("has no login locally without any ADMIN_* (the keyless demo)", () => {
+    expect(authMode({})).toBe("off");
+    expect(authMode({ APP_ENV: "local" })).toBe("off");
+    expect(authMode({ APP_ENV: "test" })).toBe("off");
+  });
+
+  it("fails closed in production without the login", () => {
+    expect(authMode({ APP_ENV: "production" })).toBe("unconfigured");
+    expect(authMode({ ...login, ADMIN_EMAIL: "" })).toBe("unconfigured");
+    expect(authMode({ ...login, ADMIN_PASSWORD_HASH: "" })).toBe("unconfigured");
+    expect(authMode({ ...login, BETTER_AUTH_SECRET: "short" })).toBe("unconfigured");
+  });
+
+  it("refuses a plain-text password in place of a hash", () => {
+    expect(authMode({ ...login, ADMIN_PASSWORD_HASH: "hunter2" })).toBe("unconfigured");
+    expect(authMode({ ...login, ADMIN_PASSWORD_HASH: "$2b$12$abcdefghijklmnopqrstuv" })).toBe("unconfigured");
+  });
+
+  it("treats a half-filled login as misconfigured outside production too", () => {
+    expect(authMode({ APP_ENV: "local", ADMIN_EMAIL: "owner@example.com" })).toBe("unconfigured");
+    expect(authMode({ ...login, APP_ENV: "local" })).toBe("session");
+  });
+
+  it("only returns to paths inside the dashboard after sign-in", () => {
+    expect(safeNext("/dashboard/leads/1?x=1")).toBe("/dashboard/leads/1?x=1");
+    for (const bad of [null, "", "https://evil.test", "//evil.test", "/\\evil", "/login", "/bff/leads"]) {
+      expect(safeNext(bad), String(bad)).toBe("/dashboard");
+    }
+  });
+});
 
 describe("dashboard guard", () => {
-  it("lets everything through outside production (no login locally)", () => {
-    expect(guardDashboard(req("/dashboard"), {})).toBeNull();
-    expect(guardDashboard(req("/bff/leads"), { APP_ENV: "local" })).toBeNull();
+  it("lets everything through without a login (local demo)", async () => {
+    expect(await guardDashboard(req("/dashboard"), {}, signedOut)).toBeNull();
+    expect(await guardDashboard(req("/bff/leads"), { APP_ENV: "local" }, signedOut)).toBeNull();
   });
 
-  it("fails closed with 503 in production when credentials are not configured", async () => {
+  it("answers 503 while production has no login configured", async () => {
     for (const path of ["/dashboard", "/dashboard/leads/1", "/bff/leads"]) {
-      const res = guardDashboard(req(path), { APP_ENV: "production" });
-      expect(res?.status).toBe(503);
-      expect(await res?.text()).toContain("DASHBOARD_USER");
+      const res = await guardDashboard(req(path), { APP_ENV: "production" }, signedIn);
+      expect(res?.status, path).toBe(503);
+      expect(await res?.text()).toContain("ADMIN_PASSWORD_HASH");
     }
-    expect(guardDashboard(req("/dashboard"), { ...prod, DASHBOARD_PASSWORD: "" })?.status).toBe(503);
   });
 
-  it("asks for credentials and rejects wrong ones", () => {
-    const none = guardDashboard(req("/dashboard"), prod);
-    expect(none?.status).toBe(401);
-    expect(none?.headers.get("www-authenticate")).toMatch(/^Basic/);
-    expect(guardDashboard(req("/dashboard", basic("ops", "wrong")), prod)?.status).toBe(401);
-    expect(guardDashboard(req("/dashboard", basic("root", prod.DASHBOARD_PASSWORD)), prod)?.status).toBe(401);
-    expect(guardDashboard(req("/dashboard", "Bearer abc"), prod)?.status).toBe(401);
-    expect(guardDashboard(req("/bff/leads", "Basic !!!"), prod)?.status).toBe(401);
+  it("sends pages without a session to the login and keeps the return path", async () => {
+    const res = await guardDashboard(req("/dashboard/leads/42?tab=runs"), login, signedOut);
+    expect(res?.status).toBe(303);
+    expect(res?.headers.get("location")).toBe("/login?next=%2Fdashboard%2Fleads%2F42%3Ftab%3Druns");
+    expect(res?.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("accepts the right credentials, including passwords with colons", () => {
-    expect(guardDashboard(req("/dashboard", basic("ops", prod.DASHBOARD_PASSWORD)), prod)).toBeNull();
-    expect(guardDashboard(req("/bff/leads/abc", basic("ops", prod.DASHBOARD_PASSWORD)), prod)).toBeNull();
+  it("answers API-style routes with a JSON 401 instead of a redirect", async () => {
+    const res = await guardDashboard(req("/bff/leads"), login, signedOut);
+    expect(res?.status).toBe(401);
+    expect(res?.headers.get("www-authenticate")).toBeNull();
+    expect(await res?.json()).toMatchObject({ title: "Authentication required" });
   });
 
-  it("never caches the challenge", () => {
-    expect(guardDashboard(req("/dashboard"), prod)?.headers.get("cache-control")).toBe("no-store");
+  it("lets a valid session through", async () => {
+    expect(await guardDashboard(req("/dashboard"), login, signedIn)).toBeNull();
+    expect(await guardDashboard(req("/bff/leads/abc"), login, signedIn)).toBeNull();
   });
 
-  it("leaves only the public form, thank-you, privacy notice and static assets open", () => {
+  it("leaves only the public form, privacy notice, login and static assets open", async () => {
     const open = [
       "/",
       "/w/northwind-academy/apply",
       "/w/northwind-academy/apply/thanks",
       "/privacy/northwind-academy",
+      "/login",
+      "/api/auth/sign-in/email",
+      "/api/auth/sign-out",
       "/_next/static/chunks/app.js",
       "/_next/image",
       "/favicon.ico",
@@ -60,21 +93,23 @@ describe("dashboard guard", () => {
     ];
     for (const path of open) {
       expect(isPublicPath(path), path).toBe(true);
-      expect(guardDashboard(req(path), prod), path).toBeNull();
+      expect(await guardDashboard(req(path), login, signedOut), path).toBeNull();
     }
   });
 
-  it("blocks every variant of the protected routes (encoding, slashes, case, trailing, dots)", () => {
+  it("blocks every variant of the protected routes (encoding, slashes, case, trailing, dots)", async () => {
     const variants = [
       "/dashboard", "/dashboard/", "/Dashboard", "/DASHBOARD/leads/1", "//dashboard", "///dashboard//leads",
       "/%64ashboard", "/%64%61shboard/leads", "/%2564ashboard", "/dashboard/%2e%2e/dashboard", "/w/../dashboard",
       "/./dashboard", "/bff/leads", "/BFF/leads", "//bff//leads", "/%62ff/leads", "/bff/", "/bff",
       "/dashboard;x=1", "/dashboard%00", "/dashboard%2fleads", "/dashboard\\leads", "/unknown", "/api/x",
+      "/api/auth/sign-up/email", "/api/auth/get-session", "/api/auth/sign-in/email/x", "/login/x",
       "/w/northwind-academy/other", "/privacy", "/privacy/a/b", "/_next/data/x.json", "/%zz",
     ];
     for (const path of variants) {
-      expect(guardDashboard(req(path), prod)?.status, path).toBe(401);
-      expect(guardDashboard(req(path), { APP_ENV: "production" })?.status, path).toBe(503);
+      const res = await guardDashboard(req(path), login, signedOut);
+      expect([303, 401], path).toContain(res?.status);
+      expect((await guardDashboard(req(path), { APP_ENV: "production" }, signedIn))?.status, path).toBe(503);
     }
   });
 
@@ -84,13 +119,10 @@ describe("dashboard guard", () => {
     expect(normalizePath("/%zz")).toBeNull();
   });
 
-  it("route-level and layout-level checks use the same credentials", () => {
-    expect(guardRequest(req("/anything"), prod)?.status).toBe(401);
-    expect(guardRequest(req("/anything", basic("ops", prod.DASHBOARD_PASSWORD)), prod)).toBeNull();
-    expect(guardRequest(req("/anything"), { APP_ENV: "local" })).toBeNull();
-    expect(authState(null, { APP_ENV: "production" })).toBe("unconfigured");
-    expect(authState(basic("ops", prod.DASHBOARD_PASSWORD), prod)).toBe("ok");
-    expect(authState(basic("ops", "x"), prod)).toBe("denied");
-    expect(authState(null, {})).toBe("open");
+  it("route-level and layout-level checks use the same session", async () => {
+    expect((await guardRequest(req("/anything"), login, signedOut))?.status).toBe(401);
+    expect(await guardRequest(req("/anything"), login, signedIn)).toBeNull();
+    expect(await guardRequest(req("/anything"), { APP_ENV: "local" }, signedOut)).toBeNull();
+    expect((await guardRequest(req("/anything"), { APP_ENV: "production" }, signedIn))?.status).toBe(503);
   });
 });

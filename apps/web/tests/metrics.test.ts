@@ -14,6 +14,7 @@ import {
   statusHeadline,
   timeHeadline,
 } from "@/lib/metrics/summary";
+import { stubLogin } from "./auth-helpers";
 
 vi.mock("server-only", () => ({}));
 
@@ -154,9 +155,7 @@ describe("GET /bff/metrics", () => {
 
   it("is protected in production like every other route", async () => {
     const { GET } = await import("@/app/bff/metrics/route");
-    vi.stubEnv("APP_ENV", "production");
-    vi.stubEnv("DASHBOARD_USER", "ops");
-    vi.stubEnv("DASHBOARD_PASSWORD", "pw");
+    await stubLogin();
     const spy = vi.fn();
     vi.stubGlobal("fetch", spy);
     expect((await GET(new Request("http://web/bff/metrics"))).status).toBe(401);
