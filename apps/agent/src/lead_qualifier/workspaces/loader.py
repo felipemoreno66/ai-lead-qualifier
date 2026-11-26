@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from lead_qualifier.domain.workspace import WorkspaceConfig
 
 CONFIG_FILE = "workspace.yaml"
+_HINT = " (private instance: create the config with `scripts/private-workspace.sh init`)"
 LOCALHOST_RE = re.compile(r"^http://localhost(:\d+)?$")
 
 
@@ -96,7 +97,7 @@ def load_workspaces(
 
     if not directory.is_dir():
         raise WorkspaceConfigError(
-            [ConfigIssue(str(directory), "workspaces directory does not exist")]
+            [ConfigIssue(str(directory), "workspaces directory does not exist" + _HINT)]
         )
 
     for folder in sorted(p for p in directory.iterdir() if p.is_dir()):
@@ -112,7 +113,9 @@ def load_workspaces(
     known = {w.slug for w in loaded} | {p.name for p in directory.iterdir() if p.is_dir()}
     for slug in sorted(enabled - known):
         issues.append(
-            ConfigIssue("ENABLED_WORKSPACES", f"workspace {slug!r} has no folder in {directory}")
+            ConfigIssue(
+                "ENABLED_WORKSPACES", f"workspace {slug!r} has no folder in {directory}" + _HINT
+            )
         )
     if issues:
         raise WorkspaceConfigError(issues)

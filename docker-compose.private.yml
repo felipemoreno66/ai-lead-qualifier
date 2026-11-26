@@ -29,6 +29,8 @@ services:
     environment:
       APP_ENV: production
       ENABLED_WORKSPACES: david-moreno
+      # The real workspace config lives outside git, in a host directory mounted read-only below.
+      WORKSPACES_DIR: /srv/private-workspaces
       DEMO_SEED: "false"
       ALLOW_DRAFT_WORKSPACES: ${ALLOW_DRAFT_WORKSPACES:-false}
       EXPOSE_ADMIN_API: ${EXPOSE_ADMIN_API:-true}
@@ -40,6 +42,15 @@ services:
       IP_HASH_SECRET: ${IP_HASH_SECRET:?set IP_HASH_SECRET in .env.private}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-resend}
       EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM in .env.private}
+    # Create it first with `scripts/private-workspace.sh init`. create_host_path is off so a wrong
+    # path fails loudly instead of Docker creating an empty directory.
+    volumes: !override
+      - type: bind
+        source: ${PRIVATE_WORKSPACES_DIR:-./data/private/workspaces}
+        target: /srv/private-workspaces
+        read_only: true
+        bind:
+          create_host_path: false
 
   web:
     ports: !override

@@ -23,8 +23,9 @@ Replace the placeholders before going live:
 
 ## 1. Allow the website's origin (CORS)
 
-Browsers only let the page call the API when its origin is listed. Edit
-`workspaces/david-moreno/workspace.yaml`:
+Browsers only let the page call the API when its origin is listed. Edit your **private** copy,
+`data/private/workspaces/david-moreno/workspace.yaml` (or the directory in `PRIVATE_WORKSPACES_DIR`; create it with
+`scripts/private-workspace.sh init`). Never edit the public template in `workspaces/david-moreno/`:
 
 ```yaml
 cors:
@@ -36,11 +37,12 @@ Only `https://` origins are accepted on the private instance (`http://localhost:
 when `APP_ENV=local`, never in production). Restart the
 agent after editing. A page on any other origin gets `403`. List only the exact https origin and never use `*`.
 
-`workspaces/` is copied into the agent image (it is not mounted), so a restart is not enough; rebuild
-and recreate the agent:
+The private directory is a read-only bind mount (no rebuild needed), but the agent reads it at startup,
+so restart it (`up -d agent` alone does nothing when the container is unchanged):
 
 ```bash
-docker compose --env-file .env.private -f docker-compose.yml -f docker-compose.private.yml up -d --build agent
+scripts/private-workspace.sh validate
+docker compose --env-file .env.private -f docker-compose.yml -f docker-compose.private.yml restart agent
 ```
 
 (The project name `ai-lead-qualifier-private` is set inside `docker-compose.private.yml`, so `-p` is not needed.)
@@ -195,8 +197,8 @@ visitor appears to come from the proxy and shares one limit.
 
 1. Start the private stack (README, "Private instance"). While the workspace is still a draft, set
    `ALLOW_DRAFT_WORKSPACES=true` in `.env.private` for the test only (never in a public deploy).
-2. Add the https origin of the page that hosts the form to `cors.allowed_origins` and restart
-   the agent. For a quick check without a website, call the API with `curl` (no `Origin` header,
+2. Add the https origin of the page that hosts the form to `cors.allowed_origins` of your private copy and restart
+   the agent (`restart agent`). For a quick check without a website, call the API with `curl` (no `Origin` header,
    so CORS does not apply):
 
    ```bash

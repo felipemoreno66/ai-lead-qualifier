@@ -239,6 +239,7 @@ Needs Docker Compose 2.24 or newer (the override uses `!override`); check with `
 
 ```bash
 cp .env.private.example .env.private     # gitignored; fill every empty value
+scripts/private-workspace.sh init        # copies the public template into data/private/workspaces/ (outside git)
 pnpm install && pnpm hash-password       # prompts for the password, prints ADMIN_PASSWORD_HASH='...'
 docker compose --env-file .env.private -f docker-compose.yml -f docker-compose.private.yml up -d --build --wait
 ```
@@ -292,9 +293,22 @@ Compose refuses to start while a required secret is missing. Stop it with `docke
   Locally `EMAIL_PROVIDER=smtp` (default) keeps using Mailpit.
 - **Real data stays out of git.** `.env.private` and `data/private/` are ignored, the repository holds only
   fictional Northwind data, and a test fails if either path becomes tracked.
-- **The workspace is a draft.** `workspaces/david-moreno/workspace.yaml` has `TODO(david)` placeholders; the
-  public form stays closed until they are filled in and `draft` is `false`. To connect the contact form of your
-  services page, see [docs/connect-external-form.md](docs/connect-external-form.md).
+- **The real workspace config lives outside git.** `workspaces/david-moreno/` in the repo is only the public
+  template (placeholders, `draft: true`). `scripts/private-workspace.sh init` copies it, without ever
+  overwriting, to `data/private/workspaces/david-moreno/` (gitignored; choose another host directory with
+  `PRIVATE_WORKSPACES_DIR` in `.env.private`). `docker-compose.private.yml` mounts that directory read-only into
+  the agent at `/srv/private-workspaces` and sets `WORKSPACES_DIR` to it, so your real contact email, prices and
+  CORS origins never reach the public repository. If the directory is missing Compose refuses to start the agent
+  (`bind source path does not exist`); if it is empty or invalid the agent exits with a message that says how to
+  create it. The web app reads no workspace files, only the agent's API.
+  - **Edit** `data/private/workspaces/david-moreno/workspace.yaml` (and its `knowledge-base/`), never the template.
+  - **Check it** with `scripts/private-workspace.sh validate` (runs the agent's own loader and schema).
+  - **Apply it** with `docker compose --env-file .env.private -f docker-compose.yml -f docker-compose.private.yml restart agent`.
+    A bind mount needs no rebuild, but the agent reads the config at startup, and `up -d agent` alone would
+    not restart an unchanged container.
+  - The public form stays closed while `profile.draft` is `true`; set it to `false` once the `TODO(david)` values
+    are filled in. To connect the contact form of your services page, see
+    [docs/connect-external-form.md](docs/connect-external-form.md).
 
 ## Configuration
 

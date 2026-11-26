@@ -143,3 +143,17 @@ def test_invalid_config_makes_the_service_exit_with_a_readable_list(tmp_path: Pa
     assert "Invalid workspace configuration (1 error(s))" in result.stderr
     assert "duplicate field id 'email'" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+def test_loads_the_template_from_an_external_directory(tmp_path: Path):
+    """The private instance points WORKSPACES_DIR at a copy of the template outside the repo."""
+    shutil.copytree(WORKSPACES_DIR / "david-moreno", tmp_path / "david-moreno")
+    registry = load_workspaces(tmp_path, app_env="production", enabled=frozenset({"david-moreno"}))
+    assert [w.slug for w in registry.all()] == ["david-moreno"]
+
+
+def test_empty_or_missing_private_directory_explains_how_to_create_it(tmp_path: Path):
+    with pytest.raises(WorkspaceConfigError, match=r"private-workspace\.sh init"):
+        _load(tmp_path, enabled="david-moreno")
+    with pytest.raises(WorkspaceConfigError, match=r"private-workspace\.sh init"):
+        _load(tmp_path / "missing", enabled="david-moreno")
